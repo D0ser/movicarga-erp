@@ -17,7 +17,7 @@ export default function SupabaseConnectionStatus() {
 		async function checkConnection() {
 			try {
 				// Verificar la conexión con una solicitud a la API de autenticación
-				const { data, error } = await supabase.auth.getSession();
+				const { error } = await supabase.auth.getSession();
 
 				if (error) {
 					throw new Error(`Error de autenticación: ${error.message}`);
@@ -38,9 +38,10 @@ export default function SupabaseConnectionStatus() {
 				// Si llegamos aquí, la conexión a Supabase está funcionando
 				setConnectionStatus("connected");
 				setDbInfo("Conexión a Supabase establecida correctamente");
-			} catch (err: any) {
+			} catch (err: Error | unknown) {
+				const errorMessage = err instanceof Error ? err.message : String(err);
 				setConnectionStatus("error");
-				setErrorMessage(`Error al verificar la conexión: ${err.message}`);
+				setErrorMessage(`Error al verificar la conexión: ${errorMessage}`);
 				console.error("Error de conexión a Supabase:", err);
 			}
 		}
