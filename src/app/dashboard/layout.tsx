@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import SupabaseConnectionStatus from "@/components/SupabaseConnectionStatus";
 
 // Componente de menú lateral deslizable
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -241,7 +242,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 								? "Reportes Financieros"
 								: ""}
 						</h1>
-						<div className="text-primary">Bienvenido, {JSON.parse(localStorage.getItem("user") || "{}").username || "Usuario"}</div>
+						<div className="flex items-center gap-4">
+							{/* Componente de estado de conexión a Supabase */}
+							<SupabaseConnectionStatus />
+							<div className="text-primary">Bienvenido, {JSON.parse(localStorage.getItem("user") || "{}").username || "Usuario"}</div>
+						</div>
 					</div>
 				</header>
 

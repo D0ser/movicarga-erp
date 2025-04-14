@@ -302,13 +302,18 @@ export default function EgresosPage() {
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Operación</label>
-							<input
-								type="text"
+							<select
 								name="operacion"
 								value={formData.operacion}
 								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-							/>
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary">
+								<option value="">Seleccione operación</option>
+								{tiposOperaciones.map((tipo, index) => (
+									<option key={index} value={tipo}>
+										{tipo}
+									</option>
+								))}
+							</select>
 						</div>
 
 						<div>

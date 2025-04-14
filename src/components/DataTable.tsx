@@ -21,6 +21,7 @@ interface DataTableProps<T extends DataItem = DataItem> {
 	data: T[];
 	title: string;
 	defaultSort?: string;
+	isLoading?: boolean;
 	filters?: {
 		year?: boolean;
 		month?: boolean;
@@ -36,7 +37,7 @@ interface DataTableProps<T extends DataItem = DataItem> {
 	};
 }
 
-export default function DataTable<T extends DataItem = DataItem>({ columns, data, title, defaultSort, filters }: DataTableProps<T>) {
+export default function DataTable<T extends DataItem = DataItem>({ columns, data, title, defaultSort, isLoading = false, filters }: DataTableProps<T>) {
 	const [sortConfig, setSortConfig] = useState({ key: defaultSort || "", direction: "asc" });
 	const [filterYear, setFilterYear] = useState<string>("");
 	const [filterMonth, setFilterMonth] = useState<string>("");
@@ -339,7 +340,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 					</div>
 
 					{/* Botón de exportar */}
-					<button onClick={exportToExcel} className="bg-secondary text-white px-4 py-1 rounded hover:bg-secondary-dark text-sm flex-shrink-0 ml-auto">
+					<button onClick={exportToExcel} className="bg-secondary text-white px-4 py-1 rounded hover:bg-secondary-dark text-sm flex-shrink-0 ml-auto" disabled={isLoading}>
 						Exportar a Excel
 					</button>
 				</div>
@@ -361,7 +362,16 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 						</tr>
 					</thead>
 					<tbody className="bg-white divide-y divide-gray-200">
-						{filteredData.length > 0 ? (
+						{isLoading ? (
+							<tr>
+								<td colSpan={columns.length} className="px-6 py-4 text-center">
+									<div className="flex justify-center items-center">
+										<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+										<span className="ml-2">Cargando datos...</span>
+									</div>
+								</td>
+							</tr>
+						) : filteredData.length > 0 ? (
 							filteredData.map((row, rowIndex) => (
 								<tr key={rowIndex} className="hover:bg-gray-50">
 									{columns.map((column, colIndex) => (
@@ -389,8 +399,16 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 			{/* Footer con paginación (opcional para futuras mejoras) */}
 			<div className="bg-gray-50 px-4 py-3 border-t flex items-center justify-between">
 				<div className="flex-1 flex justify-between sm:hidden">
-					<button className="relative inline-flex items-center px-4 py-2 border border-primary text-sm font-medium rounded-md text-primary bg-white hover:bg-gray-50">Anterior</button>
-					<button className="ml-3 relative inline-flex items-center px-4 py-2 border border-primary text-sm font-medium rounded-md text-primary bg-white hover:bg-gray-50">Siguiente</button>
+					<button
+						disabled={isLoading}
+						className="relative inline-flex items-center px-4 py-2 border border-primary text-sm font-medium rounded-md text-primary bg-white hover:bg-gray-50 disabled:opacity-50">
+						Anterior
+					</button>
+					<button
+						disabled={isLoading}
+						className="ml-3 relative inline-flex items-center px-4 py-2 border border-primary text-sm font-medium rounded-md text-primary bg-white hover:bg-gray-50 disabled:opacity-50">
+						Siguiente
+					</button>
 				</div>
 				<div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
 					<div>

@@ -7,27 +7,36 @@ async function testSupabaseConnection() {
 	console.log(`Clave API definida: ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Sí" : "No"}`);
 
 	try {
-		// Intentar obtener la versión de Postgrest (siempre disponible en Supabase)
-		const { data, error } = await supabase.rpc("get_service_status");
+		// Intento más seguro: verificar si podemos obtener la sesión actual
+		console.log("Verificando autenticación...");
+		const { error: authError } = await supabase.auth.getSession();
 
-		if (error) {
-			console.error("Error al conectar con Supabase:", error.message);
+		if (authError) {
+			console.warn("Advertencia en autenticación:", authError.message);
+		} else {
+			console.log("Verificación de autenticación exitosa");
+		}
 
-			// Intento alternativo: verificar tablas existentes
-			console.log("Intentando listar tablas...");
-			const { data: tablesData, error: tablesError } = await supabase.from("_tables").select("*").limit(1);
+		// Intento alternativo: listar tablas disponibles
+		console.log("Intentando listar tablas...");
+		try {
+			// Consulta genérica para verificar la conexión
+			const { data, error } = await supabase
+				.from("clientes") // Puedes cambiar esto por cualquier tabla que sepas que existe
+				.select("*")
+				.limit(1);
 
-			if (tablesError) {
-				console.error("Error al listar tablas:", tablesError.message);
+			if (error) {
+				console.error("Error al consultar tabla:", error.message);
 				return false;
 			} else {
-				console.log("Conexión exitosa (se pudo listar tablas)");
+				console.log("Conexión exitosa a la base de datos");
+				console.log("Datos recuperados:", data ? data.length : 0, "registros");
 				return true;
 			}
-		} else {
-			console.log("Conexión exitosa con Supabase");
-			console.log("Estado del servicio:", data);
-			return true;
+		} catch (dbErr) {
+			console.error("Error al acceder a la base de datos:", dbErr);
+			return false;
 		}
 	} catch (err) {
 		console.error("Error general al conectar con Supabase:", err);
@@ -39,7 +48,9 @@ async function testSupabaseConnection() {
 testSupabaseConnection()
 	.then((isConnected) => {
 		console.log(`Resultado final: ${isConnected ? "Conexión exitosa ✅" : "Conexión fallida ❌"}`);
+		process.exit(isConnected ? 0 : 1); // Código de salida basado en el resultado
 	})
 	.catch((err) => {
 		console.error("Error al ejecutar la prueba:", err);
+		process.exit(1);
 	});

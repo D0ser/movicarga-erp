@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useRef } from "react";
-import DataTable from "@/components/DataTable";
+import DataTable, { DataItem } from "@/components/DataTable";
 import { format } from "date-fns";
 
 // Definición de la estructura de datos de Detracciones
-interface Detraccion {
+interface Detraccion extends DataItem {
 	id: number;
 	fecha: string;
 	numeroConstancia: string;
@@ -97,7 +97,7 @@ export default function DetraccionesPage() {
 		{
 			header: "Fecha",
 			accessor: "fecha",
-			cell: (value: string) => format(new Date(value), "dd/MM/yyyy"),
+			cell: (value: unknown) => format(new Date(value as string), "dd/MM/yyyy"),
 		},
 		{
 			header: "N° Constancia",
@@ -118,7 +118,7 @@ export default function DetraccionesPage() {
 		{
 			header: "Importe",
 			accessor: "importe",
-			cell: (value: number, row: Detraccion) => `${row.moneda === "PEN" ? "S/." : "$"} ${value.toLocaleString("es-PE")}`,
+			cell: (value: unknown, row: Detraccion) => `${row.moneda === "PEN" ? "S/." : "$"} ${(value as number).toLocaleString("es-PE")}`,
 		},
 		{
 			header: "Tipo Operación",
@@ -143,21 +143,23 @@ export default function DetraccionesPage() {
 		{
 			header: "Estado",
 			accessor: "estado",
-			cell: (value: string) => <span className={`px-2 py-1 rounded-full text-xs font-medium ${value === "Pagado" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>{value}</span>,
+			cell: (value: unknown) => (
+				<span className={`px-2 py-1 rounded-full text-xs font-medium ${(value as string) === "Pagado" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>{value as string}</span>
+			),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: number, row: Detraccion) => (
+			cell: (value: unknown, row: Detraccion) => (
 				<div className="flex space-x-2">
 					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
 						Editar
 					</button>
-					<button onClick={() => handleDelete(value)} className="text-red-600 hover:text-red-800">
+					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
 						Eliminar
 					</button>
 					{row.estado === "Pendiente" && (
-						<button onClick={() => handlePagar(value)} className="text-green-600 hover:text-green-800">
+						<button onClick={() => handlePagar(value as number)} className="text-green-600 hover:text-green-800">
 							Pagar
 						</button>
 					)}
@@ -283,11 +285,20 @@ export default function DetraccionesPage() {
 					return;
 				}
 
-				const detraccion: any = {
+				// Crear un objeto que cumpla con la interfaz Detraccion
+				const detraccion: Detraccion = {
 					id: Date.now() + i, // Generar ID único
+					fecha: new Date().toISOString().split("T")[0],
+					numeroConstancia: "",
+					rucProveedor: "",
+					nombreProveedor: "",
 					moneda: "PEN",
+					importe: 0,
 					tipoOperacion: "Transporte",
 					tipoComprobante: "Factura",
+					serieComprobante: "",
+					numeroComprobante: "",
+					periodo: format(new Date(), "yyyy-MM"),
 					estado: "Pendiente",
 				};
 
@@ -295,13 +306,15 @@ export default function DetraccionesPage() {
 				headers.forEach((header, index) => {
 					const value = values[index].trim();
 					if (header === "importe") {
-						detraccion[header] = parseFloat(value) || 0;
-					} else {
-						detraccion[header] = value;
+						detraccion.importe = parseFloat(value) || 0;
+					} else if (header in detraccion) {
+						// Solo asignar si el encabezado coincide con una propiedad de Detraccion
+						// Usamos type assertion para asignar valores de forma segura
+						(detraccion as Record<string, string | number>)[header] = value;
 					}
 				});
 
-				importedDetracciones.push(detraccion as Detraccion);
+				importedDetracciones.push(detraccion);
 			}
 
 			// Agregar detracciones importadas
