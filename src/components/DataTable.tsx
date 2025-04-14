@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 // Definición de tipos para mejorar el tipo "any"
 export interface DataItem {
@@ -144,20 +145,140 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 	};
 
 	// Exportar a Excel
-	const exportToExcel = () => {
-		const worksheet = XLSX.utils.json_to_sheet(
-			filteredData.map((row) => {
-				const newRow: Record<string, string | number | boolean | null> = {};
-				columns.forEach((column) => {
-					newRow[column.header] = row[column.accessor] as string | number | boolean | null;
-				});
-				return newRow;
-			})
-		);
+	const exportToExcel = async () => {
+		const workbook = new ExcelJS.Workbook();
+		const worksheet = workbook.addWorksheet(title);
 
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, title);
-		XLSX.writeFile(workbook, `${title}-${new Date().toISOString().split("T")[0]}.xlsx`);
+		// Agregar metadatos al archivo
+		workbook.creator = "Movicarga ERP";
+		workbook.lastModifiedBy = "Sistema Movicarga";
+		workbook.created = new Date();
+		workbook.modified = new Date();
+
+		// Definir estilos para encabezados
+		const headerStyle = {
+			font: { bold: true, color: { argb: "FFFFFF" }, size: 12 },
+			fill: { type: "pattern" as const, pattern: "solid" as const, fgColor: { argb: "0052CC" } }, // Color azul corporativo
+			alignment: { horizontal: "center" as const, vertical: "middle" as const },
+			border: {
+				top: { style: "thin" as const },
+				left: { style: "thin" as const },
+				bottom: { style: "thin" as const },
+				right: { style: "thin" as const },
+			},
+		};
+
+		// Definir estilos para filas
+		const rowStyle = {
+			border: {
+				top: { style: "thin" as const },
+				left: { style: "thin" as const },
+				bottom: { style: "thin" as const },
+				right: { style: "thin" as const },
+			},
+		};
+
+		// Estilo para montos
+		const currencyStyle = {
+			numFmt: '_("S/." * #,##0.00_);_("S/." * -#,##0.00);_("S/." * "-"??_);_(@_)',
+			alignment: { horizontal: "right" as const },
+		};
+
+		// Estilo para fechas
+		const dateStyle = {
+			numFmt: "dd/mm/yyyy",
+			alignment: { horizontal: "center" as const },
+		};
+
+		// Definir columnas con formato específico
+		const monedaColumns = ["monto", "montoFlete", "detraccion", "totalDeber", "totalMonto", "limiteCredito", "precioFlete", "adelanto", "saldo", "importe", "rentabilidad"];
+		const fechaColumns = [
+			"fecha",
+			"fechaRegistro",
+			"fechaContratacion",
+			"fechaVencimiento",
+			"fechaSalida",
+			"fechaLlegada",
+			"vencimientoSoat",
+			"vencimientoRevision",
+			"fechaVencimientoLicencia",
+			"fechaVencimientoExamenMedico",
+		];
+
+		// Agregar encabezados con estilo
+		const headerRow = worksheet.addRow(columns.map((column) => column.header));
+		headerRow.eachCell((cell) => {
+			cell.style = headerStyle;
+		});
+
+		// Hacer los encabezados un poco más altos
+		headerRow.height = 25;
+
+		// Agregar datos con formato adecuado
+		filteredData.forEach((dataRow) => {
+			const rowData = columns.map((column) => {
+				const value = dataRow[column.accessor];
+
+				// Si hay una función de celda y es una fecha o moneda, obtener el valor crudo
+				if (column.cell && typeof value !== "undefined" && value !== null) {
+					// Para fechas
+					if (fechaColumns.includes(column.accessor) || value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
+						try {
+							return new Date(value as string);
+						} catch {
+							return value;
+						}
+					}
+
+					// Para monedas - extraer el valor numérico
+					if (monedaColumns.includes(column.accessor) && typeof value === "number") {
+						return value;
+					}
+				}
+
+				return value;
+			});
+
+			const row = worksheet.addRow(rowData);
+
+			// Aplicar estilos a cada celda según su contenido
+			row.eachCell((cell, colNumber) => {
+				// Aplicar bordes básicos a todas las celdas
+				cell.style = { ...rowStyle };
+
+				const columnName = columns[colNumber - 1].accessor;
+
+				// Aplicar estilo de moneda
+				if (monedaColumns.includes(columnName) && typeof cell.value === "number") {
+					cell.style = { ...cell.style, ...currencyStyle };
+				}
+
+				// Aplicar estilo de fecha
+				if (fechaColumns.includes(columnName) && cell.value instanceof Date) {
+					cell.style = { ...cell.style, ...dateStyle };
+				}
+			});
+		});
+
+		// Ajustar ancho de columnas automáticamente
+		worksheet.columns.forEach((column) => {
+			let maxLength = 0;
+			if (column) {
+				column.eachCell?.({ includeEmpty: true }, (cell) => {
+					const columnLength = cell.value ? cell.value.toString().length : 10;
+					if (columnLength > maxLength) {
+						maxLength = columnLength;
+					}
+				});
+				// Agregar un poco de espacio extra y establecer límites
+				column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+			}
+		});
+
+		// Generar archivo Excel
+		const buffer = await workbook.xlsx.writeBuffer();
+		const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+		saveAs(blob, `${title}-${new Date().toISOString().split("T")[0]}.xlsx`);
 	};
 
 	return (
