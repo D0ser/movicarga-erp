@@ -1,0 +1,93 @@
+name: Update Supabase Database
+
+on:
+  push:
+    branches:
+      - main # O reemplaza con tu rama principal: master, development, etc.
+    paths:
+      - "create-all-tables.sql" # Solo se ejecuta cuando este archivo cambia
+
+jobs:
+  update-database:
+    runs-on: ubuntu-latest
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+
+      - name: Install dependencies
+        run: npm install @supabase/supabase-js dotenv pg
+
+      - name: Execute SQL script
+        run: |
+          cat << EOF > update-database.js
+          const { createClient } = require('@supabase/supabase-js');
+          const fs = require('fs');
+          const { Pool } = require('pg');
+
+          async function main() {
+            // Verificar que las variables de entorno estén disponibles
+            let supabaseUrl = process.env.SUPABASE_URL;
+            const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+            
+            // Eliminar el prefijo '@' si existe
+            if (supabaseUrl && supabaseUrl.startsWith('@')) {
+              supabaseUrl = supabaseUrl.substring(1);
+            }
+            
+            if (!supabaseUrl || !supabaseServiceRoleKey) {
+              console.error('❌ Variables de entorno SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no están configuradas');
+              process.exit(1);
+            }
+            
+            try {
+              console.log('📝 Leyendo el archivo SQL...');
+              const sqlScript = fs.readFileSync('create-all-tables.sql', 'utf8');
+              
+              // Conexión directa a PostgreSQL para ejecutar scripts grandes
+              // Extrae la información de conexión desde la URL de Supabase
+              const urlMatch = supabaseUrl.match(/https:\/\/([^.]+)/);
+              const projectRef = urlMatch ? urlMatch[1] : null;
+              
+              if (!projectRef) {
+                throw new Error('No se pudo extraer el identificador del proyecto desde la URL de Supabase');
+              }
+              
+              const connectionString = `postgres://postgres:${supabaseServiceRoleKey}@db.${projectRef}.supabase.co:5432/postgres`;
+              
+              console.log('🔌 Conectando a la base de datos Postgres...');
+              const pool = new Pool({ connectionString });
+              
+              console.log('🚀 Ejecutando el script SQL...');
+              await pool.query(sqlScript);
+              
+              console.log('✅ Base de datos actualizada correctamente!');
+              await pool.end();
+              
+            } catch (error) {
+              console.error('❌ Error al actualizar la base de datos:', error);
+              process.exit(1);
+            }
+          }
+
+          main();
+          EOF
+
+          node update-database.js
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ La base de datos ha sido actualizada exitosamente!"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Error al actualizar la base de datos. Revisa los logs para más detalles."
