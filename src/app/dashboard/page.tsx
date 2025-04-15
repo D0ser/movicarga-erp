@@ -5,6 +5,7 @@ import { format, subMonths, parseISO } from "date-fns";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale, Filler } from "chart.js";
 import { Line, Bar, Doughnut, Radar } from "react-chartjs-2";
 import SupabaseConnectionStatus from "@/components/SupabaseConnectionStatus";
+import NotificationDemo from "@/components/notifications/NotificationDemo";
 
 // Registramos los componentes necesarios de Chart.js
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale, Filler);
@@ -155,15 +156,15 @@ export default function Dashboard() {
 			{
 				label: "Ingresos",
 				data: financialData.ingresos,
-				borderColor: "rgb(34, 197, 94)",
-				backgroundColor: "rgba(34, 197, 94, 0.5)",
+				borderColor: "#f39200",
+				backgroundColor: "rgba(243, 146, 0, 0.5)",
 				tension: 0.3,
 			},
 			{
 				label: "Egresos",
 				data: financialData.egresos,
-				borderColor: "rgb(239, 68, 68)",
-				backgroundColor: "rgba(239, 68, 68, 0.5)",
+				borderColor: "#2d2e83",
+				backgroundColor: "rgba(45, 46, 131, 0.5)",
 				tension: 0.3,
 			},
 		],
@@ -196,12 +197,12 @@ export default function Dashboard() {
 			{
 				label: "Viajes Completados",
 				data: viajesData.completados,
-				backgroundColor: "rgba(34, 197, 94, 0.7)",
+				backgroundColor: "rgba(45, 46, 131, 0.7)",
 			},
 			{
 				label: "Viajes Programados",
 				data: viajesData.programados,
-				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				backgroundColor: "rgba(243, 146, 0, 0.7)",
 			},
 			{
 				label: "Viajes Cancelados",
@@ -229,8 +230,8 @@ export default function Dashboard() {
 		datasets: [
 			{
 				data: [vehiculosData.activos, vehiculosData.mantenimiento, vehiculosData.inactivos],
-				backgroundColor: ["rgba(34, 197, 94, 0.7)", "rgba(234, 179, 8, 0.7)", "rgba(239, 68, 68, 0.7)"],
-				borderColor: ["rgba(34, 197, 94, 1)", "rgba(234, 179, 8, 1)", "rgba(239, 68, 68, 1)"],
+				backgroundColor: ["rgba(45, 46, 131, 0.7)", "rgba(243, 146, 0, 0.7)", "rgba(239, 68, 68, 0.7)"],
+				borderColor: ["rgba(45, 46, 131, 1)", "rgba(243, 146, 0, 1)", "rgba(239, 68, 68, 1)"],
 				borderWidth: 1,
 			},
 		],
@@ -262,13 +263,13 @@ export default function Dashboard() {
 		datasets: [
 			{
 				data: rutasPopulares.map((item) => item.viajes),
-				backgroundColor: "rgba(59, 130, 246, 0.2)",
-				borderColor: "rgba(59, 130, 246, 1)",
+				backgroundColor: "rgba(243, 146, 0, 0.2)",
+				borderColor: "rgba(45, 46, 131, 1)",
 				borderWidth: 2,
-				pointBackgroundColor: "rgba(59, 130, 246, 1)",
+				pointBackgroundColor: "rgba(45, 46, 131, 1)",
 				pointBorderColor: "#fff",
 				pointHoverBackgroundColor: "#fff",
-				pointHoverBorderColor: "rgba(59, 130, 246, 1)",
+				pointHoverBorderColor: "rgba(45, 46, 131, 1)",
 			},
 		],
 	};
@@ -277,11 +278,14 @@ export default function Dashboard() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center mb-6">
 				<h1 className="text-2xl font-bold">Dashboard</h1>
-				<div className="text-sm bg-blue-50 text-blue-600 px-3 py-1 rounded-full">{format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy")}</div>
+				<div className="text-sm bg-primary text-white px-3 py-1 rounded-full">{format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy")}</div>
 			</div>
 
 			{/* Estado de conexión con Supabase */}
 			<SupabaseConnectionStatus />
+
+			{/* Demostración de notificaciones */}
+			<NotificationDemo className="mb-6" />
 
 			{/* Tarjetas de estadísticas principales */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -298,14 +302,14 @@ export default function Dashboard() {
 							/>
 						</svg>
 					}
-					color="bg-green-500"
+					color="bg-secondary"
 				/>
 				<StatCard
 					title="Total Egresos"
 					value={`S/. ${stats.egresos.toLocaleString()}`}
 					icon={
 						<svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
 					}
 					color="bg-red-500"
@@ -323,7 +327,7 @@ export default function Dashboard() {
 							/>
 						</svg>
 					}
-					color="bg-blue-500"
+					color="bg-primary"
 				/>
 				<StatCard
 					title="Vehículos Activos"
@@ -333,17 +337,17 @@ export default function Dashboard() {
 							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
 						</svg>
 					}
-					color="bg-yellow-500"
+					color="bg-secondary"
 				/>
 			</div>
 
 			{/* Tarjetas de indicadores secundarios */}
 			<div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
 				<MiniCard title="Viajes Completados" value={stats.viajesCompletados} color="bg-green-100 text-green-800" />
-				<MiniCard title="Viajes En Ruta" value={stats.viajesEnRuta} color="bg-blue-100 text-blue-800" />
-				<MiniCard title="Viajes Programados" value={stats.viajeProgramados} color="bg-yellow-100 text-yellow-800" />
-				<MiniCard title="Facturas Pendientes" value={stats.facturasPendientes} color="bg-orange-100 text-orange-800" />
-				<MiniCard title="Detracciones Pendientes" value={stats.detracciones.pendientes} color="bg-purple-100 text-purple-800" />
+				<MiniCard title="Viajes En Ruta" value={stats.viajesEnRuta} color="bg-primary bg-opacity-10 text-primary" />
+				<MiniCard title="Viajes Programados" value={stats.viajeProgramados} color="bg-secondary bg-opacity-10 text-secondary" />
+				<MiniCard title="Facturas Pendientes" value={stats.facturasPendientes} color="bg-primary bg-opacity-10 text-primary" />
+				<MiniCard title="Detracciones Pendientes" value={stats.detracciones.pendientes} color="bg-secondary bg-opacity-10 text-secondary" />
 				<MiniCard title="Próx. Mantenimientos" value={stats.proximosMantenimientos} color="bg-red-100 text-red-800" />
 			</div>
 
@@ -394,7 +398,7 @@ export default function Dashboard() {
 					<div className="divide-y">
 						<div className="py-2 flex justify-between">
 							<span>Ratio de viajes completados:</span>
-							<span className="font-medium text-green-600">{Math.round((stats.viajesCompletados / stats.viajes.totalMes) * 100)}%</span>
+							<span className="font-medium text-primary">{Math.round((stats.viajesCompletados / stats.viajes.totalMes) * 100)}%</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Ratio de viajes cancelados:</span>
@@ -402,11 +406,11 @@ export default function Dashboard() {
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Eficiencia de flota:</span>
-							<span className="font-medium text-blue-600">{Math.round((vehiculosData.activos / stats.vehiculos) * 100)}%</span>
+							<span className="font-medium text-secondary">{Math.round((vehiculosData.activos / stats.vehiculos) * 100)}%</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Detracciones completadas:</span>
-							<span className="font-medium text-purple-600">{Math.round((stats.detracciones.completadas / (stats.detracciones.completadas + stats.detracciones.pendientes)) * 100)}%</span>
+							<span className="font-medium text-primary">{Math.round((stats.detracciones.completadas / (stats.detracciones.completadas + stats.detracciones.pendientes)) * 100)}%</span>
 						</div>
 					</div>
 				</div>
@@ -441,7 +445,7 @@ function StatCard({ title, value, icon, color }: { title: string; value: string 
 	return (
 		<div className="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
 			<div>
-				<p className="text-sm font-medium text-gray-500">{title}</p>
+				<p className="text-sm font-medium">{title}</p>
 				<p className="text-2xl font-bold">{value}</p>
 			</div>
 			<div className={`${color} p-3 rounded-full text-white`}>{icon}</div>
@@ -462,10 +466,10 @@ function MiniCard({ title, value, color }: { title: string; value: number; color
 // Componente de item de actividad
 function ActivityItem({ title, description, time }: { title: string; description: string; time: string }) {
 	return (
-		<div className="border-l-4 border-blue-500 pl-3">
+		<div className="border-l-4 border-primary pl-3">
 			<h3 className="font-semibold">{title}</h3>
-			<p className="text-gray-600 text-sm">{description}</p>
-			<p className="text-gray-400 text-xs">{time}</p>
+			<p className="text-sm">{description}</p>
+			<p className="text-xs text-gray-400">{time}</p>
 		</div>
 	);
 }
@@ -477,17 +481,17 @@ function VencimientoItem({ tipo, vehiculo, fecha }: { tipo: string; vehiculo: st
 	const diasRestantes = Math.ceil((fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
 
 	let colorClass = "text-green-600";
-	if (diasRestantes < 15) colorClass = "text-yellow-600";
+	if (diasRestantes < 15) colorClass = "text-secondary";
 	if (diasRestantes < 7) colorClass = "text-orange-600";
 	if (diasRestantes < 3) colorClass = "text-red-600";
 
 	return (
-		<div className="flex justify-between items-center border-l-4 border-blue-400 pl-3">
+		<div className="flex justify-between items-center border-l-4 border-primary pl-3">
 			<div>
 				<h3 className="font-medium">
 					{tipo} - {vehiculo}
 				</h3>
-				<p className="text-gray-500 text-xs">{format(parseISO(fecha), "dd/MM/yyyy")}</p>
+				<p className="text-xs">{format(parseISO(fecha), "dd/MM/yyyy")}</p>
 			</div>
 			<div className={`font-bold ${colorClass}`}>{diasRestantes} días</div>
 		</div>
@@ -497,17 +501,17 @@ function VencimientoItem({ tipo, vehiculo, fecha }: { tipo: string; vehiculo: st
 // Componente de item de acción
 function ActionItem({ text, priority = "medium" }: { text: string; priority: "low" | "medium" | "high" }) {
 	let colorClass = "border-gray-300";
-	if (priority === "medium") colorClass = "border-yellow-400";
+	if (priority === "medium") colorClass = "border-secondary";
 	if (priority === "high") colorClass = "border-red-500";
 
 	return (
 		<div className={`flex items-center border-l-4 ${colorClass} pl-3 py-2`}>
 			<div className="flex-1">
-				<p className="text-gray-700">{text}</p>
+				<p>{text}</p>
 			</div>
 			<div>
 				{priority === "high" && <span className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Alta</span>}
-				{priority === "medium" && <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">Media</span>}
+				{priority === "medium" && <span className="px-2 py-1 bg-secondary bg-opacity-10 text-secondary text-xs rounded-full">Media</span>}
 				{priority === "low" && <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Baja</span>}
 			</div>
 		</div>

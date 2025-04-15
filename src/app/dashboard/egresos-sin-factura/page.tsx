@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import DataTable from "@/components/DataTable";
+import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 
 // Definición de la estructura de datos de Egresos Sin Factura
@@ -66,7 +66,7 @@ export default function EgresosSinFacturaPage() {
 	});
 
 	// Columnas para la tabla de egresos sin factura
-	const columns = [
+	const columns: Column<EgresoSinFactura>[] = [
 		{
 			header: "Fecha",
 			accessor: "fecha",

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import DataTable from "@/components/DataTable";
+import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { viajeService, clienteService, conductorService, vehiculoService, Viaje, Cliente, Conductor, Vehiculo } from "@/lib/supabaseServices";
-import { toast } from "react-hot-toast";
+import notificationService from "@/components/notifications/NotificationService";
 
 // Componente para la página de viajes
 export default function ViajesPage() {
@@ -59,7 +59,7 @@ export default function ViajesPage() {
 			setViajes(data);
 		} catch (error) {
 			console.error("Error al cargar viajes:", error);
-			toast.error("No se pudieron cargar los viajes");
+			notificationService.error("No se pudieron cargar los viajes");
 		} finally {
 			setLoading(false);
 		}
@@ -71,7 +71,7 @@ export default function ViajesPage() {
 			setClientes(data);
 		} catch (error) {
 			console.error("Error al cargar clientes:", error);
-			toast.error("No se pudieron cargar los clientes");
+			notificationService.error("No se pudieron cargar los clientes");
 		}
 	};
 
@@ -81,7 +81,7 @@ export default function ViajesPage() {
 			setConductores(data);
 		} catch (error) {
 			console.error("Error al cargar conductores:", error);
-			toast.error("No se pudieron cargar los conductores");
+			notificationService.error("No se pudieron cargar los conductores");
 		}
 	};
 
@@ -91,12 +91,12 @@ export default function ViajesPage() {
 			setVehiculos(data);
 		} catch (error) {
 			console.error("Error al cargar vehículos:", error);
-			toast.error("No se pudieron cargar los vehículos");
+			notificationService.error("No se pudieron cargar los vehículos");
 		}
 	};
 
 	// Columnas para la tabla de viajes
-	const columns = [
+	const columns: Column<Viaje>[] = [
 		{
 			header: "Cliente",
 			accessor: "cliente.razon_social",
@@ -197,7 +197,7 @@ export default function ViajesPage() {
 				// Actualizar viaje existente
 				const updatedViaje = await viajeService.updateViaje(formData.id, formData);
 				setViajes(viajes.map((v) => (v.id === updatedViaje.id ? { ...updatedViaje, cliente: v.cliente, conductor: v.conductor, vehiculo: v.vehiculo } : v)));
-				toast.success("Viaje actualizado correctamente");
+				notificationService.success("Viaje actualizado correctamente");
 			} else {
 				// Agregar nuevo viaje
 				const newViaje = await viajeService.createViaje(formData as Omit<Viaje, "id" | "cliente" | "conductor" | "vehiculo">);
@@ -218,7 +218,7 @@ export default function ViajesPage() {
 					},
 				]);
 
-				toast.success("Viaje creado correctamente");
+				notificationService.success("Viaje creado correctamente");
 			}
 
 			// Limpiar formulario
@@ -243,7 +243,7 @@ export default function ViajesPage() {
 			setShowForm(false);
 		} catch (error) {
 			console.error("Error al guardar viaje:", error);
-			toast.error("No se pudo guardar el viaje");
+			notificationService.error("No se pudo guardar el viaje");
 		} finally {
 			setLoading(false);
 		}
@@ -265,10 +265,10 @@ export default function ViajesPage() {
 				setLoading(true);
 				await viajeService.deleteViaje(id);
 				setViajes(viajes.filter((v) => v.id !== id));
-				toast.success("Viaje eliminado correctamente");
+				notificationService.success("Viaje eliminado correctamente");
 			} catch (error) {
 				console.error("Error al eliminar viaje:", error);
-				toast.error("No se pudo eliminar el viaje");
+				notificationService.error("No se pudo eliminar el viaje");
 			} finally {
 				setLoading(false);
 			}
@@ -307,10 +307,10 @@ export default function ViajesPage() {
 				fecha_llegada: nextStatus === "Completado" && !viaje.fecha_llegada ? new Date().toISOString() : viaje.fecha_llegada,
 			});
 			setViajes(viajes.map((v) => (v.id === id ? { ...updatedViaje, cliente: v.cliente, conductor: v.conductor, vehiculo: v.vehiculo } : v)));
-			toast.success(`Viaje cambiado a estado: ${nextStatus}`);
+			notificationService.success(`Viaje cambiado a estado: ${nextStatus}`);
 		} catch (error) {
 			console.error("Error al cambiar estado del viaje:", error);
-			toast.error("No se pudo cambiar el estado del viaje");
+			notificationService.error("No se pudo cambiar el estado del viaje");
 		} finally {
 			setLoading(false);
 		}

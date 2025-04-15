@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import DataTable, { DataItem } from "@/components/DataTable";
+import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 
 // Definición de la estructura de datos de Detracciones
@@ -93,7 +93,7 @@ export default function DetraccionesPage() {
 	});
 
 	// Columnas para la tabla de detracciones
-	const columns = [
+	const columns: Column<Detraccion>[] = [
 		{
 			header: "Fecha",
 			accessor: "fecha",

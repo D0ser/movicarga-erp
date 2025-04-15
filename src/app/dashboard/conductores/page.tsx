@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import DataTable, { DataItem } from "@/components/DataTable";
+import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { conductorService, Conductor } from "@/lib/supabaseServices";
-import { toast } from "react-hot-toast";
+import notificationService from "@/components/notifications/NotificationService";
 
 // Componente para la página de conductores
 export default function ConductoresPage() {
@@ -39,14 +39,14 @@ export default function ConductoresPage() {
 			setConductores(data);
 		} catch (error) {
 			console.error("Error al cargar conductores:", error);
-			toast.error("No se pudieron cargar los conductores");
+			notificationService.error("No se pudieron cargar los conductores");
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	// Columnas para la tabla de conductores
-	const columns = [
+	const columns: Column<Conductor>[] = [
 		{
 			header: "Nombres",
 			accessor: "nombres",
@@ -139,12 +139,12 @@ export default function ConductoresPage() {
 				// Actualizar conductor existente
 				const updatedConductor = await conductorService.updateConductor(formData.id, formData);
 				setConductores(conductores.map((c) => (c.id === updatedConductor.id ? updatedConductor : c)));
-				toast.success("Conductor actualizado correctamente");
+				notificationService.success("Conductor actualizado correctamente");
 			} else {
 				// Agregar nuevo conductor
 				const newConductor = await conductorService.createConductor(formData as Omit<Conductor, "id">);
 				setConductores([...conductores, newConductor]);
-				toast.success("Conductor creado correctamente");
+				notificationService.success("Conductor creado correctamente");
 			}
 
 			// Limpiar formulario
@@ -167,7 +167,7 @@ export default function ConductoresPage() {
 			setShowForm(false);
 		} catch (error) {
 			console.error("Error al guardar conductor:", error);
-			toast.error("No se pudo guardar el conductor");
+			notificationService.error("No se pudo guardar el conductor");
 		} finally {
 			setLoading(false);
 		}
@@ -186,10 +186,10 @@ export default function ConductoresPage() {
 				setLoading(true);
 				await conductorService.deleteConductor(id);
 				setConductores(conductores.filter((c) => c.id !== id));
-				toast.success("Conductor eliminado correctamente");
+				notificationService.success("Conductor eliminado correctamente");
 			} catch (error) {
 				console.error("Error al eliminar conductor:", error);
-				toast.error("No se pudo eliminar el conductor");
+				notificationService.error("No se pudo eliminar el conductor");
 			} finally {
 				setLoading(false);
 			}
@@ -201,10 +201,10 @@ export default function ConductoresPage() {
 			setLoading(true);
 			const updatedConductor = await conductorService.updateConductor(id, { estado: newStatus });
 			setConductores(conductores.map((c) => (c.id === id ? updatedConductor : c)));
-			toast.success(`Conductor ${newStatus ? "activado" : "desactivado"} correctamente`);
+			notificationService.success(`Conductor ${newStatus ? "activado" : "desactivado"} correctamente`);
 		} catch (error) {
 			console.error("Error al cambiar estado del conductor:", error);
-			toast.error("No se pudo cambiar el estado del conductor");
+			notificationService.error("No se pudo cambiar el estado del conductor");
 		} finally {
 			setLoading(false);
 		}

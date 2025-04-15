@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import DataTable, { DataItem } from "@/components/DataTable";
+import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { clienteService, Cliente } from "@/lib/supabaseServices";
-import { toast } from "react-hot-toast";
+import notificationService from "@/components/notifications/NotificationService";
 
 // Componente para la página de clientes
 export default function ClientesPage() {
@@ -39,14 +39,14 @@ export default function ClientesPage() {
 			setClientes(data);
 		} catch (error) {
 			console.error("Error al cargar clientes:", error);
-			toast.error("No se pudieron cargar los clientes");
+			notificationService.error("No se pudieron cargar los clientes");
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	// Columnas para la tabla de clientes
-	const columns = [
+	const columns: Column<Cliente>[] = [
 		{
 			header: "Razón Social",
 			accessor: "razon_social",
@@ -152,12 +152,12 @@ export default function ClientesPage() {
 				// Actualizar cliente existente
 				const updatedCliente = await clienteService.updateCliente(formData.id, formData);
 				setClientes(clientes.map((c) => (c.id === updatedCliente.id ? updatedCliente : c)));
-				toast.success("Cliente actualizado correctamente");
+				notificationService.success("Cliente actualizado correctamente");
 			} else {
 				// Agregar nuevo cliente
 				const newCliente = await clienteService.createCliente(formData as Omit<Cliente, "id">);
 				setClientes([...clientes, newCliente]);
-				toast.success("Cliente creado correctamente");
+				notificationService.success("Cliente creado correctamente");
 			}
 
 			// Limpiar formulario
@@ -180,7 +180,7 @@ export default function ClientesPage() {
 			setShowForm(false);
 		} catch (error) {
 			console.error("Error al guardar cliente:", error);
-			toast.error("No se pudo guardar el cliente");
+			notificationService.error("No se pudo guardar el cliente");
 		} finally {
 			setLoading(false);
 		}
@@ -199,10 +199,10 @@ export default function ClientesPage() {
 				setLoading(true);
 				await clienteService.deleteCliente(id);
 				setClientes(clientes.filter((c) => c.id !== id));
-				toast.success("Cliente eliminado correctamente");
+				notificationService.success("Cliente eliminado correctamente");
 			} catch (error) {
 				console.error("Error al eliminar cliente:", error);
-				toast.error("No se pudo eliminar el cliente");
+				notificationService.error("No se pudo eliminar el cliente");
 			} finally {
 				setLoading(false);
 			}
@@ -214,10 +214,10 @@ export default function ClientesPage() {
 			setLoading(true);
 			const updatedCliente = await clienteService.updateCliente(id, { estado: newStatus });
 			setClientes(clientes.map((c) => (c.id === id ? updatedCliente : c)));
-			toast.success(`Cliente ${newStatus ? "activado" : "desactivado"} correctamente`);
+			notificationService.success(`Cliente ${newStatus ? "activado" : "desactivado"} correctamente`);
 		} catch (error) {
 			console.error("Error al cambiar estado del cliente:", error);
-			toast.error("No se pudo cambiar el estado del cliente");
+			notificationService.error("No se pudo cambiar el estado del cliente");
 		} finally {
 			setLoading(false);
 		}

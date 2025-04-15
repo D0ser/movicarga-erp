@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import DataTable, { Column, DataItem } from "@/components/DataTable";
 import { format } from "date-fns";
 import { vehiculoService, Vehiculo } from "@/lib/supabaseServices";
-import { toast } from "react-hot-toast";
+import notificationService from "@/components/notifications/NotificationService";
 
 // Componente para la página de vehículos
 export default function VehiculosPage() {
@@ -40,7 +40,7 @@ export default function VehiculosPage() {
 			setVehiculos(data);
 		} catch (error) {
 			console.error("Error al cargar vehículos:", error);
-			toast.error("No se pudieron cargar los vehículos. Intente nuevamente en unos momentos.");
+			notificationService.error("No se pudieron cargar los vehículos. Intente nuevamente en unos momentos.");
 			// Si no hay datos, usar un array vacío
 			setVehiculos([]);
 		} finally {
@@ -186,24 +186,24 @@ export default function VehiculosPage() {
 
 		// Validación de campos
 		if (!formData.placa || formData.placa.trim() === "") {
-			toast.error("La placa del vehículo es obligatoria");
+			notificationService.error("La placa del vehículo es obligatoria");
 			return;
 		}
 
 		if (!formData.fecha_soat) {
-			toast.error("La fecha de vencimiento del SOAT es obligatoria");
+			notificationService.error("La fecha de vencimiento del SOAT es obligatoria");
 			return;
 		}
 
 		if (!formData.fecha_revision_tecnica) {
-			toast.error("La fecha de revisión técnica es obligatoria");
+			notificationService.error("La fecha de revisión técnica es obligatoria");
 			return;
 		}
 
 		// Validar formato de placa (por ejemplo ABC-123)
 		const placaRegex = /^[A-Z0-9]{3}-[A-Z0-9]{3}$/;
 		if (!placaRegex.test(formData.placa)) {
-			toast.error("El formato de la placa debe ser XXX-XXX (ejemplo: ABC-123)");
+			notificationService.error("El formato de la placa debe ser XXX-XXX (ejemplo: ABC-123)");
 			return;
 		}
 
@@ -214,12 +214,12 @@ export default function VehiculosPage() {
 				// Actualizar vehículo existente
 				const updatedVehiculo = await vehiculoService.updateVehiculo(formData.id, formData);
 				setVehiculos(vehiculos.map((v) => (v.id === updatedVehiculo.id ? updatedVehiculo : v)));
-				toast.success("Vehículo actualizado correctamente");
+				notificationService.success("Vehículo actualizado correctamente");
 			} else {
 				// Verificar si ya existe un vehículo con la misma placa
 				const existingVehiculo = vehiculos.find((v) => v.placa.toUpperCase() === formData.placa?.toUpperCase());
 				if (existingVehiculo) {
-					toast.error("Ya existe un vehículo con esta placa");
+					notificationService.error("Ya existe un vehículo con esta placa");
 					setLoading(false);
 					return;
 				}
@@ -227,7 +227,7 @@ export default function VehiculosPage() {
 				// Agregar nuevo vehículo
 				const newVehiculo = await vehiculoService.createVehiculo(formData as Omit<Vehiculo, "id">);
 				setVehiculos([...vehiculos, newVehiculo]);
-				toast.success("Vehículo creado correctamente");
+				notificationService.success("Vehículo creado correctamente");
 			}
 
 			// Limpiar formulario
@@ -251,7 +251,7 @@ export default function VehiculosPage() {
 			setShowForm(false);
 		} catch (error) {
 			console.error("Error al guardar vehículo:", error);
-			toast.error("No se pudo guardar el vehículo. Por favor, intente nuevamente.");
+			notificationService.error("No se pudo guardar el vehículo. Por favor, intente nuevamente.");
 		} finally {
 			setLoading(false);
 		}
@@ -270,10 +270,10 @@ export default function VehiculosPage() {
 				setLoading(true);
 				await vehiculoService.deleteVehiculo(id);
 				setVehiculos(vehiculos.filter((v) => v.id !== id));
-				toast.success("Vehículo eliminado correctamente");
+				notificationService.success("Vehículo eliminado correctamente");
 			} catch (error) {
 				console.error("Error al eliminar vehículo:", error);
-				toast.error("No se pudo eliminar el vehículo");
+				notificationService.error("No se pudo eliminar el vehículo");
 			} finally {
 				setLoading(false);
 			}
@@ -284,7 +284,7 @@ export default function VehiculosPage() {
 		// Obtener el vehículo actual
 		const vehiculo = vehiculos.find((v) => v.id === id);
 		if (!vehiculo) {
-			toast.error("No se encontró el vehículo");
+			notificationService.error("No se encontró el vehículo");
 			return;
 		}
 
@@ -313,14 +313,14 @@ export default function VehiculosPage() {
 
 				// Actualizar el estado local sólo si la actualización en Supabase fue exitosa
 				setVehiculos(vehiculos.map((v) => (v.id === id ? updatedVehiculo : v)));
-				toast.success(`Vehículo cambiado a estado: ${nextStatus}`);
+				notificationService.success(`Vehículo cambiado a estado: ${nextStatus}`);
 			} catch (error) {
 				console.error("Error específico al cambiar estado del vehículo:", error);
 				throw error; // Re-lanzar para el manejo externo
 			}
 		} catch (error) {
 			console.error("Error general al cambiar estado del vehículo:", error);
-			toast.error("No se pudo cambiar el estado del vehículo. Intente nuevamente.");
+			notificationService.error("No se pudo cambiar el estado del vehículo. Intente nuevamente.");
 		} finally {
 			setLoading(false);
 		}
