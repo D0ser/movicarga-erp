@@ -62,6 +62,7 @@ export interface Vehiculo extends DataItem, RelatedEntities {
 	fecha_revision_tecnica: string;
 	estado: string;
 	propietario: string;
+	tipo_vehiculo: string;
 	observaciones: string;
 	created_at?: string;
 	updated_at?: string;
@@ -170,6 +171,15 @@ export interface Detraccion extends DataItem, RelatedEntities {
 	cliente?: Cliente;
 }
 
+export interface Serie extends DataItem {
+	id: string;
+	serie: string;
+	fecha_creacion: string;
+	color?: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
 // Servicios para clientes
 export const clienteService = {
 	async getClientes(): Promise<Cliente[]> {
@@ -261,23 +271,78 @@ export const vehiculoService = {
 	},
 
 	async createVehiculo(vehiculo: Omit<Vehiculo, "id">): Promise<Vehiculo> {
-		const { data, error } = await supabase.from("vehiculos").insert([vehiculo]).select();
+		console.log("Creando vehículo con datos:", vehiculo);
+		try {
+			// Asegurar que todos los campos tengan el tipo correcto
+			const vehiculoPreparado = {
+				...vehiculo,
+				anio: Number(vehiculo.anio),
+				num_ejes: Number(vehiculo.num_ejes),
+				capacidad_carga: Number(vehiculo.capacidad_carga),
+				kilometraje: Number(vehiculo.kilometraje),
+				tipo_vehiculo: vehiculo.tipo_vehiculo || "Tracto",
+			};
 
-		if (error) throw error;
-		return data[0];
+			const { data, error } = await supabase.from("vehiculos").insert([vehiculoPreparado]).select();
+
+			if (error) {
+				console.error("Error al crear vehículo en Supabase:", error);
+				throw error;
+			}
+
+			if (!data || data.length === 0) {
+				throw new Error("No se recibieron datos de respuesta al crear el vehículo");
+			}
+
+			return data[0];
+		} catch (error) {
+			console.error("Error en createVehiculo:", error);
+			throw error;
+		}
 	},
 
 	async updateVehiculo(id: string, vehiculo: Partial<Vehiculo>): Promise<Vehiculo> {
-		const { data, error } = await supabase.from("vehiculos").update(vehiculo).eq("id", id).select();
+		console.log("Actualizando vehículo con ID", id, "y datos:", vehiculo);
+		try {
+			// Asegurar que todos los campos numéricos tengan el tipo correcto
+			const vehiculoPreparado: Partial<Vehiculo> = { ...vehiculo };
 
-		if (error) throw error;
-		return data[0];
+			if (vehiculoPreparado.anio !== undefined) vehiculoPreparado.anio = Number(vehiculoPreparado.anio);
+			if (vehiculoPreparado.num_ejes !== undefined) vehiculoPreparado.num_ejes = Number(vehiculoPreparado.num_ejes);
+			if (vehiculoPreparado.capacidad_carga !== undefined) vehiculoPreparado.capacidad_carga = Number(vehiculoPreparado.capacidad_carga);
+			if (vehiculoPreparado.kilometraje !== undefined) vehiculoPreparado.kilometraje = Number(vehiculoPreparado.kilometraje);
+			if (vehiculoPreparado.tipo_vehiculo === undefined) vehiculoPreparado.tipo_vehiculo = "Tracto";
+
+			const { data, error } = await supabase.from("vehiculos").update(vehiculoPreparado).eq("id", id).select();
+
+			if (error) {
+				console.error("Error al actualizar vehículo en Supabase:", error);
+				throw error;
+			}
+
+			if (!data || data.length === 0) {
+				throw new Error("No se recibieron datos de respuesta al actualizar el vehículo");
+			}
+
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateVehiculo:", error);
+			throw error;
+		}
 	},
 
 	async deleteVehiculo(id: string): Promise<void> {
-		const { error } = await supabase.from("vehiculos").delete().eq("id", id);
+		try {
+			const { error } = await supabase.from("vehiculos").delete().eq("id", id);
 
-		if (error) throw error;
+			if (error) {
+				console.error("Error al eliminar vehículo:", error);
+				throw error;
+			}
+		} catch (error) {
+			console.error("Error en deleteVehiculo:", error);
+			throw error;
+		}
 	},
 };
 
@@ -564,6 +629,43 @@ export const detraccionService = {
 
 	async deleteDetraccion(id: string): Promise<void> {
 		const { error } = await supabase.from("detracciones").delete().eq("id", id);
+
+		if (error) throw error;
+	},
+};
+
+// Servicios para series
+export const serieService = {
+	async getSeries(): Promise<Serie[]> {
+		const { data, error } = await supabase.from("series").select("*").order("serie");
+
+		if (error) throw error;
+		return data || [];
+	},
+
+	async getSerieById(id: string): Promise<Serie | null> {
+		const { data, error } = await supabase.from("series").select("*").eq("id", id).single();
+
+		if (error) throw error;
+		return data;
+	},
+
+	async createSerie(serie: Omit<Serie, "id">): Promise<Serie> {
+		const { data, error } = await supabase.from("series").insert([serie]).select();
+
+		if (error) throw error;
+		return data[0];
+	},
+
+	async updateSerie(id: string, serie: Partial<Serie>): Promise<Serie> {
+		const { data, error } = await supabase.from("series").update(serie).eq("id", id).select();
+
+		if (error) throw error;
+		return data[0];
+	},
+
+	async deleteSerie(id: string): Promise<void> {
+		const { error } = await supabase.from("series").delete().eq("id", id);
 
 		if (error) throw error;
 	},

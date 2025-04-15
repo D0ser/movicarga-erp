@@ -25,19 +25,28 @@ export default function VehiculosPage() {
 		fecha_revision_tecnica: "",
 		estado: "Operativo",
 		propietario: "Empresa",
+		tipo_vehiculo: "Tracto",
 		observaciones: "",
 	});
 
 	// Cargar datos desde Supabase al iniciar
 	useEffect(() => {
 		fetchVehiculos();
+		
+		// Verificar si la columna tipo_vehiculo existe
+		handleMissingColumn().then(hasError => {
+			if (hasError) {
+				console.log("Se detectó que falta la columna tipo_vehiculo en la base de datos");
+			}
+		});
 	}, []);
 
 	const fetchVehiculos = async () => {
 		try {
 			setLoading(true);
 			const data = await vehiculoService.getVehiculos();
-			setVehiculos(data);
+			// Aplicar la función getDisplayData a todos los vehículos
+			setVehiculos(data.map(getDisplayData));
 		} catch (error) {
 			console.error("Error al cargar vehículos:", error);
 			notificationService.error("No se pudieron cargar los vehículos. Intente nuevamente en unos momentos.");
@@ -92,6 +101,20 @@ export default function VehiculosPage() {
 		{
 			header: "Placa",
 			accessor: "placa",
+		},
+		{
+			header: "Tipo",
+			accessor: "tipo_vehiculo",
+			cell: (value: unknown, row: VehiculoDataItem) => {
+				const tipoVehiculo = row.tipo_vehiculo || "Tracto";
+				return (
+					<span className={`px-2 py-1 rounded-full text-xs font-medium ${
+						tipoVehiculo === "Tracto" ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
+					}`}>
+						{tipoVehiculo}
+					</span>
+				);
+			},
 		},
 		{
 			header: "Marca",
@@ -175,10 +198,56 @@ export default function VehiculosPage() {
 			}
 		}
 
-		setFormData({
-			...formData,
+		// Actualizar el estado del formulario
+		setFormData((prevData) => ({
+			...prevData,
 			[name]: processedValue,
-		});
+		}));
+
+		// Log para depuración
+		console.log(`Campo '${name}' actualizado a: ${processedValue}`);
+	};
+
+	// Función para limpiar y validar los datos del vehículo antes de enviarlos
+	const prepareVehiculoData = (data: Partial<Vehiculo>): Partial<Vehiculo> => {
+		// Crea una copia de los datos
+		const cleanData = { ...data };
+
+		// Asegura que todos los campos tengan el tipo correcto
+		if (cleanData.anio) cleanData.anio = Number(cleanData.anio);
+		if (cleanData.num_ejes) cleanData.num_ejes = Number(cleanData.num_ejes);
+		if (cleanData.capacidad_carga) cleanData.capacidad_carga = Number(cleanData.capacidad_carga);
+		if (cleanData.kilometraje) cleanData.kilometraje = Number(cleanData.kilometraje);
+
+		// Asegura que el tipo_vehiculo sea válido
+		if (!cleanData.tipo_vehiculo || !["Tracto", "Carreta"].includes(cleanData.tipo_vehiculo)) {
+			cleanData.tipo_vehiculo = "Tracto";
+		}
+
+		// Asegura que las fechas estén en el formato correcto
+		if (cleanData.fecha_adquisicion && typeof cleanData.fecha_adquisicion === "string") {
+			const date = new Date(cleanData.fecha_adquisicion);
+			if (!isNaN(date.getTime())) {
+				cleanData.fecha_adquisicion = date.toISOString().split("T")[0];
+			}
+		}
+
+		if (cleanData.fecha_soat && typeof cleanData.fecha_soat === "string") {
+			const date = new Date(cleanData.fecha_soat);
+			if (!isNaN(date.getTime())) {
+				cleanData.fecha_soat = date.toISOString().split("T")[0];
+			}
+		}
+
+		if (cleanData.fecha_revision_tecnica && typeof cleanData.fecha_revision_tecnica === "string") {
+			const date = new Date(cleanData.fecha_revision_tecnica);
+			if (!isNaN(date.getTime())) {
+				cleanData.fecha_revision_tecnica = date.toISOString().split("T")[0];
+			}
+		}
+
+		console.log("Datos limpios y validados:", cleanData);
+		return cleanData;
 	};
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -207,14 +276,34 @@ export default function VehiculosPage() {
 			return;
 		}
 
+		// Asegurarse de que tipo_vehiculo tenga un valor válido
+		if (!formData.tipo_vehiculo || (formData.tipo_vehiculo !== "Tracto" && formData.tipo_vehiculo !== "Carreta")) {
+			formData.tipo_vehiculo = "Tracto"; // Valor por defecto si no es válido
+		}
+
 		try {
 			setLoading(true);
+			console.log("Datos originales:", formData);
+
+			// Preparar los datos para enviar usando la función de limpieza
+			const vehiculoData = prepareVehiculoData(formData);
+			console.log("Datos limpios para enviar:", vehiculoData);
 
 			if (formData.id) {
 				// Actualizar vehículo existente
-				const updatedVehiculo = await vehiculoService.updateVehiculo(formData.id, formData);
-				setVehiculos(vehiculos.map((v) => (v.id === updatedVehiculo.id ? updatedVehiculo : v)));
-				notificationService.success("Vehículo actualizado correctamente");
+				try {
+					const updatedVehiculo = await vehiculoService.updateVehiculo(formData.id, vehiculoData);
+					setVehiculos(vehiculos.map((v) => (v.id === updatedVehiculo.id ? updatedVehiculo : v)));
+					notificationService.success("Vehículo actualizado correctamente");
+					setShowForm(false);
+				} catch (error: any) {
+					console.error("Error detallado al actualizar vehículo:", error);
+					if (error.message) {
+						notificationService.error(`Error al actualizar: ${error.message}`);
+					} else {
+						notificationService.error("No se pudo actualizar el vehículo. Revise los datos e intente nuevamente.");
+					}
+				}
 			} else {
 				// Verificar si ya existe un vehículo con la misma placa
 				const existingVehiculo = vehiculos.find((v) => v.placa.toUpperCase() === formData.placa?.toUpperCase());
@@ -225,33 +314,44 @@ export default function VehiculosPage() {
 				}
 
 				// Agregar nuevo vehículo
-				const newVehiculo = await vehiculoService.createVehiculo(formData as Omit<Vehiculo, "id">);
-				setVehiculos([...vehiculos, newVehiculo]);
-				notificationService.success("Vehículo creado correctamente");
+				try {
+					const newVehiculo = await vehiculoService.createVehiculo(vehiculoData as Omit<Vehiculo, "id">);
+					setVehiculos([...vehiculos, newVehiculo]);
+					notificationService.success("Vehículo creado correctamente");
+					setShowForm(false);
+				} catch (error: any) {
+					console.error("Error detallado al crear vehículo:", error);
+					if (error.message) {
+						notificationService.error(`Error al crear: ${error.message}`);
+					} else {
+						notificationService.error("No se pudo crear el vehículo. Revise los datos e intente nuevamente.");
+					}
+				}
 			}
 
-			// Limpiar formulario
-			setFormData({
-				placa: "",
-				marca: "",
-				modelo: "",
-				anio: new Date().getFullYear(),
-				color: "",
-				num_ejes: 3,
-				capacidad_carga: 0,
-				kilometraje: 0,
-				fecha_adquisicion: new Date().toISOString().split("T")[0],
-				fecha_soat: "",
-				fecha_revision_tecnica: "",
-				estado: "Operativo",
-				propietario: "Empresa",
-				observaciones: "",
-			});
-
-			setShowForm(false);
+			// Limpiar formulario solo si no hubo errores
+			if (!document.querySelector(".notification-error")) {
+				setFormData({
+					placa: "",
+					marca: "",
+					modelo: "",
+					anio: new Date().getFullYear(),
+					color: "",
+					num_ejes: 3,
+					capacidad_carga: 0,
+					kilometraje: 0,
+					fecha_adquisicion: new Date().toISOString().split("T")[0],
+					fecha_soat: "",
+					fecha_revision_tecnica: "",
+					estado: "Operativo",
+					propietario: "Empresa",
+					tipo_vehiculo: "Tracto",
+					observaciones: "",
+				});
+			}
 		} catch (error) {
-			console.error("Error al guardar vehículo:", error);
-			notificationService.error("No se pudo guardar el vehículo. Por favor, intente nuevamente.");
+			console.error("Error general al guardar vehículo:", error);
+			notificationService.error("No se pudo procesar la operación. Por favor, intente nuevamente.");
 		} finally {
 			setLoading(false);
 		}
@@ -324,6 +424,35 @@ export default function VehiculosPage() {
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	// Ejemplo de función para detectar la falta de la columna tipo_vehiculo y manejarla
+	const handleMissingColumn = async () => {
+		try {
+			await vehiculoService.updateVehiculo("00000000-0000-0000-0000-000000000000", { tipo_vehiculo: "Tracto" });
+		} catch (error: any) {
+			// Si el error contiene indicios de que falta la columna
+			if (error.message && (error.message.includes('column "tipo_vehiculo" does not exist') || error.message.includes("no such column") || error.message.includes("undefined column"))) {
+				// Mostrar mensaje instructivo al usuario
+				notificationService.error(
+					"Se requiere actualizar la base de datos: Falta la columna 'tipo_vehiculo'. " +
+						"Por favor ejecute el siguiente comando SQL en su base de datos Supabase: " +
+						"ALTER TABLE vehiculos ADD COLUMN tipo_vehiculo VARCHAR(20) DEFAULT 'Tracto';"
+				);
+				return true;
+			}
+			return false;
+		}
+		return false;
+	};
+
+	// Extender Vehiculo para que funcione incluso sin la columna tipo_vehiculo
+	const getDisplayData = (vehiculo: Vehiculo): Vehiculo => {
+		// Asegurarse de que tipo_vehiculo tenga un valor predeterminado si no existe en la BD
+		return {
+			...vehiculo,
+			tipo_vehiculo: vehiculo.tipo_vehiculo || "Tracto",
+		};
 	};
 
 	// Estadísticas de vehículos
@@ -466,6 +595,28 @@ export default function VehiculosPage() {
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
 							/>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Tipo de Vehículo</label>
+							<select
+								name="tipo_vehiculo"
+								value={formData.tipo_vehiculo || "Tracto"}
+								onChange={(e) => {
+									// Manejo directo para asegurar que se actualice correctamente
+									const tipoSeleccionado = e.target.value;
+									console.log("Tipo de vehículo seleccionado:", tipoSeleccionado);
+									setFormData((prev) => ({
+										...prev,
+										tipo_vehiculo: tipoSeleccionado,
+									}));
+								}}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="Tracto">Tracto</option>
+								<option value="Carreta">Carreta</option>
+							</select>
+							<p className="mt-1 text-xs text-gray-500">Tipo actual: {formData.tipo_vehiculo || "Tracto"}</p>
 						</div>
 
 						<div>

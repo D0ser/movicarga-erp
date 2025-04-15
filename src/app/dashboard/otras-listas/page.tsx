@@ -9,6 +9,7 @@ interface Serie {
 	id: number;
 	serie: string;
 	fecha_creacion: string;
+	color?: string;
 }
 
 // Definición de la estructura de datos para Observaciones
@@ -28,16 +29,19 @@ export default function OtrasListasPage() {
 			id: 1,
 			serie: "F001",
 			fecha_creacion: "2025-04-10",
+			color: "#3b82f6",
 		},
 		{
 			id: 2,
 			serie: "B001",
 			fecha_creacion: "2025-04-10",
+			color: "#10b981",
 		},
 		{
 			id: 3,
 			serie: "T001",
 			fecha_creacion: "2025-04-12",
+			color: "#8b5cf6",
 		},
 	]);
 
@@ -65,6 +69,7 @@ export default function OtrasListasPage() {
 	const [formDataSeries, setFormDataSeries] = useState<Partial<Serie>>({
 		serie: "",
 		fecha_creacion: new Date().toISOString().split("T")[0],
+		color: "#3b82f6",
 	});
 
 	// Estado para el formulario de Observaciones
@@ -79,6 +84,17 @@ export default function OtrasListasPage() {
 		{
 			header: "Serie",
 			accessor: "serie",
+			cell: (value: unknown, row: Serie) => (
+				<div className="flex items-center">
+					<div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: row.color || "#e5e7eb" }}></div>
+					<span>{value as string}</span>
+				</div>
+			),
+		},
+		{
+			header: "Color",
+			accessor: "color",
+			cell: (value: unknown, row: Serie) => <div className="w-6 h-6 rounded-full" style={{ backgroundColor: (value as string) || "#e5e7eb" }}></div>,
 		},
 		{
 			header: "Fecha Creación",
@@ -144,6 +160,7 @@ export default function OtrasListasPage() {
 			id: formDataSeries.id || Date.now(),
 			serie: formDataSeries.serie || "",
 			fecha_creacion: formDataSeries.fecha_creacion || new Date().toISOString().split("T")[0],
+			color: formDataSeries.color || "#3b82f6",
 		};
 
 		if (formDataSeries.id) {
@@ -158,6 +175,7 @@ export default function OtrasListasPage() {
 		setFormDataSeries({
 			serie: "",
 			fecha_creacion: new Date().toISOString().split("T")[0],
+			color: "#3b82f6",
 		});
 
 		setShowFormSeries(false);
@@ -259,39 +277,65 @@ export default function OtrasListasPage() {
 
 			{/* Formulario de Series */}
 			{tablaActiva === "series" && showFormSeries && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
+				<div className="bg-white p-6 rounded-lg shadow-md mb-6">
 					<h2 className="text-xl font-bold mb-4">{formDataSeries.id ? "Editar Serie" : "Nueva Serie"}</h2>
-					<form onSubmit={handleSubmitSeries} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Serie</label>
-							<input
-								type="text"
-								name="serie"
-								value={formDataSeries.serie || ""}
-								onChange={handleInputChangeSeries}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
+					<form onSubmit={handleSubmitSeries} className="space-y-4">
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+							<div>
+								<label htmlFor="serie" className="block text-sm font-medium text-gray-700 mb-1">
+									Serie
+								</label>
+								<input
+									type="text"
+									id="serie"
+									name="serie"
+									value={formDataSeries.serie}
+									onChange={handleInputChangeSeries}
+									className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+									required
+								/>
+							</div>
+							<div>
+								<label htmlFor="fecha_creacion" className="block text-sm font-medium text-gray-700 mb-1">
+									Fecha Creación
+								</label>
+								<input
+									type="date"
+									id="fecha_creacion"
+									name="fecha_creacion"
+									value={formDataSeries.fecha_creacion}
+									onChange={handleInputChangeSeries}
+									className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+									required
+								/>
+							</div>
+							<div>
+								<label htmlFor="color" className="block text-sm font-medium text-gray-700 mb-1">
+									Color
+								</label>
+								<div className="flex items-center">
+									<input
+										type="color"
+										id="color"
+										name="color"
+										value={formDataSeries.color || "#3b82f6"}
+										onChange={handleInputChangeSeries}
+										className="h-10 w-10 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+									/>
+									<span className="ml-2 text-sm text-gray-500">{formDataSeries.color || "#3b82f6"}</span>
+								</div>
+							</div>
 						</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Creación</label>
-							<input
-								type="date"
-								name="fecha_creacion"
-								value={formDataSeries.fecha_creacion || ""}
-								onChange={handleInputChangeSeries}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowFormSeries(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
+						<div className="mt-4 flex justify-end space-x-3">
+							<button
+								type="button"
+								onClick={() => setShowFormSeries(false)}
+								className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
 								Cancelar
 							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formDataSeries.id ? "Actualizar" : "Guardar"}
+							<button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700">
+								{formDataSeries.id ? "Actualizar" : "Crear"}
 							</button>
 						</div>
 					</form>

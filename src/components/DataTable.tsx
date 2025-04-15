@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
@@ -22,10 +22,12 @@ interface DataTableProps<T extends DataItem = DataItem> {
 	title: string;
 	defaultSort?: string;
 	isLoading?: boolean;
+	onDataFiltered?: (filteredData: T[]) => void;
 	filters?: {
 		year?: boolean;
 		month?: boolean;
 		searchField?: string;
+		searchFields?: Array<{ accessor: string; label: string }>;
 		customFilters?: Array<{
 			name: string;
 			label: string;
@@ -37,11 +39,12 @@ interface DataTableProps<T extends DataItem = DataItem> {
 	};
 }
 
-export default function DataTable<T extends DataItem = DataItem>({ columns, data, title, defaultSort, isLoading = false, filters }: DataTableProps<T>) {
+export default function DataTable<T extends DataItem = DataItem>({ columns, data, title, defaultSort, isLoading = false, filters, onDataFiltered }: DataTableProps<T>) {
 	const [sortConfig, setSortConfig] = useState({ key: defaultSort || "", direction: "asc" });
 	const [filterYear, setFilterYear] = useState<string>("");
 	const [filterMonth, setFilterMonth] = useState<string>("");
 	const [searchTerm, setSearchTerm] = useState<string>("");
+	const [selectedSearchField, setSelectedSearchField] = useState<string>(filters?.searchFields && filters.searchFields.length > 0 ? filters.searchFields[0].accessor : filters?.searchField || "");
 	const [customFilterValues, setCustomFilterValues] = useState<Record<string, string>>({});
 	const [currentPage, setCurrentPage] = useState(1);
 	const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -120,9 +123,16 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 			}
 
 			// Filtro por término de búsqueda
-			if (searchTerm && filters?.searchField) {
-				const searchValue = item[filters.searchField]?.toString().toLowerCase() || "";
-				if (!searchValue.includes(searchTerm.toLowerCase())) return false;
+			if (searchTerm) {
+				if (filters?.searchFields && filters.searchFields.length > 0) {
+					// Si hay múltiples campos de búsqueda, buscar en el campo seleccionado
+					const searchValue = item[selectedSearchField]?.toString().toLowerCase() || "";
+					if (!searchValue.includes(searchTerm.toLowerCase())) return false;
+				} else if (filters?.searchField) {
+					// Mantener compatibilidad con la búsqueda de campo único
+					const searchValue = item[filters.searchField]?.toString().toLowerCase() || "";
+					if (!searchValue.includes(searchTerm.toLowerCase())) return false;
+				}
 			}
 
 			// Filtros personalizados
@@ -137,7 +147,14 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 
 			return true;
 		});
-	}, [sortedData, filterYear, filterMonth, searchTerm, filters, customFilterValues]);
+	}, [sortedData, filterYear, filterMonth, searchTerm, selectedSearchField, filters, customFilterValues]);
+
+	// Efecto para actualizar los datos filtrados
+	useEffect(() => {
+		if (onDataFiltered) {
+			onDataFiltered(filteredData);
+		}
+	}, [filteredData, onDataFiltered]);
 
 	// Datos paginados
 	const paginatedData = useMemo(() => {
@@ -375,8 +392,78 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 											<div className="text-sm">{column.cell ? column.cell(item[column.accessor], item as T) : item[column.accessor]?.toString() || ""}</div>
 										</div>
 									) : (
-										<div key={`${item.id}-${column.accessor}`} className="mt-4 pt-2 border-t">
-											{column.cell ? column.cell(item[column.accessor], item as T) : ""}
+										<div key={`${item.id}-${column.accessor}`} className="mt-4 pt-2 border-t flex flex-wrap gap-2 justify-center">
+											{(() => {
+												// Similar a la vista de tabla, mejoramos los botones
+												const cellContent = column.cell ? (column.cell(item[column.accessor], item as T) as React.ReactElement) : null;
+
+												if (!cellContent || !cellContent.props || !cellContent.props.children) {
+													return cellContent;
+												}
+
+												if (cellContent.type === "div" && Array.isArray(cellContent.props.children)) {
+													return cellContent.props.children.map((child: React.ReactElement, btnIndex: number) => {
+														if (!child || child.type !== "button") return child;
+
+														const buttonText = child.props.children;
+														const buttonClass = child.props.className || "";
+														const buttonOnClick = child.props.onClick;
+
+														// Determinamos el color y el ícono basado en el texto o clase del botón
+														let icon = "";
+														let bgColor = "bg-gray-100";
+														let textColor = "text-gray-700";
+
+														if (buttonClass.includes("blue") || (typeof buttonText === "string" && buttonText.includes("Edit"))) {
+															icon =
+																'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />';
+															bgColor = "bg-blue-50";
+															textColor = "text-blue-700";
+														} else if (buttonClass.includes("red") || (typeof buttonText === "string" && buttonText.includes("Elim"))) {
+															icon =
+																'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />';
+															bgColor = "bg-red-50";
+															textColor = "text-red-700";
+														} else if (buttonClass.includes("yellow") || (typeof buttonText === "string" && buttonText.includes("Desactiv"))) {
+															icon =
+																'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />';
+															bgColor = "bg-amber-50";
+															textColor = "text-amber-700";
+														} else if (
+															buttonClass.includes("green") ||
+															(typeof buttonText === "string" && (buttonText.includes("Activ") || buttonText.includes("Apro") || buttonText.includes("Pagar")))
+														) {
+															icon = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+															bgColor = "bg-green-50";
+															textColor = "text-green-700";
+														} else if (buttonClass.includes("purple") || (typeof buttonText === "string" && buttonText.includes("Cambiar"))) {
+															icon = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />';
+															bgColor = "bg-purple-50";
+															textColor = "text-purple-700";
+														}
+
+														// Botón mejorado para vista de tarjetas
+														return (
+															<button
+																key={btnIndex}
+																onClick={buttonOnClick}
+																className={`${bgColor} ${textColor} px-3 py-2 rounded-md text-sm font-medium shadow-sm transition-all flex items-center`}
+																title={typeof buttonText === "string" ? buttonText : ""}>
+																<svg
+																	className="h-4 w-4 mr-1.5"
+																	xmlns="http://www.w3.org/2000/svg"
+																	fill="none"
+																	viewBox="0 0 24 24"
+																	stroke="currentColor"
+																	dangerouslySetInnerHTML={{ __html: icon }}></svg>
+																{buttonText}
+															</button>
+														);
+													});
+												}
+
+												return cellContent;
+											})()}
 										</div>
 									)
 								)}
@@ -435,7 +522,89 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 											<td
 												key={`${item.id}-${column.accessor}`}
 												className={`px-6 py-3 whitespace-nowrap text-sm text-gray-500 ${column.header === "Acciones" ? "sticky right-0 bg-white z-10 shadow-sm" : ""}`}>
-												{column.cell ? column.cell(item[column.accessor], item as T) : item[column.accessor]?.toString() || ""}
+												{column.header === "Acciones" && column.cell ? (
+													<div className="flex gap-1 justify-end">
+														{(() => {
+															// Capturamos el contenido del cell para analizarlo
+															const cellContent = column.cell(item[column.accessor], item as T) as React.ReactElement;
+
+															// Si no es un elemento React válido, lo mostramos tal cual
+															if (!cellContent || !cellContent.props || !cellContent.props.children) {
+																return cellContent;
+															}
+
+															// Si es un div con botones (el caso típico en nuestra app)
+															if (cellContent.type === "div" && Array.isArray(cellContent.props.children)) {
+																return cellContent.props.children.map((child: React.ReactElement, btnIndex: number) => {
+																	// Si no es un botón, lo devolvemos sin cambios
+																	if (!child || child.type !== "button") return child;
+
+																	const buttonText = child.props.children;
+																	const buttonClass = child.props.className || "";
+																	const buttonOnClick = child.props.onClick;
+
+																	// Determinamos el color y el ícono basado en el texto o clase del botón
+																	let icon = "";
+																	let bgColor = "bg-gray-100 hover:bg-gray-200";
+																	let textColor = "text-gray-700";
+
+																	if (buttonClass.includes("blue") || (typeof buttonText === "string" && buttonText.includes("Edit"))) {
+																		icon =
+																			'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />';
+																		bgColor = "bg-blue-50 hover:bg-blue-100";
+																		textColor = "text-blue-700";
+																	} else if (buttonClass.includes("red") || (typeof buttonText === "string" && buttonText.includes("Elim"))) {
+																		icon =
+																			'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />';
+																		bgColor = "bg-red-50 hover:bg-red-100";
+																		textColor = "text-red-700";
+																	} else if (buttonClass.includes("yellow") || (typeof buttonText === "string" && buttonText.includes("Desactiv"))) {
+																		icon =
+																			'<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />';
+																		bgColor = "bg-amber-50 hover:bg-amber-100";
+																		textColor = "text-amber-700";
+																	} else if (
+																		buttonClass.includes("green") ||
+																		(typeof buttonText === "string" && (buttonText.includes("Activ") || buttonText.includes("Apro") || buttonText.includes("Pagar")))
+																	) {
+																		icon = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
+																		bgColor = "bg-green-50 hover:bg-green-100";
+																		textColor = "text-green-700";
+																	} else if (buttonClass.includes("purple") || (typeof buttonText === "string" && buttonText.includes("Cambiar"))) {
+																		icon = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />';
+																		bgColor = "bg-purple-50 hover:bg-purple-100";
+																		textColor = "text-purple-700";
+																	}
+
+																	// Botón mejorado
+																	return (
+																		<button
+																			key={btnIndex}
+																			onClick={buttonOnClick}
+																			className={`${bgColor} ${textColor} px-2 py-1.5 rounded-md text-xs font-medium shadow-sm transition-all flex items-center hover:shadow-md group`}
+																			title={typeof buttonText === "string" ? buttonText : ""}>
+																			<svg
+																				className="h-3.5 w-3.5 mr-1"
+																				xmlns="http://www.w3.org/2000/svg"
+																				fill="none"
+																				viewBox="0 0 24 24"
+																				stroke="currentColor"
+																				dangerouslySetInnerHTML={{ __html: icon }}></svg>
+																			<span className="hidden sm:inline">{buttonText}</span>
+																		</button>
+																	);
+																});
+															}
+
+															// Si no podemos procesar el contenido, lo mostramos tal cual
+															return cellContent;
+														})()}
+													</div>
+												) : column.cell ? (
+													column.cell(item[column.accessor], item as T)
+												) : (
+													item[column.accessor]?.toString() || ""
+												)}
 											</td>
 										))}
 									</tr>
@@ -563,31 +732,53 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 					</div>
 				)}
 
-				{filters?.searchField && (
+				{(filters?.searchField || (filters?.searchFields && filters.searchFields.length > 0)) && (
 					<div className="flex flex-col">
 						<label className="text-xs text-gray-500 mb-1">Buscar</label>
-						<div className="relative">
-							<input
-								type="text"
-								placeholder={`Buscar por ${filters.searchField}`}
-								value={searchTerm}
-								onChange={(e) => {
-									setSearchTerm(e.target.value);
-									setCurrentPage(1); // Resetear a primera página al buscar
-								}}
-								className="border border-primary rounded px-3 py-1.5 pl-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full"
-								aria-label={`Buscar por ${filters.searchField}`}
-							/>
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 absolute left-2 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-							</svg>
-							{searchTerm && (
-								<button onClick={() => setSearchTerm("")} className="absolute right-2 top-2.5" aria-label="Limpiar búsqueda">
-									<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-									</svg>
-								</button>
+						<div className="flex flex-col sm:flex-row gap-1">
+							{/* Selector de campo de búsqueda (solo si hay múltiples campos) */}
+							{filters?.searchFields && filters.searchFields.length > 0 && (
+								<select
+									value={selectedSearchField}
+									onChange={(e) => {
+										setSelectedSearchField(e.target.value);
+										setCurrentPage(1);
+									}}
+									className="border border-primary rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+									aria-label="Seleccionar campo de búsqueda">
+									{filters.searchFields.map((field) => (
+										<option key={field.accessor} value={field.accessor}>
+											{field.label}
+										</option>
+									))}
+								</select>
 							)}
+							{/* Campo de búsqueda */}
+							<div className="relative flex-grow">
+								<input
+									type="text"
+									placeholder={`Buscar por ${
+										filters?.searchFields && filters.searchFields.length > 0 ? filters.searchFields.find((f) => f.accessor === selectedSearchField)?.label || selectedSearchField : filters?.searchField
+									}`}
+									value={searchTerm}
+									onChange={(e) => {
+										setSearchTerm(e.target.value);
+										setCurrentPage(1); // Resetear a primera página al buscar
+									}}
+									className="border border-primary rounded px-3 py-1.5 pl-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-full"
+									aria-label="Buscar"
+								/>
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 absolute left-2 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+								</svg>
+								{searchTerm && (
+									<button onClick={() => setSearchTerm("")} className="absolute right-2 top-2.5" aria-label="Limpiar búsqueda">
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 hover:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								)}
+							</div>
 						</div>
 					</div>
 				)}

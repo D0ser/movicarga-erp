@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS vehiculos (
   fecha_revision_tecnica DATE,
   estado VARCHAR(20) DEFAULT 'Operativo',
   propietario TEXT,
+  tipo_vehiculo VARCHAR(20) DEFAULT 'Tracto',
   observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
