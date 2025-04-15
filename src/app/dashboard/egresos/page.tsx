@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import DataTable from "@/components/DataTable";
+import DataTable, { Column, DataItem } from "@/components/DataTable";
 import { format } from "date-fns";
 
 // Definición de la estructura de datos de Egresos
-interface Egreso {
+interface Egreso extends DataItem {
 	id: number;
 	fecha: string;
 	hora: string;
@@ -88,11 +88,11 @@ export default function EgresosPage() {
 	});
 
 	// Columnas para la tabla de egresos
-	const columns = [
+	const columns: Column<Egreso>[] = [
 		{
 			header: "Fecha",
 			accessor: "fecha",
-			cell: (value: string) => format(new Date(value), "dd/MM/yyyy"),
+			cell: (value: unknown) => format(new Date(value as string), "dd/MM/yyyy"),
 		},
 		{
 			header: "Hora",
@@ -129,7 +129,7 @@ export default function EgresosPage() {
 		{
 			header: "Monto",
 			accessor: "monto",
-			cell: (value: number, row: Egreso) => `${row.moneda === "PEN" ? "S/." : "$"} ${value.toLocaleString("es-PE")}`,
+			cell: (value: unknown, row: Egreso) => `${row.moneda === "PEN" ? "S/." : "$"} ${(value as number).toLocaleString("es-PE")}`,
 		},
 		{
 			header: "Observación",
@@ -138,23 +138,23 @@ export default function EgresosPage() {
 		{
 			header: "Estado",
 			accessor: "aprobado",
-			cell: (value: boolean) => (
+			cell: (value: unknown) => (
 				<span className={`px-2 py-1 rounded-full text-xs font-medium ${value ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>{value ? "Aprobado" : "Pendiente"}</span>
 			),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: number, row: Egreso) => (
+			cell: (value: unknown, row: Egreso) => (
 				<div className="flex space-x-2">
 					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
 						Editar
 					</button>
-					<button onClick={() => handleDelete(value)} className="text-red-600 hover:text-red-800">
+					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
 						Eliminar
 					</button>
 					{!row.aprobado && (
-						<button onClick={() => handleApprove(value)} className="text-green-600 hover:text-green-800">
+						<button onClick={() => handleApprove(value as number)} className="text-green-600 hover:text-green-800">
 							Aprobar
 						</button>
 					)}
@@ -238,7 +238,7 @@ export default function EgresosPage() {
 	// Tipos de egresos predefinidos
 	const tiposEgresos = ["Combustible", "Mantenimiento", "Repuestos", "Peajes", "Viáticos", "Seguros", "Salarios", "Impuestos", "Administrativo", "Otro"];
 
-	// Tipos de operaciones
+	// Tipos de operaciones (usado en el formulario)
 	const tiposOperaciones = ["Transferencia", "Efectivo", "Cheque", "Tarjeta de Crédito", "Tarjeta de Débito", "Depósito"];
 
 	return (

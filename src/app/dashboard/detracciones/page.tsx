@@ -310,7 +310,7 @@ export default function DetraccionesPage() {
 					} else if (header in detraccion) {
 						// Solo asignar si el encabezado coincide con una propiedad de Detraccion
 						// Usamos type assertion para asignar valores de forma segura
-						(detraccion as Record<string, string | number>)[header] = value;
+						(detraccion as Record<string, string | number | boolean>)[header] = value;
 					}
 				});
 
