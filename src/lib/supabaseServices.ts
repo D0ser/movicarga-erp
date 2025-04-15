@@ -1,9 +1,15 @@
 // Servicios y tipos para interactuar con Supabase
 
 import supabase from "./supabase";
+import { DataItem } from "@/components/DataTable";
+
+// Tipos para objetos relacionados dentro de DataItem
+type RelatedEntities = {
+	[key: string]: any;
+};
 
 // Tipos para las entidades principales
-export interface Cliente {
+export interface Cliente extends DataItem, RelatedEntities {
 	id: string;
 	razon_social: string;
 	ruc: string;
@@ -22,7 +28,7 @@ export interface Cliente {
 	updated_at?: string;
 }
 
-export interface Conductor {
+export interface Conductor extends DataItem, RelatedEntities {
 	id: string;
 	nombres: string;
 	apellidos: string;
@@ -41,7 +47,7 @@ export interface Conductor {
 	updated_at?: string;
 }
 
-export interface Vehiculo {
+export interface Vehiculo extends DataItem, RelatedEntities {
 	id: string;
 	placa: string;
 	marca: string;
@@ -61,7 +67,7 @@ export interface Vehiculo {
 	updated_at?: string;
 }
 
-export interface Viaje {
+export interface Viaje extends DataItem, RelatedEntities {
 	id: string;
 	cliente_id: string;
 	conductor_id: string;
@@ -85,7 +91,7 @@ export interface Viaje {
 	vehiculo?: Vehiculo;
 }
 
-export interface Ingreso {
+export interface Ingreso extends DataItem, RelatedEntities {
 	id: string;
 	fecha: string;
 	cliente_id: string;
@@ -103,7 +109,7 @@ export interface Ingreso {
 	viaje?: Viaje;
 }
 
-export interface Egreso {
+export interface Egreso extends DataItem, RelatedEntities {
 	id: string;
 	fecha: string;
 	proveedor: string;
@@ -125,7 +131,7 @@ export interface Egreso {
 	conductor?: Conductor;
 }
 
-export interface EgresoSinFactura {
+export interface EgresoSinFactura extends DataItem, RelatedEntities {
 	id: string;
 	fecha: string;
 	beneficiario: string;
@@ -145,7 +151,7 @@ export interface EgresoSinFactura {
 	conductor?: Conductor;
 }
 
-export interface Detraccion {
+export interface Detraccion extends DataItem, RelatedEntities {
 	id: string;
 	ingreso_id: string | null;
 	viaje_id: string | null;

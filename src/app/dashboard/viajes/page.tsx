@@ -622,10 +622,8 @@ export default function ViajesPage() {
 				data={viajes}
 				title="Registro de Viajes"
 				defaultSort="fecha_salida"
-				sortDirection="desc"
 				filters={{
 					searchField: "origen",
-					additionalField: "destino",
 				}}
 				isLoading={loading}
 			/>

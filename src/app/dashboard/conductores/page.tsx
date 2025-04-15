@@ -466,7 +466,6 @@ export default function ConductoresPage() {
 				defaultSort="apellidos"
 				filters={{
 					searchField: "apellidos",
-					additionalField: "nombres",
 				}}
 				isLoading={loading}
 			/>

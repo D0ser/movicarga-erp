@@ -6,7 +6,7 @@ import { saveAs } from "file-saver";
 
 // Definición de tipos para mejorar el tipo "any"
 export interface DataItem {
-	[key: string]: string | number | Date | boolean | null | undefined;
+	[key: string]: any;
 	fecha?: Date | string | null;
 }
 
@@ -58,7 +58,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 						const date = item.fecha instanceof Date ? item.fecha : new Date(item.fecha as string);
 						return isNaN(date.getTime()) ? null : date.getFullYear(); // Verificar que la fecha sea válida
 					})
-					.filter(Boolean) // Remover años nulos
+					.filter((year): year is number => year !== null) // Remover años nulos y asegurar que sean números
 			),
 		]
 			.sort()

@@ -83,17 +83,17 @@ export default function OtrasListasPage() {
 		{
 			header: "Fecha Creación",
 			accessor: "fecha_creacion",
-			cell: (value: string) => format(new Date(value), "dd/MM/yyyy"),
+			cell: (value: unknown, row: Serie) => format(new Date(value as string), "dd/MM/yyyy"),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: number, row: Serie) => (
+			cell: (value: unknown, row: Serie) => (
 				<div className="flex space-x-2">
 					<button onClick={() => handleEditSerie(row)} className="text-blue-600 hover:text-blue-800">
 						Editar
 					</button>
-					<button onClick={() => handleDeleteSerie(value)} className="text-red-600 hover:text-red-800">
+					<button onClick={() => handleDeleteSerie(value as number)} className="text-red-600 hover:text-red-800">
 						Eliminar
 					</button>
 				</div>
@@ -110,17 +110,17 @@ export default function OtrasListasPage() {
 		{
 			header: "Fecha Creación",
 			accessor: "fecha_creacion",
-			cell: (value: string) => format(new Date(value), "dd/MM/yyyy"),
+			cell: (value: unknown, row: Observacion) => format(new Date(value as string), "dd/MM/yyyy"),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: number, row: Observacion) => (
+			cell: (value: unknown, row: Observacion) => (
 				<div className="flex space-x-2">
 					<button onClick={() => handleEditObservacion(row)} className="text-blue-600 hover:text-blue-800">
 						Editar
 					</button>
-					<button onClick={() => handleDeleteObservacion(value)} className="text-red-600 hover:text-red-800">
+					<button onClick={() => handleDeleteObservacion(value as number)} className="text-red-600 hover:text-red-800">
 						Eliminar
 					</button>
 				</div>

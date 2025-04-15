@@ -70,7 +70,7 @@ export default function EgresosSinFacturaPage() {
 		{
 			header: "Fecha",
 			accessor: "fecha",
-			cell: (value: string) => format(new Date(value), "dd/MM/yyyy"),
+			cell: (value: unknown, row: EgresoSinFactura) => format(new Date(value as string), "dd/MM/yyyy"),
 		},
 		{
 			header: "N° Cheque",
@@ -91,7 +91,7 @@ export default function EgresosSinFacturaPage() {
 		{
 			header: "Monto",
 			accessor: "monto",
-			cell: (value: number, row: EgresoSinFactura) => `${row.moneda === "PEN" ? "S/." : "$"} ${value.toLocaleString("es-PE")}`,
+			cell: (value: unknown, row: EgresoSinFactura) => `${row.moneda === "PEN" ? "S/." : "$"} ${(value as number).toLocaleString("es-PE")}`,
 		},
 		{
 			header: "Observación",
@@ -100,12 +100,12 @@ export default function EgresosSinFacturaPage() {
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: number, row: EgresoSinFactura) => (
+			cell: (value: unknown, row: EgresoSinFactura) => (
 				<div className="flex space-x-2">
 					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
 						Editar
 					</button>
-					<button onClick={() => handleDelete(value)} className="text-red-600 hover:text-red-800">
+					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
 						Eliminar
 					</button>
 				</div>
