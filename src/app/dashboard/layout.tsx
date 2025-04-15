@@ -262,8 +262,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							/>
 						)}
 
-						{/* Botón de cerrar sesión al final con mejor accesibilidad */}
-						<div className="absolute bottom-0 p-4 w-full bg-[#2d2e83] border-t border-[#1f1f6f]">
+						{/* Botón de cerrar sesión justo después de la sección usuarios */}
+						<div className="p-4 w-full border-t border-[#1f1f6f] mt-4">
 							<button
 								onClick={handleLogout}
 								className={`flex items-center p-2 rounded-md hover:bg-[#F39200] bg-[#F39200]/90 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white ${
