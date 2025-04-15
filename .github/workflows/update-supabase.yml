@@ -29,7 +29,7 @@ jobs:
 
       - name: Execute SQL script
         run: |
-          cat << EOF > update-database.js
+          cat << 'EOF' > update-database.js
           const { createClient } = require('@supabase/supabase-js');
           const fs = require('fs');
           const { Pool } = require('pg');
@@ -59,10 +59,13 @@ jobs:
               const projectRef = urlMatch ? urlMatch[1] : null;
               
               if (!projectRef) {
-                throw new Error('No se pudo extraer el identificador del proyecto desde la URL de Supabase');
+                throw new Error('No se pudo extraer el identificador del proyecto desde la URL de Supabase: ' + supabaseUrl);
               }
               
-              const connectionString = `postgres://postgres:${supabaseServiceRoleKey}@db.${projectRef}.supabase.co:5432/postgres`;
+              console.log('Project ref extraído: ' + projectRef);
+              
+              // Construcción explícita de la cadena de conexión para evitar problemas de interpolación
+              const connectionString = 'postgres://postgres:' + supabaseServiceRoleKey + '@db.' + projectRef + '.supabase.co:5432/postgres';
               
               console.log('🔌 Conectando a la base de datos Postgres...');
               const pool = new Pool({ connectionString });

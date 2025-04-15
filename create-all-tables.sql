@@ -1,6 +1,7 @@
 -- Script para crear todas las tablas necesarias en Supabase
 -- Actualizado: agosto de 2024
 -- probando actions de github
+--probando 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS auditorias CASCADE;
 DROP TABLE IF EXISTS configuracion CASCADE;
