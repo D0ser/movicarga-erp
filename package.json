@@ -8,7 +8,10 @@
 		"start": "next start",
 		"lint": "next lint",
 		"verify-supabase": "ts-node verify-supabase-config.ts",
-		"fix-db": "ts-node supabase-test.ts"
+		"fix-db": "ts-node supabase-test.ts",
+		"test-relations": "npx tsx src/lib/test-relations.ts",
+		"test-connection": "npx tsx src/lib/test-supabase.ts",
+		"test-database": "npx tsx src/lib/test-database.ts"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.49.4",

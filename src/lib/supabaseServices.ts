@@ -349,38 +349,69 @@ export const vehiculoService = {
 // Servicios para viajes
 export const viajeService = {
 	async getViajes(): Promise<Viaje[]> {
-		const { data, error } = await supabase
-			.from("viajes")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        conductor:conductor_id(id, nombres, apellidos, licencia),
-        vehiculo:vehiculo_id(id, placa, marca, modelo)
-      `
-			)
-			.order("fecha_salida", { ascending: false });
+		try {
+			// Primero, obtener todos los viajes
+			const { data: viajes, error: viajesError } = await supabase.from("viajes").select("*").order("fecha_salida", { ascending: false });
 
-		if (error) throw error;
-		return data || [];
+			if (viajesError) throw viajesError;
+			if (!viajes || viajes.length === 0) return [];
+
+			// Obtener IDs únicos para las entidades relacionadas
+			const clienteIds = [...new Set(viajes.map((v) => v.cliente_id).filter(Boolean))];
+			const conductorIds = [...new Set(viajes.map((v) => v.conductor_id).filter(Boolean))];
+			const vehiculoIds = [...new Set(viajes.map((v) => v.vehiculo_id).filter(Boolean))];
+
+			// Obtener datos relacionados en consultas separadas
+			const [clientesResult, conductoresResult, vehiculosResult] = await Promise.all([
+				clienteIds.length > 0 ? supabase.from("clientes").select("id, razon_social, ruc").in("id", clienteIds) : { data: [] },
+				conductorIds.length > 0 ? supabase.from("conductores").select("id, nombres, apellidos, licencia").in("id", conductorIds) : { data: [] },
+				vehiculoIds.length > 0 ? supabase.from("vehiculos").select("id, placa, marca, modelo").in("id", vehiculoIds) : { data: [] },
+			]);
+
+			// Crear mapas para búsqueda rápida
+			const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
+			const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
+			const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
+
+			// Combinar datos
+			return viajes.map((viaje) => ({
+				...viaje,
+				cliente: viaje.cliente_id ? clienteMap.get(viaje.cliente_id) : undefined,
+				conductor: viaje.conductor_id ? conductorMap.get(viaje.conductor_id) : undefined,
+				vehiculo: viaje.vehiculo_id ? vehiculoMap.get(viaje.vehiculo_id) : undefined,
+			}));
+		} catch (error) {
+			console.error("Error en getViajes:", error);
+			throw error;
+		}
 	},
 
 	async getViajeById(id: string): Promise<Viaje | null> {
-		const { data, error } = await supabase
-			.from("viajes")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        conductor:conductor_id(id, nombres, apellidos, licencia),
-        vehiculo:vehiculo_id(id, placa, marca, modelo)
-      `
-			)
-			.eq("id", id)
-			.single();
+		try {
+			// Obtener el viaje
+			const { data: viaje, error: viajeError } = await supabase.from("viajes").select("*").eq("id", id).single();
 
-		if (error) throw error;
-		return data;
+			if (viajeError) throw viajeError;
+			if (!viaje) return null;
+
+			// Obtener datos relacionados en consultas separadas
+			const [clienteResult, conductorResult, vehiculoResult] = await Promise.all([
+				viaje.cliente_id ? supabase.from("clientes").select("id, razon_social, ruc").eq("id", viaje.cliente_id).single() : { data: null },
+				viaje.conductor_id ? supabase.from("conductores").select("id, nombres, apellidos, licencia").eq("id", viaje.conductor_id).single() : { data: null },
+				viaje.vehiculo_id ? supabase.from("vehiculos").select("id, placa, marca, modelo").eq("id", viaje.vehiculo_id).single() : { data: null },
+			]);
+
+			// Combinar datos
+			return {
+				...viaje,
+				cliente: clienteResult.data || undefined,
+				conductor: conductorResult.data || undefined,
+				vehiculo: vehiculoResult.data || undefined,
+			};
+		} catch (error) {
+			console.error("Error en getViajeById:", error);
+			throw error;
+		}
 	},
 
 	async createViaje(viaje: Omit<Viaje, "id" | "cliente" | "conductor" | "vehiculo">): Promise<Viaje> {
@@ -407,36 +438,63 @@ export const viajeService = {
 // Servicios para ingresos
 export const ingresoService = {
 	async getIngresos(): Promise<Ingreso[]> {
-		const { data, error } = await supabase
-			.from("ingresos")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        viaje:viaje_id(id, origen, destino, fecha_salida)
-      `
-			)
-			.order("fecha", { ascending: false });
+		try {
+			// Primero, obtener todos los ingresos
+			const { data: ingresos, error: ingresosError } = await supabase.from("ingresos").select("*").order("fecha", { ascending: false });
 
-		if (error) throw error;
-		return data || [];
+			if (ingresosError) throw ingresosError;
+			if (!ingresos || ingresos.length === 0) return [];
+
+			// Obtener IDs únicos para las entidades relacionadas
+			const clienteIds = [...new Set(ingresos.map((i) => i.cliente_id).filter(Boolean))];
+			const viajeIds = [...new Set(ingresos.map((i) => i.viaje_id).filter(Boolean))];
+
+			// Obtener datos relacionados en consultas separadas
+			const [clientesResult, viajesResult] = await Promise.all([
+				clienteIds.length > 0 ? supabase.from("clientes").select("id, razon_social, ruc").in("id", clienteIds) : { data: [] },
+				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
+			]);
+
+			// Crear mapas para búsqueda rápida
+			const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
+			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
+
+			// Combinar datos
+			return ingresos.map((ingreso) => ({
+				...ingreso,
+				cliente: ingreso.cliente_id ? clienteMap.get(ingreso.cliente_id) : undefined,
+				viaje: ingreso.viaje_id ? viajeMap.get(ingreso.viaje_id) : undefined,
+			}));
+		} catch (error) {
+			console.error("Error en getIngresos:", error);
+			throw error;
+		}
 	},
 
 	async getIngresoById(id: string): Promise<Ingreso | null> {
-		const { data, error } = await supabase
-			.from("ingresos")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        viaje:viaje_id(id, origen, destino, fecha_salida)
-      `
-			)
-			.eq("id", id)
-			.single();
+		try {
+			// Obtener el ingreso
+			const { data: ingreso, error: ingresoError } = await supabase.from("ingresos").select("*").eq("id", id).single();
 
-		if (error) throw error;
-		return data;
+			if (ingresoError) throw ingresoError;
+			if (!ingreso) return null;
+
+			// Obtener datos relacionados en consultas separadas
+			const [clienteResult, viajeResult] = await Promise.all([
+				ingreso.cliente_id ? supabase.from("clientes").select("id, razon_social, ruc").eq("id", ingreso.cliente_id).single() : { data: null },
+				ingreso.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", ingreso.viaje_id).single() : { data: null },
+			]);
+
+			// Combinar datos
+			return {
+				...ingreso,
+				cliente: clienteResult.data || undefined,
+				viaje: viajeResult.data || undefined,
+			};
+		} catch (error) {
+			console.error("Error en getIngresoById:", error);
+			throw error;
+		}
 	},
 
 	async createIngreso(ingreso: Omit<Ingreso, "id" | "cliente" | "viaje">): Promise<Ingreso> {
@@ -463,38 +521,69 @@ export const ingresoService = {
 // Servicios para egresos (con factura)
 export const egresoService = {
 	async getEgresos(): Promise<Egreso[]> {
-		const { data, error } = await supabase
-			.from("egresos")
-			.select(
-				`
-        *,
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        vehiculo:vehiculo_id(id, placa, marca, modelo),
-        conductor:conductor_id(id, nombres, apellidos)
-      `
-			)
-			.order("fecha", { ascending: false });
+		try {
+			// Primero, obtener todos los egresos
+			const { data: egresos, error: egresosError } = await supabase.from("egresos").select("*").order("fecha", { ascending: false });
 
-		if (error) throw error;
-		return data || [];
+			if (egresosError) throw egresosError;
+			if (!egresos || egresos.length === 0) return [];
+
+			// Obtener IDs únicos para las entidades relacionadas
+			const viajeIds = [...new Set(egresos.map((e) => e.viaje_id).filter(Boolean))];
+			const vehiculoIds = [...new Set(egresos.map((e) => e.vehiculo_id).filter(Boolean))];
+			const conductorIds = [...new Set(egresos.map((e) => e.conductor_id).filter(Boolean))];
+
+			// Obtener datos relacionados en consultas separadas
+			const [viajesResult, vehiculosResult, conductoresResult] = await Promise.all([
+				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
+				vehiculoIds.length > 0 ? supabase.from("vehiculos").select("id, placa, marca, modelo").in("id", vehiculoIds) : { data: [] },
+				conductorIds.length > 0 ? supabase.from("conductores").select("id, nombres, apellidos").in("id", conductorIds) : { data: [] },
+			]);
+
+			// Crear mapas para búsqueda rápida
+			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
+			const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
+			const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
+
+			// Combinar datos
+			return egresos.map((egreso) => ({
+				...egreso,
+				viaje: egreso.viaje_id ? viajeMap.get(egreso.viaje_id) : undefined,
+				vehiculo: egreso.vehiculo_id ? vehiculoMap.get(egreso.vehiculo_id) : undefined,
+				conductor: egreso.conductor_id ? conductorMap.get(egreso.conductor_id) : undefined,
+			}));
+		} catch (error) {
+			console.error("Error en getEgresos:", error);
+			throw error;
+		}
 	},
 
 	async getEgresoById(id: string): Promise<Egreso | null> {
-		const { data, error } = await supabase
-			.from("egresos")
-			.select(
-				`
-        *,
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        vehiculo:vehiculo_id(id, placa, marca, modelo),
-        conductor:conductor_id(id, nombres, apellidos)
-      `
-			)
-			.eq("id", id)
-			.single();
+		try {
+			// Obtener el egreso
+			const { data: egreso, error: egresoError } = await supabase.from("egresos").select("*").eq("id", id).single();
 
-		if (error) throw error;
-		return data;
+			if (egresoError) throw egresoError;
+			if (!egreso) return null;
+
+			// Obtener datos relacionados en consultas separadas
+			const [viajeResult, vehiculoResult, conductorResult] = await Promise.all([
+				egreso.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", egreso.viaje_id).single() : { data: null },
+				egreso.vehiculo_id ? supabase.from("vehiculos").select("id, placa, marca, modelo").eq("id", egreso.vehiculo_id).single() : { data: null },
+				egreso.conductor_id ? supabase.from("conductores").select("id, nombres, apellidos").eq("id", egreso.conductor_id).single() : { data: null },
+			]);
+
+			// Combinar datos
+			return {
+				...egreso,
+				viaje: viajeResult.data || undefined,
+				vehiculo: vehiculoResult.data || undefined,
+				conductor: conductorResult.data || undefined,
+			};
+		} catch (error) {
+			console.error("Error en getEgresoById:", error);
+			throw error;
+		}
 	},
 
 	async createEgreso(egreso: Omit<Egreso, "id" | "viaje" | "vehiculo" | "conductor">): Promise<Egreso> {
@@ -521,40 +610,72 @@ export const egresoService = {
 // Servicios para egresos sin factura
 export const egresoSinFacturaService = {
 	async getEgresosSinFactura(): Promise<EgresoSinFactura[]> {
-		const { data, error } = await supabase
-			.from("egresos_sin_factura")
-			.select(
-				`
-        *,
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        vehiculo:vehiculo_id(id, placa, marca, modelo),
-        conductor:conductor_id(id, nombres, apellidos)
-      `
-			)
-			.order("fecha", { ascending: false });
+		try {
+			// Primero, obtener todos los egresos sin factura
+			const { data: egresos, error: egresosError } = await supabase.from("egresos_sin_factura").select("*").order("fecha", { ascending: false });
 
-		if (error) throw error;
-		return data || [];
+			if (egresosError) throw egresosError;
+			if (!egresos || egresos.length === 0) return [];
+
+			// Obtener IDs únicos para las entidades relacionadas
+			const viajeIds = [...new Set(egresos.map((e) => e.viaje_id).filter(Boolean))];
+			const vehiculoIds = [...new Set(egresos.map((e) => e.vehiculo_id).filter(Boolean))];
+			const conductorIds = [...new Set(egresos.map((e) => e.conductor_id).filter(Boolean))];
+
+			// Obtener datos relacionados en consultas separadas
+			const [viajesResult, vehiculosResult, conductoresResult] = await Promise.all([
+				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
+				vehiculoIds.length > 0 ? supabase.from("vehiculos").select("id, placa, marca, modelo").in("id", vehiculoIds) : { data: [] },
+				conductorIds.length > 0 ? supabase.from("conductores").select("id, nombres, apellidos").in("id", conductorIds) : { data: [] },
+			]);
+
+			// Crear mapas para búsqueda rápida
+			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
+			const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
+			const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
+
+			// Combinar datos
+			return egresos.map((egreso) => ({
+				...egreso,
+				viaje: egreso.viaje_id ? viajeMap.get(egreso.viaje_id) : undefined,
+				vehiculo: egreso.vehiculo_id ? vehiculoMap.get(egreso.vehiculo_id) : undefined,
+				conductor: egreso.conductor_id ? conductorMap.get(egreso.conductor_id) : undefined,
+			}));
+		} catch (error) {
+			console.error("Error en getEgresosSinFactura:", error);
+			throw error;
+		}
 	},
 
 	async getEgresoSinFacturaById(id: string): Promise<EgresoSinFactura | null> {
-		const { data, error } = await supabase
-			.from("egresos_sin_factura")
-			.select(
-				`
-        *,
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        vehiculo:vehiculo_id(id, placa, marca, modelo),
-        conductor:conductor_id(id, nombres, apellidos)
-      `
-			)
-			.eq("id", id)
-			.single();
+		try {
+			// Obtener el egreso sin factura
+			const { data: egreso, error: egresoError } = await supabase.from("egresos_sin_factura").select("*").eq("id", id).single();
 
-		if (error) throw error;
-		return data;
+			if (egresoError) throw egresoError;
+			if (!egreso) return null;
+
+			// Obtener datos relacionados en consultas separadas
+			const [viajeResult, vehiculoResult, conductorResult] = await Promise.all([
+				egreso.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", egreso.viaje_id).single() : { data: null },
+				egreso.vehiculo_id ? supabase.from("vehiculos").select("id, placa, marca, modelo").eq("id", egreso.vehiculo_id).single() : { data: null },
+				egreso.conductor_id ? supabase.from("conductores").select("id, nombres, apellidos").eq("id", egreso.conductor_id).single() : { data: null },
+			]);
+
+			// Combinar datos
+			return {
+				...egreso,
+				viaje: viajeResult.data || undefined,
+				vehiculo: vehiculoResult.data || undefined,
+				conductor: conductorResult.data || undefined,
+			};
+		} catch (error) {
+			console.error("Error en getEgresoSinFacturaById:", error);
+			throw error;
+		}
 	},
 
+	// Los métodos de crear, actualizar y eliminar permanecen igual
 	async createEgresoSinFactura(egreso: Omit<EgresoSinFactura, "id" | "viaje" | "vehiculo" | "conductor">): Promise<EgresoSinFactura> {
 		const { data, error } = await supabase.from("egresos_sin_factura").insert([egreso]).select();
 
@@ -579,40 +700,72 @@ export const egresoSinFacturaService = {
 // Servicios para detracciones
 export const detraccionService = {
 	async getDetracciones(): Promise<Detraccion[]> {
-		const { data, error } = await supabase
-			.from("detracciones")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        ingreso:ingreso_id(id, concepto, monto, numero_factura)
-      `
-			)
-			.order("fecha_deposito", { ascending: false });
+		try {
+			// Primero, obtener todas las detracciones
+			const { data: detracciones, error: detraccionesError } = await supabase.from("detracciones").select("*").order("fecha_deposito", { ascending: false });
 
-		if (error) throw error;
-		return data || [];
+			if (detraccionesError) throw detraccionesError;
+			if (!detracciones || detracciones.length === 0) return [];
+
+			// Obtener IDs únicos para las entidades relacionadas
+			const clienteIds = [...new Set(detracciones.map((d) => d.cliente_id).filter(Boolean))];
+			const viajeIds = [...new Set(detracciones.map((d) => d.viaje_id).filter(Boolean))];
+			const ingresoIds = [...new Set(detracciones.map((d) => d.ingreso_id).filter(Boolean))];
+
+			// Obtener datos relacionados en consultas separadas
+			const [clientesResult, viajesResult, ingresosResult] = await Promise.all([
+				clienteIds.length > 0 ? supabase.from("clientes").select("id, razon_social, ruc").in("id", clienteIds) : { data: [] },
+				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
+				ingresoIds.length > 0 ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").in("id", ingresoIds) : { data: [] },
+			]);
+
+			// Crear mapas para búsqueda rápida
+			const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
+			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
+			const ingresoMap = new Map((ingresosResult.data || []).map((i) => [i.id, i]));
+
+			// Combinar datos
+			return detracciones.map((detraccion) => ({
+				...detraccion,
+				cliente: detraccion.cliente_id ? clienteMap.get(detraccion.cliente_id) : undefined,
+				viaje: detraccion.viaje_id ? viajeMap.get(detraccion.viaje_id) : undefined,
+				ingreso: detraccion.ingreso_id ? ingresoMap.get(detraccion.ingreso_id) : undefined,
+			}));
+		} catch (error) {
+			console.error("Error en getDetracciones:", error);
+			throw error;
+		}
 	},
 
 	async getDetraccionById(id: string): Promise<Detraccion | null> {
-		const { data, error } = await supabase
-			.from("detracciones")
-			.select(
-				`
-        *,
-        cliente:cliente_id(id, razon_social, ruc),
-        viaje:viaje_id(id, origen, destino, fecha_salida),
-        ingreso:ingreso_id(id, concepto, monto, numero_factura)
-      `
-			)
-			.eq("id", id)
-			.single();
+		try {
+			// Obtener la detracción
+			const { data: detraccion, error: detraccionError } = await supabase.from("detracciones").select("*").eq("id", id).single();
 
-		if (error) throw error;
-		return data;
+			if (detraccionError) throw detraccionError;
+			if (!detraccion) return null;
+
+			// Obtener datos relacionados en consultas separadas
+			const [clienteResult, viajeResult, ingresoResult] = await Promise.all([
+				detraccion.cliente_id ? supabase.from("clientes").select("id, razon_social, ruc").eq("id", detraccion.cliente_id).single() : { data: null },
+				detraccion.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", detraccion.viaje_id).single() : { data: null },
+				detraccion.ingreso_id ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").eq("id", detraccion.ingreso_id).single() : { data: null },
+			]);
+
+			// Combinar datos
+			return {
+				...detraccion,
+				cliente: clienteResult.data || undefined,
+				viaje: viajeResult.data || undefined,
+				ingreso: ingresoResult.data || undefined,
+			};
+		} catch (error) {
+			console.error("Error en getDetraccionById:", error);
+			throw error;
+		}
 	},
 
+	// Los métodos de crear, actualizar y eliminar permanecen igual
 	async createDetraccion(detraccion: Omit<Detraccion, "id" | "cliente" | "viaje" | "ingreso">): Promise<Detraccion> {
 		const { data, error } = await supabase.from("detracciones").insert([detraccion]).select();
 
