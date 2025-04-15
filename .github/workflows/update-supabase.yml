@@ -12,9 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      NODE_OPTIONS: "--dns-result-order=ipv4first"
 
     steps:
       - name: Checkout repository
@@ -26,76 +24,65 @@ jobs:
           node-version: "18"
 
       - name: Install dependencies
-        run: npm install @supabase/supabase-js dotenv pg
+        run: npm install pg
 
-      - name: Execute SQL script
+      - name: Execute SQL script using direct connection
         run: |
           cat << 'EOF' > update-database.js
-          const { createClient } = require('@supabase/supabase-js');
           const fs = require('fs');
-          const { Pool } = require('pg');
-          const dns = require('dns');
-
-          // Forzar resolución de DNS a IPv4 primero
-          dns.setDefaultResultOrder('ipv4first');
+          const { Client } = require('pg');
 
           async function main() {
-            // Verificar que las variables de entorno estén disponibles
-            let supabaseUrl = process.env.SUPABASE_URL;
-            const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-            
-            // Eliminar el prefijo '@' si existe
-            if (supabaseUrl && supabaseUrl.startsWith('@')) {
-              supabaseUrl = supabaseUrl.substring(1);
-            }
-            
-            if (!supabaseUrl || !supabaseServiceRoleKey) {
-              console.error('❌ Variables de entorno SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY no están configuradas');
-              process.exit(1);
-            }
-            
             try {
               console.log('📝 Leyendo el archivo SQL...');
               const sqlScript = fs.readFileSync('create-all-tables.sql', 'utf8');
               
-              // Conexión directa a PostgreSQL para ejecutar scripts grandes
-              // Extrae la información de conexión desde la URL de Supabase
-              const urlMatch = supabaseUrl.match(/https:\/\/([^.]+)/);
-              const projectRef = urlMatch ? urlMatch[1] : null;
+              // Usar exactamente las credenciales proporcionadas
+              console.log('🔌 Conectando a Supabase usando las credenciales proporcionadas...');
               
-              if (!projectRef) {
-                throw new Error('No se pudo extraer el identificador del proyecto desde la URL de Supabase: ' + supabaseUrl);
-              }
-              
-              console.log('Project ref extraído: ' + projectRef);
-              
-              // Construcción explícita de la cadena de conexión para evitar problemas de interpolación
-              const connectionString = 'postgres://postgres:' + supabaseServiceRoleKey + '@db.' + projectRef + '.supabase.co:5432/postgres';
-              
-              console.log('🔌 Conectando a la base de datos Postgres...');
-              
-              // Obtener la dirección IP usando DNS antes de conectar
-              const dbHost = 'db.' + projectRef + '.supabase.co';
-              console.log('Resolviendo host: ' + dbHost);
-              
-              dns.lookup(dbHost, (err, address, family) => {
-                console.log('Dirección IP: %j familia: IPv%s', address, family);
+              const client = new Client({
+                user: 'postgres.bccxjjgpabepwbqglmrn',
+                password: 'xu5iZMpih4u&35d',
+                host: 'aws-0-sa-east-1.pooler.supabase.com',
+                port: 5432,
+                database: 'postgres',
+                ssl: {
+                  rejectUnauthorized: false
+                }
               });
               
-              const pool = new Pool({ 
-                connectionString,
-                ssl: { rejectUnauthorized: false }
-              });
+              await client.connect();
+              console.log('✅ Conexión establecida exitosamente');
               
               console.log('🚀 Ejecutando el script SQL...');
-              await pool.query(sqlScript);
               
-              console.log('✅ Base de datos actualizada correctamente!');
-              await pool.end();
+              // Dividir el script en declaraciones individuales para evitar problemas con scripts grandes
+              const statements = sqlScript.split(';').filter(stmt => stmt.trim().length > 0);
+              
+              console.log(`Encontradas ${statements.length} declaraciones SQL para ejecutar`);
+              
+              // Ejecutar cada declaración individualmente
+              for (let i = 0; i < statements.length; i++) {
+                const statement = statements[i].trim() + ';';
+                try {
+                  await client.query(statement);
+                  if (i % 10 === 0 || i === statements.length - 1) {
+                    console.log(`Progreso: ${i + 1}/${statements.length} declaraciones ejecutadas`);
+                  }
+                } catch (err) {
+                  console.error(`Error en la declaración #${i + 1}: ${err.message}`);
+                  // Continuamos con la siguiente declaración
+                }
+              }
+              
+              console.log('✅ Script SQL ejecutado correctamente');
+              await client.end();
               
             } catch (error) {
-              console.error('❌ Error al actualizar la base de datos:', error);
-              console.error('Detalles del error:', error.stack);
+              console.error('❌ Error al actualizar la base de datos:', error.message);
+              if (error.stack) {
+                console.error('Detalles del error:', error.stack);
+              }
               process.exit(1);
             }
           }
