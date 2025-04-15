@@ -14,6 +14,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
 
     steps:
       - name: Checkout repository
@@ -33,6 +34,10 @@ jobs:
           const { createClient } = require('@supabase/supabase-js');
           const fs = require('fs');
           const { Pool } = require('pg');
+          const dns = require('dns');
+
+          // Forzar resolución de DNS a IPv4 primero
+          dns.setDefaultResultOrder('ipv4first');
 
           async function main() {
             // Verificar que las variables de entorno estén disponibles
@@ -68,7 +73,19 @@ jobs:
               const connectionString = 'postgres://postgres:' + supabaseServiceRoleKey + '@db.' + projectRef + '.supabase.co:5432/postgres';
               
               console.log('🔌 Conectando a la base de datos Postgres...');
-              const pool = new Pool({ connectionString });
+              
+              // Obtener la dirección IP usando DNS antes de conectar
+              const dbHost = 'db.' + projectRef + '.supabase.co';
+              console.log('Resolviendo host: ' + dbHost);
+              
+              dns.lookup(dbHost, (err, address, family) => {
+                console.log('Dirección IP: %j familia: IPv%s', address, family);
+              });
+              
+              const pool = new Pool({ 
+                connectionString,
+                ssl: { rejectUnauthorized: false }
+              });
               
               console.log('🚀 Ejecutando el script SQL...');
               await pool.query(sqlScript);
@@ -78,6 +95,7 @@ jobs:
               
             } catch (error) {
               console.error('❌ Error al actualizar la base de datos:', error);
+              console.error('Detalles del error:', error.stack);
               process.exit(1);
             }
           }
