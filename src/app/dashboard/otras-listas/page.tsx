@@ -3,16 +3,11 @@
 import { useState, useEffect } from "react";
 import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
-import { serieService, Serie } from "@/lib/supabaseServices";
+import { serieService, Serie, observacionService, Observacion } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import { ActionButtonGroup, EditButton, DeleteButton } from "@/components/ActionIcons";
 
-// Definición de la estructura de datos para Observaciones
-interface Observacion {
-	id: number;
-	observacion: string;
-	fecha_creacion: string;
-}
+// Definición de la estructura de datos para Observaciones ya no es necesaria, se importa de supabaseServices
 
 export default function OtrasListasPage() {
 	// Estado para controlar qué tabla se muestra
@@ -41,23 +36,27 @@ export default function OtrasListasPage() {
 	}, []);
 
 	// Estado para los datos de Observaciones
-	const [observaciones, setObservaciones] = useState<Observacion[]>([
-		{
-			id: 1,
-			observacion: "Pendiente de pago",
-			fecha_creacion: "2025-04-10",
-		},
-		{
-			id: 2,
-			observacion: "Cliente con deuda previa",
-			fecha_creacion: "2025-04-11",
-		},
-		{
-			id: 3,
-			observacion: "Documentación incompleta",
-			fecha_creacion: "2025-04-12",
-		},
-	]);
+	const [observaciones, setObservaciones] = useState<Observacion[]>([]);
+
+	// Cargar observaciones desde Supabase
+	useEffect(() => {
+		async function cargarObservaciones() {
+			if (tablaActiva === "observaciones") {
+				setLoading(true);
+				try {
+					const data = await observacionService.getObservaciones();
+					setObservaciones(data);
+				} catch (error) {
+					console.error("Error al cargar observaciones:", error);
+					notificationService.error("No se pudieron cargar las observaciones. Inténtelo de nuevo más tarde.");
+				} finally {
+					setLoading(false);
+				}
+			}
+		}
+
+		cargarObservaciones();
+	}, [tablaActiva]);
 
 	// Estado para el formulario de Series
 	const [showFormSeries, setShowFormSeries] = useState(false);
@@ -130,7 +129,7 @@ export default function OtrasListasPage() {
 			cell: (value: unknown, row: Observacion) => (
 				<ActionButtonGroup>
 					<EditButton onClick={() => handleEditObservacion(row)} />
-					<DeleteButton onClick={() => handleDeleteObservacion(value as number)} />
+					<DeleteButton onClick={() => handleDeleteObservacion(value as string)} />
 				</ActionButtonGroup>
 			),
 		},
@@ -220,30 +219,45 @@ export default function OtrasListasPage() {
 		});
 	};
 
-	const handleSubmitObservaciones = (e: React.FormEvent) => {
+	const handleSubmitObservaciones = async (e: React.FormEvent) => {
 		e.preventDefault();
 
-		const nuevaObservacion: Observacion = {
-			id: formDataObservaciones.id || Date.now(),
-			observacion: formDataObservaciones.observacion || "",
-			fecha_creacion: formDataObservaciones.fecha_creacion || new Date().toISOString().split("T")[0],
-		};
+		try {
+			setLoading(true);
 
-		if (formDataObservaciones.id) {
-			// Actualizar observación existente
-			setObservaciones(observaciones.map((o) => (o.id === formDataObservaciones.id ? nuevaObservacion : o)));
-		} else {
-			// Agregar nueva observación
-			setObservaciones([...observaciones, nuevaObservacion]);
+			if (formDataObservaciones.id) {
+				// Actualizar observación existente
+				const observacionActualizada = await observacionService.updateObservacion(formDataObservaciones.id.toString(), {
+					observacion: formDataObservaciones.observacion || "",
+					fecha_creacion: formDataObservaciones.fecha_creacion || new Date().toISOString().split("T")[0],
+				});
+
+				setObservaciones(observaciones.map((obs) => (obs.id === observacionActualizada.id ? observacionActualizada : obs)));
+				notificationService.success("Observación actualizada correctamente");
+			} else {
+				// Crear nueva observación
+				const nuevaObservacion = await observacionService.createObservacion({
+					observacion: formDataObservaciones.observacion || "",
+					fecha_creacion: formDataObservaciones.fecha_creacion || new Date().toISOString().split("T")[0],
+				});
+
+				setObservaciones([...observaciones, nuevaObservacion]);
+				notificationService.success("Observación creada correctamente");
+			}
+
+			// Limpiar formulario
+			setFormDataObservaciones({
+				observacion: "",
+				fecha_creacion: new Date().toISOString().split("T")[0],
+			});
+
+			setShowFormObservaciones(false);
+		} catch (error) {
+			console.error("Error al guardar observación:", error);
+			notificationService.error("No se pudo guardar la observación. Inténtelo de nuevo más tarde.");
+		} finally {
+			setLoading(false);
 		}
-
-		// Limpiar formulario
-		setFormDataObservaciones({
-			observacion: "",
-			fecha_creacion: new Date().toISOString().split("T")[0],
-		});
-
-		setShowFormObservaciones(false);
 	};
 
 	const handleEditObservacion = (observacion: Observacion) => {
@@ -253,9 +267,19 @@ export default function OtrasListasPage() {
 		setShowFormObservaciones(true);
 	};
 
-	const handleDeleteObservacion = (id: number) => {
+	const handleDeleteObservacion = async (id: string) => {
 		if (confirm("¿Está seguro de que desea eliminar esta observación?")) {
-			setObservaciones(observaciones.filter((o) => o.id !== id));
+			try {
+				setLoading(true);
+				await observacionService.deleteObservacion(id);
+				setObservaciones(observaciones.filter((obs) => obs.id !== id));
+				notificationService.success("Observación eliminada correctamente");
+			} catch (error) {
+				console.error("Error al eliminar observación:", error);
+				notificationService.error("No se pudo eliminar la observación. Inténtelo de nuevo más tarde.");
+			} finally {
+				setLoading(false);
+			}
 		}
 	};
 

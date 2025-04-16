@@ -7,19 +7,25 @@ import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup, ActionButt
 
 // Definición de la estructura de datos de Detracciones
 interface Detraccion extends DataItem {
-	id: number;
-	fecha: string;
-	numeroConstancia: string;
-	rucProveedor: string;
-	nombreProveedor: string;
-	moneda: string;
-	importe: number;
-	tipoOperacion: string;
-	tipoComprobante: string;
-	serieComprobante: string;
-	numeroComprobante: string;
-	periodo: string;
+	id: number | string;
+	cliente_id: string;
+	viaje_id?: string | null;
+	ingreso_id?: string | null;
+	factura_id?: string | null;
+	fecha_deposito: string;
+	monto: number;
+	porcentaje: number;
+	numero_constancia: string;
+	fecha_constancia: string;
 	estado: string;
+	observaciones: string;
+	created_at?: string;
+	updated_at?: string;
+	// Propiedades relacionadas
+	cliente?: {
+		razon_social: string;
+		ruc: string;
+	};
 }
 
 export default function DetraccionesPage() {
@@ -27,48 +33,48 @@ export default function DetraccionesPage() {
 	const [detracciones, setDetracciones] = useState<Detraccion[]>([
 		{
 			id: 1,
-			fecha: "2025-03-05",
-			numeroConstancia: "DET-001-2025",
-			rucProveedor: "20123456789",
-			nombreProveedor: "Transportes S.A.",
-			moneda: "PEN",
-			importe: 250.5,
-			tipoOperacion: "Transporte",
-			tipoComprobante: "Factura",
-			serieComprobante: "F001",
-			numeroComprobante: "00123",
-			periodo: "2025-03",
-			estado: "Pagado",
+			cliente_id: "1",
+			fecha_deposito: "2025-03-05",
+			numero_constancia: "DET-001-2025",
+			fecha_constancia: "2025-03-05",
+			monto: 250.5,
+			porcentaje: 4.0,
+			estado: "Pendiente",
+			observaciones: "Detracción por servicio de transporte",
+			cliente: {
+				razon_social: "Transportes S.A.",
+				ruc: "20123456789",
+			},
 		},
 		{
 			id: 2,
-			fecha: "2025-03-12",
-			numeroConstancia: "DET-002-2025",
-			rucProveedor: "20987654321",
-			nombreProveedor: "Logística Express",
-			moneda: "PEN",
-			importe: 320.0,
-			tipoOperacion: "Transporte",
-			tipoComprobante: "Factura",
-			serieComprobante: "F001",
-			numeroComprobante: "00156",
-			periodo: "2025-03",
+			cliente_id: "2",
+			fecha_deposito: "2025-03-12",
+			numero_constancia: "DET-002-2025",
+			fecha_constancia: "2025-03-12",
+			monto: 320.0,
+			porcentaje: 4.0,
 			estado: "Pendiente",
+			observaciones: "Detracción por flete Lima-Arequipa",
+			cliente: {
+				razon_social: "Logística Express",
+				ruc: "20987654321",
+			},
 		},
 		{
 			id: 3,
-			fecha: "2025-03-18",
-			numeroConstancia: "DET-003-2025",
-			rucProveedor: "20456789012",
-			nombreProveedor: "Carga Rápida EIRL",
-			moneda: "PEN",
-			importe: 180.75,
-			tipoOperacion: "Transporte",
-			tipoComprobante: "Factura",
-			serieComprobante: "F001",
-			numeroComprobante: "00189",
-			periodo: "2025-03",
+			cliente_id: "3",
+			fecha_deposito: "2025-03-18",
+			numero_constancia: "DET-003-2025",
+			fecha_constancia: "2025-03-18",
+			monto: 180.75,
+			porcentaje: 4.0,
 			estado: "Pagado",
+			observaciones: "Detracción por servicio especial",
+			cliente: {
+				razon_social: "Carga Rápida EIRL",
+				ruc: "20456789012",
+			},
 		},
 	]);
 
@@ -79,25 +85,20 @@ export default function DetraccionesPage() {
 	const [importError, setImportError] = useState<string>("");
 
 	const [formData, setFormData] = useState<Partial<Detraccion>>({
-		fecha: new Date().toISOString().split("T")[0],
-		numeroConstancia: "",
-		rucProveedor: "",
-		nombreProveedor: "",
-		moneda: "PEN",
-		importe: 0,
-		tipoOperacion: "Transporte",
-		tipoComprobante: "Factura",
-		serieComprobante: "",
-		numeroComprobante: "",
-		periodo: format(new Date(), "yyyy-MM"),
+		fecha_deposito: new Date().toISOString().split("T")[0],
+		numero_constancia: "",
+		fecha_constancia: new Date().toISOString().split("T")[0],
+		monto: 0,
+		porcentaje: 4.0,
 		estado: "Pendiente",
+		observaciones: "",
 	});
 
 	// Columnas para la tabla de detracciones
 	const columns: Column<Detraccion>[] = [
 		{
 			header: "Fecha",
-			accessor: "fecha",
+			accessor: "fecha_deposito",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="text-sm font-medium flex items-center text-gray-700">
@@ -111,7 +112,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "N° Constancia",
-			accessor: "numeroConstancia",
+			accessor: "numero_constancia",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm">{value as string}</span>
@@ -120,7 +121,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "RUC Proveedor",
-			accessor: "rucProveedor",
+			accessor: "cliente.ruc",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
@@ -139,7 +140,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Proveedor",
-			accessor: "nombreProveedor",
+			accessor: "cliente.razon_social",
 			cell: (value: unknown, row: Detraccion) => {
 				// Crear un avatar con la primera letra del nombre
 				const inicial = (value as string).charAt(0).toUpperCase();
@@ -154,9 +155,9 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Moneda",
-			accessor: "moneda",
-			cell: (value: unknown) => {
-				const moneda = value as string;
+			accessor: "monto",
+			cell: (value: unknown, row: Detraccion) => {
+				const moneda = row.cliente?.razon_social || "PEN";
 				const bgColor = moneda === "PEN" ? "bg-green-100" : "bg-blue-100";
 				const textColor = moneda === "PEN" ? "text-green-800" : "text-blue-800";
 				const symbol = moneda === "PEN" ? "S/." : "$";
@@ -164,7 +165,7 @@ export default function DetraccionesPage() {
 				return (
 					<div className="flex justify-center">
 						<span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
-							{symbol} {moneda}
+							{symbol} {value as number}
 						</span>
 					</div>
 				);
@@ -172,18 +173,18 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Importe",
-			accessor: "importe",
+			accessor: "monto",
 			cell: (value: unknown, row: Detraccion) => (
 				<div className="flex justify-end">
 					<span className="font-mono text-gray-700 font-medium">
-						{row.moneda === "PEN" ? "S/." : "$"} {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+						{row.cliente?.razon_social === "PEN" ? "S/." : "$"} {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
 					</span>
 				</div>
 			),
 		},
 		{
 			header: "Tipo Operación",
-			accessor: "tipoOperacion",
+			accessor: "porcentaje",
 			cell: (value: unknown) => {
 				return (
 					<div className="flex justify-center">
@@ -196,7 +197,7 @@ export default function DetraccionesPage() {
 									d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
 								/>
 							</svg>
-							{value as string}
+							{value as number}%
 						</span>
 					</div>
 				);
@@ -204,7 +205,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Tipo Comprobante",
-			accessor: "tipoComprobante",
+			accessor: "numero_constancia",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{value as string}</span>
@@ -213,7 +214,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Serie",
-			accessor: "serieComprobante",
+			accessor: "numero_constancia",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-sm">{value as string}</span>
@@ -222,7 +223,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Número",
-			accessor: "numeroComprobante",
+			accessor: "numero_constancia",
 			cell: (value: unknown) => (
 				<div className="flex justify-center">
 					<span className="font-mono">{value as string}</span>
@@ -231,7 +232,7 @@ export default function DetraccionesPage() {
 		},
 		{
 			header: "Periodo",
-			accessor: "periodo",
+			accessor: "fecha_constancia",
 			cell: (value: unknown) => {
 				const periodo = value as string;
 				const [year, month] = periodo.split("-");
@@ -310,18 +311,18 @@ export default function DetraccionesPage() {
 
 		const nuevaDetraccion: Detraccion = {
 			id: formData.id || Date.now(),
-			fecha: formData.fecha || new Date().toISOString().split("T")[0],
-			numeroConstancia: formData.numeroConstancia || "",
-			rucProveedor: formData.rucProveedor || "",
-			nombreProveedor: formData.nombreProveedor || "",
-			moneda: formData.moneda || "PEN",
-			importe: formData.importe || 0,
-			tipoOperacion: formData.tipoOperacion || "Transporte",
-			tipoComprobante: formData.tipoComprobante || "Factura",
-			serieComprobante: formData.serieComprobante || "",
-			numeroComprobante: formData.numeroComprobante || "",
-			periodo: formData.periodo || format(new Date(), "yyyy-MM"),
+			cliente_id: formData.cliente_id || "",
+			fecha_deposito: formData.fecha_deposito || new Date().toISOString().split("T")[0],
+			numero_constancia: formData.numero_constancia || "",
+			fecha_constancia: formData.fecha_constancia || new Date().toISOString().split("T")[0],
+			monto: formData.monto || 0,
+			porcentaje: formData.porcentaje || 4.0,
 			estado: formData.estado || "Pendiente",
+			observaciones: formData.observaciones || "",
+			cliente: {
+				razon_social: formData.cliente?.razon_social || "",
+				ruc: formData.cliente?.ruc || "",
+			},
 		};
 
 		if (formData.id) {
@@ -334,18 +335,13 @@ export default function DetraccionesPage() {
 
 		// Limpiar formulario
 		setFormData({
-			fecha: new Date().toISOString().split("T")[0],
-			numeroConstancia: "",
-			rucProveedor: "",
-			nombreProveedor: "",
-			moneda: "PEN",
-			importe: 0,
-			tipoOperacion: "Transporte",
-			tipoComprobante: "Factura",
-			serieComprobante: "",
-			numeroComprobante: "",
-			periodo: format(new Date(), "yyyy-MM"),
+			fecha_deposito: new Date().toISOString().split("T")[0],
+			numero_constancia: "",
+			fecha_constancia: new Date().toISOString().split("T")[0],
+			monto: 0,
+			porcentaje: 4.0,
 			estado: "Pendiente",
+			observaciones: "",
 		});
 
 		setShowForm(false);
@@ -393,7 +389,7 @@ export default function DetraccionesPage() {
 			const headers = lines[0].split(",");
 
 			// Validar estructura del CSV
-			const requiredHeaders = ["fecha", "numeroConstancia", "rucProveedor", "nombreProveedor", "importe"];
+			const requiredHeaders = ["fecha_deposito", "numero_constancia", "cliente_id", "monto"];
 			const missingHeaders = requiredHeaders.filter((header) => !headers.includes(header));
 
 			if (missingHeaders.length > 0) {
@@ -416,29 +412,47 @@ export default function DetraccionesPage() {
 				// Crear un objeto que cumpla con la interfaz Detraccion
 				const detraccion: Detraccion = {
 					id: Date.now() + i, // Generar ID único
-					fecha: new Date().toISOString().split("T")[0],
-					numeroConstancia: "",
-					rucProveedor: "",
-					nombreProveedor: "",
-					moneda: "PEN",
-					importe: 0,
-					tipoOperacion: "Transporte",
-					tipoComprobante: "Factura",
-					serieComprobante: "",
-					numeroComprobante: "",
-					periodo: format(new Date(), "yyyy-MM"),
+					cliente_id: values[2].trim(),
+					fecha_deposito: values[0].trim(),
+					numero_constancia: values[1].trim(),
+					fecha_constancia: new Date().toISOString().split("T")[0],
+					monto: parseFloat(values[3].trim()) || 0,
+					porcentaje: 4.0,
 					estado: "Pendiente",
+					observaciones: "",
+					cliente: {
+						razon_social: values[4]?.trim() || "Cliente sin nombre",
+						ruc: values[2].trim() || "",
+					},
 				};
 
 				// Mapear valores del CSV a propiedades de detracción
 				headers.forEach((header, index) => {
 					const value = values[index].trim();
-					if (header === "importe") {
-						detraccion.importe = parseFloat(value) || 0;
-					} else if (header in detraccion) {
-						// Solo asignar si el encabezado coincide con una propiedad de Detraccion
-						// Usamos type assertion para asignar valores de forma segura
-						(detraccion as Record<string, string | number | boolean>)[header] = value;
+					if (header === "fecha_deposito") {
+						detraccion.fecha_deposito = value;
+					} else if (header === "numero_constancia") {
+						detraccion.numero_constancia = value;
+					} else if (header === "cliente_id") {
+						detraccion.cliente_id = value;
+					} else if (header === "monto") {
+						detraccion.monto = parseFloat(value) || 0;
+					} else if (header === "porcentaje") {
+						detraccion.porcentaje = parseFloat(value) || 4.0;
+					} else if (header === "estado") {
+						detraccion.estado = value;
+					} else if (header === "observaciones") {
+						detraccion.observaciones = value;
+					} else if (header === "cliente.razon_social") {
+						detraccion.cliente = {
+							razon_social: value,
+							ruc: detraccion.cliente?.ruc || "",
+						};
+					} else if (header === "cliente.ruc") {
+						detraccion.cliente = {
+							...detraccion.cliente,
+							ruc: value,
+						};
 					}
 				});
 
@@ -499,8 +513,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">Fecha</label>
 							<input
 								type="date"
-								name="fecha"
-								value={formData.fecha}
+								name="fecha_deposito"
+								value={formData.fecha_deposito}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -511,8 +525,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">Número de Constancia</label>
 							<input
 								type="text"
-								name="numeroConstancia"
-								value={formData.numeroConstancia}
+								name="numero_constancia"
+								value={formData.numero_constancia}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -523,8 +537,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">RUC Proveedor</label>
 							<input
 								type="text"
-								name="rucProveedor"
-								value={formData.rucProveedor}
+								name="cliente.ruc"
+								value={formData.cliente?.ruc}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -535,8 +549,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">Nombre Proveedor</label>
 							<input
 								type="text"
-								name="nombreProveedor"
-								value={formData.nombreProveedor}
+								name="cliente.razon_social"
+								value={formData.cliente?.razon_social}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -546,8 +560,8 @@ export default function DetraccionesPage() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Moneda</label>
 							<select
-								name="moneda"
-								value={formData.moneda}
+								name="monto"
+								value={formData.monto}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required>
@@ -561,8 +575,8 @@ export default function DetraccionesPage() {
 							<input
 								type="number"
 								step="0.01"
-								name="importe"
-								value={formData.importe}
+								name="monto"
+								value={formData.monto}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -572,13 +586,13 @@ export default function DetraccionesPage() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Tipo Operación</label>
 							<select
-								name="tipoOperacion"
-								value={formData.tipoOperacion}
+								name="porcentaje"
+								value={formData.porcentaje}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required>
 								{tiposOperacion.map((tipo, index) => (
-									<option key={index} value={tipo}>
+									<option key={index} value={index * 4}>
 										{tipo}
 									</option>
 								))}
@@ -588,8 +602,8 @@ export default function DetraccionesPage() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Tipo Comprobante</label>
 							<select
-								name="tipoComprobante"
-								value={formData.tipoComprobante}
+								name="numero_constancia"
+								value={formData.numero_constancia}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required>
@@ -605,8 +619,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">Serie Comprobante</label>
 							<input
 								type="text"
-								name="serieComprobante"
-								value={formData.serieComprobante}
+								name="numero_constancia"
+								value={formData.numero_constancia}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -617,8 +631,8 @@ export default function DetraccionesPage() {
 							<label className="block text-sm font-medium text-gray-700">Número Comprobante</label>
 							<input
 								type="text"
-								name="numeroComprobante"
-								value={formData.numeroComprobante}
+								name="numero_constancia"
+								value={formData.numero_constancia}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -628,9 +642,9 @@ export default function DetraccionesPage() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Periodo</label>
 							<input
-								type="month"
-								name="periodo"
-								value={formData.periodo}
+								type="date"
+								name="fecha_constancia"
+								value={formData.fecha_constancia}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -674,16 +688,14 @@ export default function DetraccionesPage() {
 					)}
 
 					<div className="mb-4">
-						<p className="text-sm text-gray-600 mb-2">
-							El archivo CSV debe tener los siguientes encabezados: fecha, numeroConstancia, rucProveedor, nombreProveedor, importe, serieComprobante, numeroComprobante
-						</p>
+						<p className="text-sm text-gray-600 mb-2">El archivo CSV debe tener los siguientes encabezados: fecha_deposito, numero_constancia, cliente_id, monto</p>
 
 						<div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
-							fecha,numeroConstancia,rucProveedor,nombreProveedor,importe,serieComprobante,numeroComprobante
+							fecha_deposito,numero_constancia,cliente_id,monto
 							<br />
-							2025-04-10,DET-001,20123456789,Proveedor A,250.50,F001,00123
+							2025-04-10,DET-001,1,250.50
 							<br />
-							2025-04-11,DET-002,20987654321,Proveedor B,320.00,F001,00456
+							2025-04-11,DET-002,2,320.00
 						</div>
 					</div>
 
@@ -741,11 +753,11 @@ export default function DetraccionesPage() {
 				columns={columns}
 				data={detracciones}
 				title="Registro de Detracciones"
-				defaultSort="fecha"
+				defaultSort="fecha_deposito"
 				filters={{
 					year: true,
 					month: true,
-					searchField: "nombreProveedor",
+					searchField: "cliente.razon_social",
 				}}
 			/>
 		</div>

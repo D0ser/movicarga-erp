@@ -2,6 +2,7 @@
 -- Actualizado: octubre de 2024
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
+DROP TABLE IF EXISTS observaciones CASCADE;
 DROP TABLE IF EXISTS auditorias CASCADE;
 DROP TABLE IF EXISTS configuracion CASCADE;
 DROP TABLE IF EXISTS detracciones CASCADE;
@@ -267,6 +268,15 @@ CREATE TABLE IF NOT EXISTS configuracion (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Tabla de Observaciones
+CREATE TABLE IF NOT EXISTS observaciones (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  observacion TEXT NOT NULL,
+  fecha_creacion DATE DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Índices para mejorar el rendimiento
 CREATE INDEX IF NOT EXISTS idx_clientes_razon_social ON clientes(razon_social);
 CREATE INDEX IF NOT EXISTS idx_clientes_ruc ON clientes(ruc);
@@ -302,6 +312,7 @@ CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_auditorias_tabla_accion ON auditorias(tabla, accion);
 CREATE INDEX IF NOT EXISTS idx_auditorias_usuario_id ON auditorias(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_configuracion_clave ON configuracion(clave);
+CREATE INDEX IF NOT EXISTS idx_observaciones_fecha ON observaciones(fecha_creacion);
 
 -- Vistas para reportes comunes
 CREATE OR REPLACE VIEW vista_viajes_completa 
@@ -353,6 +364,7 @@ ALTER TABLE usuarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE auditorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tipo_cliente ENABLE ROW LEVEL SECURITY;
+ALTER TABLE observaciones ENABLE ROW LEVEL SECURITY;
 
 -- Políticas básicas para todas las tablas
 CREATE POLICY "Permitir select para usuarios anónimos" ON clientes FOR SELECT TO anon USING (true);
@@ -430,6 +442,11 @@ CREATE POLICY "Permitir select para usuarios anónimos" ON tipo_cliente FOR SELE
 CREATE POLICY "Permitir insert para usuarios anónimos" ON tipo_cliente FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Permitir update para usuarios anónimos" ON tipo_cliente FOR UPDATE TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "Permitir delete para usuarios anónimos" ON tipo_cliente FOR DELETE TO anon USING (true);
+
+CREATE POLICY "Permitir select para usuarios anónimos" ON observaciones FOR SELECT TO anon USING (true);
+CREATE POLICY "Permitir insert para usuarios anónimos" ON observaciones FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Permitir update para usuarios anónimos" ON observaciones FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir delete para usuarios anónimos" ON observaciones FOR DELETE TO anon USING (true);
 
 -- Funciones y procedimientos almacenados
 CREATE OR REPLACE FUNCTION actualizar_saldo_viaje() 

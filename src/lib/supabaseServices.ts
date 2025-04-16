@@ -180,6 +180,14 @@ export interface Serie extends DataItem {
 	updated_at?: string;
 }
 
+export interface Observacion extends DataItem, RelatedEntities {
+	id: string;
+	observacion: string;
+	fecha_creacion: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
 // Servicios para clientes
 export const clienteService = {
 	async getClientes(): Promise<Cliente[]> {
@@ -821,5 +829,69 @@ export const serieService = {
 		const { error } = await supabase.from("series").delete().eq("id", id);
 
 		if (error) throw error;
+	},
+};
+
+// Servicios para observaciones
+export const observacionService = {
+	async getObservaciones(): Promise<Observacion[]> {
+		try {
+			const { data, error } = await supabase.from("observaciones").select("*").order("fecha_creacion", { ascending: false });
+
+			if (error) throw error;
+			if (!data || data.length === 0) return [];
+
+			return data;
+		} catch (error) {
+			console.error("Error en getObservaciones:", error);
+			throw error;
+		}
+	},
+
+	async getObservacionById(id: string): Promise<Observacion | null> {
+		try {
+			const { data, error } = await supabase.from("observaciones").select("*").eq("id", id).single();
+
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error("Error en getObservacionById:", error);
+			throw error;
+		}
+	},
+
+	async createObservacion(observacion: Omit<Observacion, "id">): Promise<Observacion> {
+		try {
+			const { data, error } = await supabase.from("observaciones").insert([observacion]).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en createObservacion:", error);
+			throw error;
+		}
+	},
+
+	async updateObservacion(id: string, observacion: Partial<Observacion>): Promise<Observacion> {
+		try {
+			const { data, error } = await supabase.from("observaciones").update(observacion).eq("id", id).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateObservacion:", error);
+			throw error;
+		}
+	},
+
+	async deleteObservacion(id: string): Promise<void> {
+		try {
+			const { error } = await supabase.from("observaciones").delete().eq("id", id);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error("Error en deleteObservacion:", error);
+			throw error;
+		}
 	},
 };

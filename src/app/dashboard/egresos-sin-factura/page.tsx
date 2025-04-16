@@ -1,69 +1,42 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
+import { egresoSinFacturaService, EgresoSinFactura } from "@/lib/supabaseServices";
+import notificationService from "@/components/notifications/NotificationService";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 
-// Definición de la estructura de datos de Egresos Sin Factura
-interface EgresoSinFactura {
-	id: number;
-	numeroCheque: string;
-	numeroLiquidacion: string;
-	tipoEgreso: string;
-	moneda: string;
-	monto: number;
-	fecha: string;
-	sumaPorLiquidacion?: number;
-	sumaPorCheque?: number;
-	totalIGV?: number;
-	observacion: string;
-}
-
 export default function EgresosSinFacturaPage() {
-	// En una aplicación real, estos datos vendrían de Supabase
-	const [egresosSinFactura, setEgresosSinFactura] = useState<EgresoSinFactura[]>([
-		{
-			id: 1,
-			numeroCheque: "CH-00123",
-			numeroLiquidacion: "LIQ-001",
-			tipoEgreso: "Viáticos",
-			moneda: "PEN",
-			monto: 500,
-			fecha: "2025-03-05",
-			observacion: "Viáticos para conductor ruta Lima-Arequipa",
-		},
-		{
-			id: 2,
-			numeroCheque: "CH-00124",
-			numeroLiquidacion: "LIQ-002",
-			tipoEgreso: "Mantenimiento",
-			moneda: "PEN",
-			monto: 350,
-			fecha: "2025-03-10",
-			observacion: "Reparación menor en ruta",
-		},
-		{
-			id: 3,
-			numeroCheque: "CH-00123",
-			numeroLiquidacion: "LIQ-003",
-			tipoEgreso: "Combustible",
-			moneda: "PEN",
-			monto: 800,
-			fecha: "2025-03-15",
-			observacion: "Combustible emergencia",
-		},
-	]);
+	// Cargar datos de Supabase
+	const [egresosSinFactura, setEgresosSinFactura] = useState<EgresoSinFactura[]>([]);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		async function cargarEgresos() {
+			try {
+				setLoading(true);
+				const data = await egresoSinFacturaService.getEgresosSinFactura();
+				setEgresosSinFactura(data);
+			} catch (error) {
+				console.error("Error al cargar egresos sin factura:", error);
+				notificationService.error("No se pudieron cargar los egresos sin factura. Inténtelo de nuevo más tarde.");
+			} finally {
+				setLoading(false);
+			}
+		}
+
+		cargarEgresos();
+	}, []);
 
 	const [showForm, setShowForm] = useState(false);
 	const [formData, setFormData] = useState<Partial<EgresoSinFactura>>({
-		numeroCheque: "",
-		numeroLiquidacion: "",
-		tipoEgreso: "",
-		moneda: "PEN",
-		monto: 0,
 		fecha: new Date().toISOString().split("T")[0],
-		observacion: "",
+		beneficiario: "",
+		concepto: "",
+		monto: 0,
+		metodo_pago: "Efectivo",
+		observaciones: "",
 	});
 
 	// Columnas para la tabla de egresos sin factura
@@ -226,55 +199,70 @@ export default function EgresosSinFacturaPage() {
 			cell: (value, row) => (
 				<ActionButtonGroup>
 					<EditButton onClick={() => handleEdit(row)} />
-					<DeleteButton onClick={() => handleDelete(value as number)} />
+					<DeleteButton onClick={() => handleDelete(value as string)} />
 				</ActionButtonGroup>
 			),
 		},
 	];
 
-	// Funciones para manejo de formulario
-	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-		const { name, value, type } = e.target;
-		setFormData({
-			...formData,
-			[name]: type === "number" ? parseFloat(value) || 0 : value,
-		});
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+		const { name, value } = e.target;
+		setFormData((prev) => ({
+			...prev,
+			[name]: value,
+		}));
 	};
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
-		const nuevoEgresoSinFactura: EgresoSinFactura = {
-			id: formData.id || Date.now(),
-			numeroCheque: formData.numeroCheque || "",
-			numeroLiquidacion: formData.numeroLiquidacion || "",
-			tipoEgreso: formData.tipoEgreso || "",
-			moneda: formData.moneda || "PEN",
-			monto: formData.monto || 0,
-			fecha: formData.fecha || new Date().toISOString().split("T")[0],
-			observacion: formData.observacion || "",
-		};
+		try {
+			setLoading(true);
+			if (formData.id) {
+				// Actualizar egreso existente
+				const egresoActualizado = await egresoSinFacturaService.updateEgresoSinFactura(formData.id.toString(), {
+					fecha: formData.fecha || new Date().toISOString().split("T")[0],
+					beneficiario: formData.beneficiario || "",
+					concepto: formData.concepto || "",
+					monto: formData.monto || 0,
+					metodo_pago: formData.metodo_pago || "Efectivo",
+					observaciones: formData.observaciones || "",
+				});
 
-		if (formData.id) {
-			// Actualizar egreso existente
-			setEgresosSinFactura(egresosSinFactura.map((eg) => (eg.id === formData.id ? nuevoEgresoSinFactura : eg)));
-		} else {
-			// Agregar nuevo egreso
-			setEgresosSinFactura([...egresosSinFactura, nuevoEgresoSinFactura]);
+				setEgresosSinFactura(egresosSinFactura.map((egreso) => (egreso.id === egresoActualizado.id ? egresoActualizado : egreso)));
+				notificationService.success("Egreso actualizado correctamente");
+			} else {
+				// Crear nuevo egreso
+				const nuevoEgreso = await egresoSinFacturaService.createEgresoSinFactura({
+					fecha: formData.fecha || new Date().toISOString().split("T")[0],
+					beneficiario: formData.beneficiario || "",
+					concepto: formData.concepto || "",
+					monto: formData.monto || 0,
+					metodo_pago: formData.metodo_pago || "Efectivo",
+					observaciones: formData.observaciones || "",
+				});
+
+				setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);
+				notificationService.success("Egreso registrado correctamente");
+			}
+
+			// Limpiar formulario
+			setFormData({
+				fecha: new Date().toISOString().split("T")[0],
+				beneficiario: "",
+				concepto: "",
+				monto: 0,
+				metodo_pago: "Efectivo",
+				observaciones: "",
+			});
+
+			setShowForm(false);
+		} catch (error) {
+			console.error("Error al guardar egreso sin factura:", error);
+			notificationService.error("No se pudo guardar el egreso sin factura. Inténtelo de nuevo más tarde.");
+		} finally {
+			setLoading(false);
 		}
-
-		// Limpiar formulario
-		setFormData({
-			numeroCheque: "",
-			numeroLiquidacion: "",
-			tipoEgreso: "",
-			moneda: "PEN",
-			monto: 0,
-			fecha: new Date().toISOString().split("T")[0],
-			observacion: "",
-		});
-
-		setShowForm(false);
 	};
 
 	const handleEdit = (egreso: EgresoSinFactura) => {
@@ -284,9 +272,19 @@ export default function EgresosSinFacturaPage() {
 		setShowForm(true);
 	};
 
-	const handleDelete = (id: number) => {
+	const handleDelete = async (id: string) => {
 		if (confirm("¿Está seguro de que desea eliminar este egreso sin factura?")) {
-			setEgresosSinFactura(egresosSinFactura.filter((eg) => eg.id !== id));
+			try {
+				setLoading(true);
+				await egresoSinFacturaService.deleteEgresoSinFactura(id);
+				setEgresosSinFactura(egresosSinFactura.filter((egreso) => egreso.id !== id));
+				notificationService.success("Egreso eliminado correctamente");
+			} catch (error) {
+				console.error("Error al eliminar egreso sin factura:", error);
+				notificationService.error("No se pudo eliminar el egreso sin factura. Inténtelo de nuevo más tarde.");
+			} finally {
+				setLoading(false);
+			}
 		}
 	};
 
@@ -390,11 +388,11 @@ export default function EgresosSinFacturaPage() {
 						</div>
 
 						<div>
-							<label className="block text-sm font-medium text-gray-700">Número de Cheque</label>
+							<label className="block text-sm font-medium text-gray-700">Beneficiario</label>
 							<input
 								type="text"
-								name="numeroCheque"
-								value={formData.numeroCheque}
+								name="beneficiario"
+								value={formData.beneficiario}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -402,32 +400,15 @@ export default function EgresosSinFacturaPage() {
 						</div>
 
 						<div>
-							<label className="block text-sm font-medium text-gray-700">Número de Liquidación</label>
+							<label className="block text-sm font-medium text-gray-700">Concepto</label>
 							<input
 								type="text"
-								name="numeroLiquidacion"
-								value={formData.numeroLiquidacion}
+								name="concepto"
+								value={formData.concepto}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
 							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
-							<select
-								name="tipoEgreso"
-								value={formData.tipoEgreso}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un tipo</option>
-								{tiposEgresos.map((tipo, index) => (
-									<option key={index} value={tipo}>
-										{tipo}
-									</option>
-								))}
-							</select>
 						</div>
 
 						<div>
@@ -456,12 +437,26 @@ export default function EgresosSinFacturaPage() {
 							/>
 						</div>
 
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Método de Pago</label>
+							<select
+								name="metodo_pago"
+								value={formData.metodo_pago}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="Efectivo">Efectivo</option>
+								<option value="Transferencia">Transferencia</option>
+								<option value="Cheque">Cheque</option>
+								<option value="Tarjeta">Tarjeta</option>
+							</select>
+						</div>
+
 						<div className="col-span-full">
-							<label className="block text-sm font-medium text-gray-700">Observación</label>
-							<input
-								type="text"
-								name="observacion"
-								value={formData.observacion}
+							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
+							<textarea
+								name="observaciones"
+								value={formData.observaciones}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 							/>
