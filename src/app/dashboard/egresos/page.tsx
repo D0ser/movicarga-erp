@@ -1,9 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DataTable, { Column, DataItem } from "@/components/DataTable";
 import { format } from "date-fns";
 import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup } from "@/components/ActionIcons";
+import { createClient } from "@supabase/supabase-js";
+
+// Inicialización del cliente Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Definición de la estructura de datos de Egresos
 interface Egreso extends DataItem {
@@ -18,59 +24,73 @@ interface Egreso extends DataItem {
 	tipoEgreso: string;
 	moneda: string;
 	monto: number;
-	observacion: string;
 	aprobado: boolean;
 }
 
 export default function EgresosPage() {
-	// En una aplicación real, estos datos vendrían de Supabase
-	const [egresos, setEgresos] = useState<Egreso[]>([
-		{
-			id: 1,
-			fecha: "2025-03-10",
-			hora: "09:30",
-			factura: "F001-00567",
-			cuentaEgreso: "Cuenta Principal",
-			operacion: "Transferencia",
-			destino: "Proveedor Combustible",
-			cuentaAbonada: "BCP-123456789",
-			tipoEgreso: "Combustible",
-			moneda: "PEN",
-			monto: 1200,
-			observacion: "Abastecimiento semanal",
-			aprobado: true,
-		},
-		{
-			id: 2,
-			fecha: "2025-03-15",
-			hora: "14:45",
-			factura: "F002-00128",
-			cuentaEgreso: "Caja Chica",
-			operacion: "Efectivo",
-			destino: "Taller Mecánico",
-			cuentaAbonada: "N/A",
-			tipoEgreso: "Mantenimiento",
-			moneda: "PEN",
-			monto: 850,
-			observacion: "Reparación de frenos",
-			aprobado: true,
-		},
-		{
-			id: 3,
-			fecha: "2025-03-20",
-			hora: "11:15",
-			factura: "F001-00345",
-			cuentaEgreso: "Cuenta Secundaria",
-			operacion: "Cheque",
-			destino: "Seguros Pacífico",
-			cuentaAbonada: "BBVA-987654321",
-			tipoEgreso: "Seguros",
-			moneda: "PEN",
-			monto: 3500,
-			observacion: "Seguro vehicular trimestral",
-			aprobado: false,
-		},
-	]);
+	// Estado para almacenar los egresos
+	const [egresos, setEgresos] = useState<Egreso[]>([]);
+	const [loading, setLoading] = useState(true);
+
+	// Cargar datos desde Supabase al montar el componente
+	useEffect(() => {
+		const cargarEgresos = async () => {
+			try {
+				setLoading(true);
+
+				// Consultar egresos con factura
+				const { data: egresosConFactura, error: errorEgresos } = await supabase.from("egresos").select("*");
+
+				// Consultar egresos sin factura
+				const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase.from("egresos_sin_factura").select("*");
+
+				if (errorEgresos || errorEgresosSinFactura) {
+					console.error("Error al cargar egresos:", errorEgresos || errorEgresosSinFactura);
+					return;
+				}
+
+				// Transformar los datos al formato esperado por la interfaz
+				const egresosFormateados = [
+					...(egresosConFactura || []).map((eg) => ({
+						id: eg.id,
+						fecha: eg.fecha,
+						hora: new Date(eg.created_at).toTimeString().slice(0, 5),
+						factura: eg.numero_factura || "",
+						cuentaEgreso: "Cuenta Principal",
+						operacion: eg.metodo_pago || "Efectivo",
+						destino: eg.proveedor,
+						cuentaAbonada: "",
+						tipoEgreso: eg.categoria || "Operativo",
+						moneda: "PEN",
+						monto: eg.monto,
+						aprobado: true,
+					})),
+					...(egresosSinFactura || []).map((eg) => ({
+						id: eg.id,
+						fecha: eg.fecha,
+						hora: new Date(eg.created_at).toTimeString().slice(0, 5),
+						factura: "",
+						cuentaEgreso: "Caja Chica",
+						operacion: eg.metodo_pago || "Efectivo",
+						destino: eg.concepto,
+						cuentaAbonada: "",
+						tipoEgreso: eg.categoria || "Operativo",
+						moneda: "PEN",
+						monto: eg.monto,
+						aprobado: true,
+					})),
+				];
+
+				setEgresos(egresosFormateados);
+			} catch (error) {
+				console.error("Error inesperado:", error);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		cargarEgresos();
+	}, []);
 
 	const [showForm, setShowForm] = useState(false);
 	const [formData, setFormData] = useState<Partial<Egreso>>({
@@ -84,7 +104,6 @@ export default function EgresosPage() {
 		tipoEgreso: "",
 		moneda: "PEN",
 		monto: 0,
-		observacion: "",
 		aprobado: false,
 	});
 
@@ -353,50 +372,118 @@ export default function EgresosPage() {
 		});
 	};
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
-		const nuevoEgreso: Egreso = {
-			id: formData.id || Date.now(),
-			fecha: formData.fecha || new Date().toISOString().split("T")[0],
-			hora: formData.hora || new Date().toTimeString().slice(0, 5),
-			factura: formData.factura || "",
-			cuentaEgreso: formData.cuentaEgreso || "",
-			operacion: formData.operacion || "",
-			destino: formData.destino || "",
-			cuentaAbonada: formData.cuentaAbonada || "",
-			tipoEgreso: formData.tipoEgreso || "",
-			moneda: formData.moneda || "PEN",
-			monto: formData.monto || 0,
-			observacion: formData.observacion || "",
-			aprobado: formData.aprobado || false,
-		};
+		try {
+			// Determinar si es un egreso con factura o sin factura
+			const tieneFactura = formData.factura && formData.factura.trim() !== "";
 
-		if (formData.id) {
-			// Actualizar egreso existente
-			setEgresos(egresos.map((eg) => (eg.id === formData.id ? nuevoEgreso : eg)));
-		} else {
-			// Agregar nuevo egreso
-			setEgresos([...egresos, nuevoEgreso]);
+			if (tieneFactura) {
+				// Egreso con factura
+				const { data, error } = await supabase
+					.from("egresos")
+					.upsert({
+						id: formData.id,
+						fecha: formData.fecha,
+						proveedor: formData.destino,
+						concepto: formData.tipoEgreso,
+						monto: formData.monto,
+						metodo_pago: formData.operacion,
+						numero_factura: formData.factura,
+						fecha_factura: formData.fecha,
+						categoria: formData.tipoEgreso,
+					})
+					.select();
+
+				if (error) throw error;
+			} else {
+				// Egreso sin factura
+				const { data, error } = await supabase
+					.from("egresos_sin_factura")
+					.upsert({
+						id: formData.id,
+						fecha: formData.fecha,
+						concepto: formData.destino,
+						monto: formData.monto,
+						metodo_pago: formData.operacion,
+						categoria: formData.tipoEgreso,
+					})
+					.select();
+
+				if (error) throw error;
+			}
+
+			// Recargar los datos
+			const cargarEgresos = async () => {
+				// Consultar egresos con factura
+				const { data: egresosConFactura, error: errorEgresos } = await supabase.from("egresos").select("*");
+
+				// Consultar egresos sin factura
+				const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase.from("egresos_sin_factura").select("*");
+
+				if (errorEgresos || errorEgresosSinFactura) {
+					console.error("Error al cargar egresos:", errorEgresos || errorEgresosSinFactura);
+					return;
+				}
+
+				// Transformar los datos al formato esperado por la interfaz
+				const egresosFormateados = [
+					...(egresosConFactura || []).map((eg) => ({
+						id: eg.id,
+						fecha: eg.fecha,
+						hora: new Date(eg.created_at).toTimeString().slice(0, 5),
+						factura: eg.numero_factura || "",
+						cuentaEgreso: "Cuenta Principal",
+						operacion: eg.metodo_pago || "Efectivo",
+						destino: eg.proveedor,
+						cuentaAbonada: "",
+						tipoEgreso: eg.categoria || "Operativo",
+						moneda: "PEN",
+						monto: eg.monto,
+						aprobado: true,
+					})),
+					...(egresosSinFactura || []).map((eg) => ({
+						id: eg.id,
+						fecha: eg.fecha,
+						hora: new Date(eg.created_at).toTimeString().slice(0, 5),
+						factura: "",
+						cuentaEgreso: "Caja Chica",
+						operacion: eg.metodo_pago || "Efectivo",
+						destino: eg.concepto,
+						cuentaAbonada: "",
+						tipoEgreso: eg.categoria || "Operativo",
+						moneda: "PEN",
+						monto: eg.monto,
+						aprobado: true,
+					})),
+				];
+
+				setEgresos(egresosFormateados);
+			};
+
+			await cargarEgresos();
+
+			// Limpiar formulario
+			setFormData({
+				fecha: new Date().toISOString().split("T")[0],
+				hora: new Date().toTimeString().slice(0, 5),
+				factura: "",
+				cuentaEgreso: "",
+				operacion: "",
+				destino: "",
+				cuentaAbonada: "",
+				tipoEgreso: "",
+				moneda: "PEN",
+				monto: 0,
+				aprobado: false,
+			});
+
+			setShowForm(false);
+		} catch (error) {
+			console.error("Error al guardar el egreso:", error);
+			alert("Error al guardar el egreso. Por favor, inténtalo de nuevo.");
 		}
-
-		// Limpiar formulario
-		setFormData({
-			fecha: new Date().toISOString().split("T")[0],
-			hora: new Date().toTimeString().slice(0, 5),
-			factura: "",
-			cuentaEgreso: "",
-			operacion: "",
-			destino: "",
-			cuentaAbonada: "",
-			tipoEgreso: "",
-			moneda: "PEN",
-			monto: 0,
-			observacion: "",
-			aprobado: false,
-		});
-
-		setShowForm(false);
 	};
 
 	const handleEdit = (egreso: Egreso) => {
@@ -406,9 +493,19 @@ export default function EgresosPage() {
 		setShowForm(true);
 	};
 
-	const handleDelete = (id: number) => {
+	const handleDelete = async (id: number) => {
 		if (confirm("¿Está seguro de que desea eliminar este egreso?")) {
-			setEgresos(egresos.filter((eg) => eg.id !== id));
+			try {
+				// Intentar eliminar de ambas tablas
+				await supabase.from("egresos").delete().eq("id", id);
+				await supabase.from("egresos_sin_factura").delete().eq("id", id);
+
+				// Actualizar la interfaz
+				setEgresos(egresos.filter((eg) => eg.id !== id));
+			} catch (error) {
+				console.error("Error al eliminar el egreso:", error);
+				alert("Error al eliminar el egreso. Por favor, inténtalo de nuevo.");
+			}
 		}
 	};
 
@@ -563,17 +660,6 @@ export default function EgresosPage() {
 							/>
 						</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Observación</label>
-							<input
-								type="text"
-								name="observacion"
-								value={formData.observacion}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-							/>
-						</div>
-
 						<div className="flex items-center mt-6">
 							<input
 								type="checkbox"
@@ -600,17 +686,23 @@ export default function EgresosPage() {
 				</div>
 			)}
 
-			<DataTable
-				columns={columns}
-				data={egresos}
-				title="Registro de Egresos"
-				defaultSort="fecha"
-				filters={{
-					year: true,
-					month: true,
-					searchField: "destino",
-				}}
-			/>
+			{loading ? (
+				<div className="flex justify-center items-center h-64">
+					<div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+				</div>
+			) : (
+				<DataTable
+					columns={columns}
+					data={egresos}
+					title="Registro de Egresos"
+					defaultSort="fecha"
+					filters={{
+						year: true,
+						month: true,
+						searchField: "destino",
+					}}
+				/>
+			)}
 		</div>
 	);
 }

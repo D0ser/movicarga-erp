@@ -30,53 +30,61 @@ interface Detraccion extends DataItem {
 
 export default function DetraccionesPage() {
 	// En una aplicación real, estos datos vendrían de Supabase
-	const [detracciones, setDetracciones] = useState<Detraccion[]>([
-		{
-			id: 1,
-			cliente_id: "1",
-			fecha_deposito: "2025-03-05",
-			numero_constancia: "DET-001-2025",
-			fecha_constancia: "2025-03-05",
-			monto: 250.5,
-			porcentaje: 4.0,
-			estado: "Pendiente",
-			observaciones: "Detracción por servicio de transporte",
-			cliente: {
-				razon_social: "Transportes S.A.",
-				ruc: "20123456789",
-			},
-		},
-		{
-			id: 2,
-			cliente_id: "2",
-			fecha_deposito: "2025-03-12",
-			numero_constancia: "DET-002-2025",
-			fecha_constancia: "2025-03-12",
-			monto: 320.0,
-			porcentaje: 4.0,
-			estado: "Pendiente",
-			observaciones: "Detracción por flete Lima-Arequipa",
-			cliente: {
-				razon_social: "Logística Express",
-				ruc: "20987654321",
-			},
-		},
-		{
-			id: 3,
-			cliente_id: "3",
-			fecha_deposito: "2025-03-18",
-			numero_constancia: "DET-003-2025",
-			fecha_constancia: "2025-03-18",
-			monto: 180.75,
-			porcentaje: 4.0,
-			estado: "Pagado",
-			observaciones: "Detracción por servicio especial",
-			cliente: {
-				razon_social: "Carga Rápida EIRL",
-				ruc: "20456789012",
-			},
-		},
-	]);
+	const [detracciones, setDetracciones] = useState<Detraccion[]>(() => {
+		try {
+			// Datos de muestra
+			return [
+				{
+					id: 1,
+					cliente_id: "1",
+					fecha_deposito: "2025-03-05",
+					numero_constancia: "DET-001-2025",
+					fecha_constancia: "2025-03-05",
+					monto: 250.5,
+					porcentaje: 4.0,
+					estado: "Pendiente",
+					observaciones: "Detracción por servicio de transporte",
+					cliente: {
+						razon_social: "Transportes S.A.",
+						ruc: "20123456789",
+					},
+				},
+				{
+					id: 2,
+					cliente_id: "2",
+					fecha_deposito: "2025-03-12",
+					numero_constancia: "DET-002-2025",
+					fecha_constancia: "2025-03-12",
+					monto: 320.0,
+					porcentaje: 4.0,
+					estado: "Pendiente",
+					observaciones: "Detracción por flete Lima-Arequipa",
+					cliente: {
+						razon_social: "Logística Express",
+						ruc: "20987654321",
+					},
+				},
+				{
+					id: 3,
+					cliente_id: "3",
+					fecha_deposito: "2025-03-18",
+					numero_constancia: "DET-003-2025",
+					fecha_constancia: "2025-03-18",
+					monto: 180.75,
+					porcentaje: 4.0,
+					estado: "Pagado",
+					observaciones: "Detracción por servicio especial",
+					cliente: {
+						razon_social: "Carga Rápida EIRL",
+						ruc: "20456789012",
+					},
+				},
+			];
+		} catch (error) {
+			console.error("Error al inicializar datos de detracciones:", error);
+			return []; // Retornar array vacío en caso de error
+		}
+	});
 
 	const [showForm, setShowForm] = useState(false);
 	const [showImportForm, setShowImportForm] = useState(false);
@@ -92,6 +100,10 @@ export default function DetraccionesPage() {
 		porcentaje: 4.0,
 		estado: "Pendiente",
 		observaciones: "",
+		cliente: {
+			razon_social: "",
+			ruc: "",
+		},
 	});
 
 	// Columnas para la tabla de detracciones
@@ -99,16 +111,32 @@ export default function DetraccionesPage() {
 		{
 			header: "Fecha",
 			accessor: "fecha_deposito",
-			cell: (value: unknown) => (
-				<div className="flex justify-center">
-					<span className="text-sm font-medium flex items-center text-gray-700">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-						</svg>
-						{format(new Date(value as string), "dd/MM/yyyy")}
-					</span>
-				</div>
-			),
+			cell: (value: unknown) => {
+				// Verificar que el valor existe y es una fecha válida
+				if (!value) {
+					return <div className="flex justify-center">-</div>;
+				}
+
+				try {
+					const date = new Date(value as string);
+					if (isNaN(date.getTime())) {
+						return <div className="flex justify-center">Fecha inválida</div>;
+					}
+
+					return (
+						<div className="flex justify-center">
+							<span className="text-sm font-medium flex items-center text-gray-700">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+								</svg>
+								{format(date, "dd/MM/yyyy")}
+							</span>
+						</div>
+					);
+				} catch (error) {
+					return <div className="flex justify-center">Error de formato</div>;
+				}
+			},
 		},
 		{
 			header: "N° Constancia",
@@ -122,33 +150,39 @@ export default function DetraccionesPage() {
 		{
 			header: "RUC Proveedor",
 			accessor: "cliente.ruc",
-			cell: (value: unknown) => (
-				<div className="flex justify-center">
-					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={1.5}
-								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h3m-6-4h.01M9 16h.01"
-							/>
-						</svg>
-						{value as string}
-					</span>
-				</div>
-			),
+			cell: (value: unknown) => {
+				// Verificar que el valor existe
+				const ruc = (value as string) || "";
+
+				return (
+					<div className="flex justify-center">
+						<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={1.5}
+									d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h3m-6-4h.01M9 16h.01"
+								/>
+							</svg>
+							{ruc || "Sin RUC"}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Proveedor",
 			accessor: "cliente.razon_social",
 			cell: (value: unknown, row: Detraccion) => {
-				// Crear un avatar con la primera letra del nombre
-				const inicial = (value as string).charAt(0).toUpperCase();
+				// Verificar que el valor existe antes de usar charAt
+				const razonSocial = (value as string) || "";
+				const inicial = razonSocial.length > 0 ? razonSocial.charAt(0).toUpperCase() : "?";
 
 				return (
 					<div className="flex items-center px-2 justify-center">
 						<div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold mr-3">{inicial}</div>
-						<div className="text-sm font-medium text-gray-900 truncate">{value as string}</div>
+						<div className="text-sm font-medium text-gray-900 truncate">{razonSocial || "Sin nombre"}</div>
 					</div>
 				);
 			},
@@ -157,10 +191,11 @@ export default function DetraccionesPage() {
 			header: "Moneda",
 			accessor: "monto",
 			cell: (value: unknown, row: Detraccion) => {
-				const moneda = row.cliente?.razon_social || "PEN";
-				const bgColor = moneda === "PEN" ? "bg-green-100" : "bg-blue-100";
-				const textColor = moneda === "PEN" ? "text-green-800" : "text-blue-800";
-				const symbol = moneda === "PEN" ? "S/." : "$";
+				// Establecemos PEN como moneda por defecto ya que parece ser la moneda utilizada
+				const moneda = "PEN";
+				const bgColor = "bg-green-100";
+				const textColor = "text-green-800";
+				const symbol = "S/.";
 
 				return (
 					<div className="flex justify-center">
@@ -176,9 +211,7 @@ export default function DetraccionesPage() {
 			accessor: "monto",
 			cell: (value: unknown, row: Detraccion) => (
 				<div className="flex justify-end">
-					<span className="font-mono text-gray-700 font-medium">
-						{row.cliente?.razon_social === "PEN" ? "S/." : "$"} {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
-					</span>
+					<span className="font-mono text-gray-700 font-medium">S/. {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2 })}</span>
 				</div>
 			),
 		},
@@ -234,20 +267,42 @@ export default function DetraccionesPage() {
 			header: "Periodo",
 			accessor: "fecha_constancia",
 			cell: (value: unknown) => {
-				const periodo = value as string;
-				const [year, month] = periodo.split("-");
+				// Validar que el valor exista y sea una cadena válida
+				if (!value) {
+					return <div className="flex justify-center">-</div>;
+				}
 
-				const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+				try {
+					const periodo = value as string;
+					const parts = periodo.split("-");
 
-				const monthName = monthNames[parseInt(month) - 1];
+					if (parts.length < 2) {
+						return <div className="flex justify-center">Formato inválido</div>;
+					}
 
-				return (
-					<div className="flex justify-center">
-						<span className="px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
-							{monthName} {year}
-						</span>
-					</div>
-				);
+					const year = parts[0];
+					const month = parts[1];
+
+					const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+					const monthIndex = parseInt(month) - 1;
+
+					// Verificar que el índice del mes sea válido
+					if (isNaN(monthIndex) || monthIndex < 0 || monthIndex >= 12) {
+						return <div className="flex justify-center">Mes inválido</div>;
+					}
+
+					const monthName = monthNames[monthIndex];
+
+					return (
+						<div className="flex justify-center">
+							<span className="px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
+								{monthName} {year}
+							</span>
+						</div>
+					);
+				} catch (error) {
+					return <div className="flex justify-center">Error</div>;
+				}
 			},
 		},
 		{
@@ -304,18 +359,18 @@ export default function DetraccionesPage() {
 		if (name.startsWith("cliente.")) {
 			// Para propiedades anidadas como cliente.ruc o cliente.razon_social
 			const prop = name.split(".")[1];
-			setFormData({
-				...formData,
+			setFormData((prevData) => ({
+				...prevData,
 				cliente: {
-					...(formData.cliente || { razon_social: "", ruc: "" }),
+					...(prevData.cliente || { razon_social: "", ruc: "" }),
 					[prop]: value,
 				},
-			});
+			}));
 		} else {
-			setFormData({
-				...formData,
+			setFormData((prevData) => ({
+				...prevData,
 				[name]: type === "number" ? parseFloat(value) || 0 : value,
-			});
+			}));
 		}
 	};
 
@@ -355,6 +410,10 @@ export default function DetraccionesPage() {
 			porcentaje: 4.0,
 			estado: "Pendiente",
 			observaciones: "",
+			cliente: {
+				razon_social: "",
+				ruc: "",
+			},
 		});
 
 		setShowForm(false);
@@ -768,9 +827,13 @@ export default function DetraccionesPage() {
 				title="Registro de Detracciones"
 				defaultSort="fecha_deposito"
 				filters={{
-					year: true,
-					month: true,
-					searchField: "cliente.razon_social",
+					year: false,
+					month: false,
+					searchFields: [
+						{ accessor: "cliente.razon_social", label: "Razón Social" },
+						{ accessor: "cliente.ruc", label: "RUC" },
+						{ accessor: "numero_constancia", label: "N° Constancia" },
+					],
 				}}
 			/>
 		</div>

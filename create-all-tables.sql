@@ -1,5 +1,6 @@
 -- Script para crear todas las tablas necesarias en Supabase
--- Actualizado: noviembre de 2024
+-- Actualizado: enero de 2025
+-- Última actualización: Se agregaron campos faltantes a la tabla ingresos para compatibilidad con la interfaz del frontend
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS observaciones CASCADE;
@@ -169,6 +170,15 @@ CREATE TABLE IF NOT EXISTS ingresos (
   fecha_factura DATE,
   estado_factura VARCHAR(20) DEFAULT 'Emitida',
   observaciones TEXT,
+  dias_credito INTEGER DEFAULT 0,
+  fecha_vencimiento DATE,
+  guia_remision VARCHAR(20),
+  guia_transportista VARCHAR(20),
+  detraccion_monto NUMERIC(12,2) DEFAULT 0,
+  primera_cuota NUMERIC(12,2) DEFAULT 0,
+  segunda_cuota NUMERIC(12,2) DEFAULT 0,
+  placa_tracto VARCHAR(20),
+  placa_carreta VARCHAR(20),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -207,7 +217,6 @@ CREATE TABLE IF NOT EXISTS egresos (
 CREATE TABLE IF NOT EXISTS egresos_sin_factura (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   fecha DATE NOT NULL,
-  beneficiario TEXT NOT NULL,
   concepto TEXT NOT NULL,
   viaje_id UUID REFERENCES viajes(id),
   vehiculo_id UUID REFERENCES vehiculos(id),
@@ -217,7 +226,6 @@ CREATE TABLE IF NOT EXISTS egresos_sin_factura (
   comprobante TEXT,
   categoria_id UUID REFERENCES categorias(id),
   categoria VARCHAR(30) DEFAULT 'Operativo',
-  observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -351,6 +359,20 @@ SELECT
 FROM facturas f
 LEFT JOIN series s ON f.serie_id = s.id
 LEFT JOIN clientes c ON f.cliente_id = c.id;
+
+-- Vista para ingresos completa
+CREATE OR REPLACE VIEW vista_ingresos_completa 
+WITH (security_invoker = true)
+AS
+SELECT 
+  i.*,
+  c.razon_social as cliente_nombre,
+  c.ruc as cliente_ruc,
+  v.origen as viaje_origen,
+  v.destino as viaje_destino
+FROM ingresos i
+LEFT JOIN clientes c ON i.cliente_id = c.id
+LEFT JOIN viajes v ON i.viaje_id = v.id;
 
 -- Políticas de seguridad (RLS)
 -- Estas políticas permiten el acceso anónimo para pruebas iniciales

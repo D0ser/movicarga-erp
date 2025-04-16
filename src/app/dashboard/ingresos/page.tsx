@@ -4,13 +4,19 @@ import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import { format } from "date-fns";
 import type { Column } from "@/components/DataTable";
-import { serieService, Serie, clienteService, Cliente, conductorService, Conductor } from "@/lib/supabaseServices";
+import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType } from "@/lib/supabaseServices";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
+import { createClient } from "@supabase/supabase-js";
+
+// Inicialización del cliente Supabase
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Interfaz que es compatible con DataItem
 interface Ingreso {
 	[key: string]: string | number | boolean;
-	id: number;
+	id: number | string;
 	fecha: string;
 	serie: string;
 	numeroFactura: string;
@@ -105,79 +111,9 @@ function TotalDeberCard({ ingresosFiltrados }: { ingresosFiltrados: Ingreso[] })
 }
 
 export default function IngresosPage() {
-	// En una aplicación real, estos datos vendrían de Supabase
-	const [ingresos, setIngresos] = useState<Ingreso[]>([
-		{
-			id: 1,
-			fecha: "2025-03-15",
-			serie: "F001",
-			numeroFactura: "00123",
-			montoFlete: 2500,
-			primeraCuota: 1000,
-			segundaCuota: 1500,
-			detraccion: 100,
-			totalDeber: 2400,
-			totalMonto: 2500,
-			empresa: "Transportes S.A.",
-			ruc: "20123456789",
-			conductor: "Juan Pérez",
-			placaTracto: "ABC-123",
-			placaCarreta: "XYZ-789",
-			observacion: "Entrega completada",
-			documentoGuiaRemit: "GR-001-123456",
-			guiaTransp: "GT-001-789012",
-			diasCredito: 30,
-			fechaVencimiento: "2025-04-14",
-			estado: "Pagado",
-		},
-		{
-			id: 2,
-			fecha: "2025-03-20",
-			serie: "F001",
-			numeroFactura: "00124",
-			montoFlete: 3200,
-			primeraCuota: 1600,
-			segundaCuota: 1600,
-			detraccion: 128,
-			totalDeber: 3072,
-			totalMonto: 3200,
-			empresa: "Industrias XYZ",
-			ruc: "20987654321",
-			conductor: "Pedro Gómez",
-			placaTracto: "DEF-456",
-			placaCarreta: "UVW-456",
-			observacion: "Entrega con retraso",
-			documentoGuiaRemit: "GR-001-123457",
-			guiaTransp: "GT-001-789013",
-			diasCredito: 15,
-			fechaVencimiento: "2025-04-04",
-			estado: "Pendiente",
-		},
-		{
-			id: 3,
-			fecha: "2025-04-05",
-			serie: "F001",
-			numeroFactura: "00125",
-			montoFlete: 1800,
-			primeraCuota: 900,
-			segundaCuota: 900,
-			detraccion: 72,
-			totalDeber: 1728,
-			totalMonto: 1800,
-			empresa: "Comercial ABC",
-			ruc: "20456789123",
-			conductor: "Luis Torres",
-			placaTracto: "GHI-789",
-			placaCarreta: "RST-123",
-			observacion: "Entrega parcial",
-			documentoGuiaRemit: "GR-001-123458",
-			guiaTransp: "GT-001-789014",
-			diasCredito: 0,
-			fechaVencimiento: "2025-04-05",
-			estado: "Pagado",
-		},
-	]);
-
+	// Estado para almacenar los ingresos
+	const [ingresos, setIngresos] = useState<Ingreso[]>([]);
+	const [loading, setLoading] = useState(true);
 	const [showForm, setShowForm] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
@@ -213,19 +149,81 @@ export default function IngresosPage() {
 	// Estado para los ingresos filtrados
 	const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
 
-	// Cargar clientes y conductores al montar el componente
+	// Cargar datos al montar el componente
 	useEffect(() => {
 		const cargarDatos = async () => {
 			try {
-				const [clientesData, conductoresData] = await Promise.all([clienteService.getClientes(), conductorService.getConductores()]);
+				setLoading(true);
+				// Cargar clientes, conductores y series
+				const [clientesData, conductoresData, seriesData] = await Promise.all([clienteService.getClientes(), conductorService.getConductores(), serieService.getSeries()]);
+
 				setClientes(clientesData);
 				setConductores(conductoresData);
+				setSeriesDisponibles(seriesData);
+
+				// Crear un mapa de colores para las series
+				const coloresMap: Record<string, string> = {};
+				seriesData.forEach((serie) => {
+					coloresMap[serie.serie] = serie.color || "#3b82f6";
+				});
+				setSerieColors(coloresMap);
+
+				// Cargar ingresos desde Supabase
+				const ingresosFromSupabase = await cargarIngresos();
+				setIngresos(ingresosFromSupabase);
+				setIngresosFiltrados(ingresosFromSupabase);
 			} catch (error) {
 				console.error("Error al cargar datos:", error);
+				setError("Error al cargar los datos. Por favor, intente de nuevo.");
+			} finally {
+				setLoading(false);
 			}
 		};
+
 		cargarDatos();
 	}, []);
+
+	// Función para cargar ingresos desde Supabase
+	const cargarIngresos = async () => {
+		try {
+			const ingresosSupabase = await ingresoService.getIngresos();
+
+			// Transformar los datos al formato esperado por la interfaz
+			const ingresosFormateados = ingresosSupabase.map((ing) => {
+				// Buscar el cliente relacionado para obtener la razón social y RUC
+				const cliente = ing.cliente || { razon_social: "", ruc: "" };
+
+				return {
+					id: ing.id,
+					fecha: ing.fecha,
+					serie: ing.numero_factura ? ing.numero_factura.split("-")[0] : "",
+					numeroFactura: ing.numero_factura || "",
+					montoFlete: ing.monto || 0,
+					primeraCuota: ing.monto / 2, // Dividimos el monto en dos cuotas por defecto
+					segundaCuota: ing.monto / 2,
+					detraccion: ing.monto * 0.04, // 4% de detracción por defecto
+					totalDeber: ing.monto,
+					totalMonto: ing.monto,
+					empresa: cliente.razon_social || "",
+					ruc: cliente.ruc || "",
+					conductor: "",
+					placaTracto: "",
+					placaCarreta: "",
+					observacion: ing.observaciones || "",
+					documentoGuiaRemit: "",
+					guiaTransp: "",
+					diasCredito: 0,
+					fechaVencimiento: ing.fecha,
+					estado: ing.estado_factura || "Pendiente",
+				};
+			});
+
+			return ingresosFormateados;
+		} catch (error) {
+			console.error("Error al cargar ingresos:", error);
+			throw error;
+		}
+	};
 
 	// Actualizar ingresosFiltrados cuando cambia ingresos, pero solo inicialmente
 	useEffect(() => {
@@ -235,57 +233,14 @@ export default function IngresosPage() {
 		}
 	}, [ingresos]);
 
-	// Función para cargar las series disponibles
-	const cargarSeriesDisponibles = async () => {
-		try {
-			// En una implementación real, se usaría el servicio para obtener las series de la BD
-			// const series = await serieService.getSeries();
-			// setSeriesDisponibles(series);
-
-			// Por ahora usamos datos de ejemplo
-			const seriesEjemplo = [
-				{ id: "1", serie: "F001", fecha_creacion: "2025-04-10", color: "#3b82f6" },
-				{ id: "2", serie: "B001", fecha_creacion: "2025-04-10", color: "#10b981" },
-				{ id: "3", serie: "T001", fecha_creacion: "2025-04-12", color: "#8b5cf6" },
-			];
-
-			setSeriesDisponibles(seriesEjemplo);
-
-			// Crear un mapa de colores para cada serie
-			const colores: Record<string, string> = {};
-			seriesEjemplo.forEach((serie) => {
-				// Convertir el color hexadecimal a clases de Tailwind
-				const colorMap: Record<string, string> = {
-					"#3b82f6": "bg-blue-100 text-blue-800",
-					"#10b981": "bg-green-100 text-green-800",
-					"#8b5cf6": "bg-purple-100 text-purple-800",
-				};
-
-				colores[serie.serie] = colorMap[serie.color || ""] || "bg-gray-100 text-gray-800";
-			});
-
-			setSerieColors(colores);
-		} catch (error) {
-			console.error("Error al cargar series:", error);
-			handleError("Error al cargar las series disponibles");
-		}
-	};
-
-	// Cargar series al montar el componente
-	useEffect(() => {
-		cargarSeriesDisponibles();
-	}, []);
-
-	// Function to handle errors
 	const handleError = (message: string) => {
 		setError(message);
-		setTimeout(() => setError(null), 5000); // Clear error after 5 seconds
+		setTimeout(() => setError(null), 5000);
 	};
 
-	// Function to handle success messages
 	const handleSuccess = (message: string) => {
 		setSuccess(message);
-		setTimeout(() => setSuccess(null), 5000); // Clear success after 5 seconds
+		setTimeout(() => setSuccess(null), 5000);
 	};
 
 	// Columnas para la tabla de ingresos
@@ -600,7 +555,7 @@ export default function IngresosPage() {
 			cell: (value, row) => (
 				<ActionButtonGroup>
 					<EditButton onClick={() => handleEdit(row as Ingreso)} />
-					<DeleteButton onClick={() => handleDelete(value as number)} />
+					<DeleteButton onClick={() => handleDelete(value as number | string)} />
 				</ActionButtonGroup>
 			),
 		},
@@ -651,7 +606,7 @@ export default function IngresosPage() {
 		});
 	};
 
-	const handleSubmit = (e: React.FormEvent) => {
+	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 
 		// Validate required fields
@@ -660,78 +615,99 @@ export default function IngresosPage() {
 			return;
 		}
 
-		// Recalcular el totalDeber para asegurar consistencia con la fórmula
-		const montoFlete = formData.montoFlete || 0;
-		const detraccion = formData.detraccion || 0;
-		const totalMonto = formData.totalMonto || 0;
+		try {
+			setLoading(true);
 
-		const diferencia = -totalMonto + montoFlete + detraccion;
-		const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
+			// Recalcular el totalDeber para asegurar consistencia con la fórmula
+			const montoFlete = formData.montoFlete || 0;
+			const detraccion = formData.detraccion || 0;
+			const totalMonto = formData.totalMonto || 0;
 
-		const nuevoIngreso: Ingreso = {
-			id: formData.id || Date.now(),
-			fecha: formData.fecha || new Date().toISOString().split("T")[0],
-			serie: formData.serie || "",
-			numeroFactura: formData.numeroFactura || "",
-			montoFlete: montoFlete,
-			primeraCuota: formData.primeraCuota || 0,
-			segundaCuota: formData.segundaCuota || 0,
-			detraccion: detraccion,
-			totalDeber: totalDeberFinal,
-			totalMonto: totalMonto,
-			empresa: formData.empresa || "",
-			ruc: formData.ruc || "",
-			conductor: formData.conductor || "",
-			placaTracto: formData.placaTracto || "",
-			placaCarreta: formData.placaCarreta || "",
-			observacion: formData.observacion || "",
-			documentoGuiaRemit: formData.documentoGuiaRemit || "",
-			guiaTransp: formData.guiaTransp || "",
-			diasCredito: formData.diasCredito || 0,
-			fechaVencimiento: formData.fechaVencimiento || formData.fecha || new Date().toISOString().split("T")[0],
-			estado: formData.estado || "Pendiente",
-		};
+			const diferencia = -totalMonto + montoFlete + detraccion;
+			const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
 
-		if (formData.id) {
-			// Actualizar ingreso existente
-			setIngresos(ingresos.map((ing) => (ing.id === formData.id ? nuevoIngreso : ing)));
-			handleSuccess("Ingreso actualizado correctamente");
-		} else {
-			// Agregar nuevo ingreso
-			setIngresos([...ingresos, nuevoIngreso]);
-			handleSuccess("Nuevo ingreso registrado correctamente");
+			// Buscar cliente_id basado en RUC
+			const cliente = clientes.find((c) => c.ruc === formData.ruc);
+
+			// Datos para Supabase
+			const ingresoData: Partial<IngresoType> = {
+				fecha: formData.fecha || new Date().toISOString().split("T")[0],
+				cliente_id: cliente?.id,
+				concepto: formData.observacion || "Ingreso por flete",
+				monto: formData.montoFlete || 0,
+				metodo_pago: "Transferencia",
+				numero_factura: formData.numeroFactura,
+				fecha_factura: formData.fecha || new Date().toISOString().split("T")[0],
+				estado_factura: formData.estado || "Pendiente",
+				observaciones: formData.observacion,
+			};
+
+			if (formData.id && typeof formData.id === "string") {
+				// Actualizar ingreso existente
+				await ingresoService.updateIngreso(formData.id, ingresoData);
+				handleSuccess("Ingreso actualizado correctamente");
+			} else {
+				// Agregar nuevo ingreso
+				await ingresoService.createIngreso(ingresoData as Omit<IngresoType, "id" | "cliente" | "viaje">);
+				handleSuccess("Nuevo ingreso registrado correctamente");
+			}
+
+			// Recargar los ingresos
+			const ingresosActualizados = await cargarIngresos();
+			setIngresos(ingresosActualizados);
+
+			// Limpiar formulario
+			setFormData({
+				fecha: new Date().toISOString().split("T")[0],
+				serie: "",
+				numeroFactura: "",
+				montoFlete: 0,
+				primeraCuota: 0,
+				segundaCuota: 0,
+				detraccion: 0,
+				totalDeber: 0,
+				totalMonto: 0,
+				empresa: "",
+				ruc: "",
+				conductor: "",
+				placaTracto: "",
+				placaCarreta: "",
+				observacion: "",
+				documentoGuiaRemit: "",
+				guiaTransp: "",
+				diasCredito: 0,
+				estado: "Pendiente",
+			});
+
+			setShowForm(false);
+		} catch (error) {
+			console.error("Error al guardar ingreso:", error);
+			handleError("Error al guardar el ingreso. Por favor, inténtalo de nuevo.");
+		} finally {
+			setLoading(false);
 		}
-
-		// Limpiar formulario
-		setFormData({
-			fecha: new Date().toISOString().split("T")[0],
-			serie: "",
-			numeroFactura: "",
-			montoFlete: 0,
-			primeraCuota: 0,
-			segundaCuota: 0,
-			detraccion: 0,
-			totalDeber: 0,
-			totalMonto: 0,
-			empresa: "",
-			ruc: "",
-			conductor: "",
-			placaTracto: "",
-			placaCarreta: "",
-			observacion: "",
-			documentoGuiaRemit: "",
-			guiaTransp: "",
-			diasCredito: 0,
-			estado: "Pendiente",
-		});
-
-		setShowForm(false);
 	};
 
-	const handleDelete = (id: number) => {
+	const handleDelete = async (id: number | string) => {
 		if (confirm("¿Está seguro de que desea eliminar este ingreso?")) {
-			setIngresos(ingresos.filter((ing) => ing.id !== id));
-			handleSuccess("Ingreso eliminado correctamente");
+			try {
+				setLoading(true);
+
+				if (typeof id === "string") {
+					await ingresoService.deleteIngreso(id);
+
+					// Actualizar la lista de ingresos
+					const ingresosActualizados = await cargarIngresos();
+					setIngresos(ingresosActualizados);
+
+					handleSuccess("Ingreso eliminado correctamente");
+				}
+			} catch (error) {
+				console.error("Error al eliminar ingreso:", error);
+				handleError("Error al eliminar el ingreso. Por favor, inténtalo de nuevo.");
+			} finally {
+				setLoading(false);
+			}
 		}
 	};
 
