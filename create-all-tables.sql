@@ -1,5 +1,5 @@
 -- Script para crear todas las tablas necesarias en Supabase
--- Actualizado: octubre de 2024
+-- Actualizado: noviembre de 2024
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS observaciones CASCADE;
@@ -38,9 +38,16 @@ CREATE TABLE IF NOT EXISTS clientes (
   razon_social TEXT NOT NULL,
   ruc VARCHAR(11),
   tipo_cliente_id UUID REFERENCES tipo_cliente(id),
+  direccion TEXT,
+  ciudad TEXT,
+  contacto TEXT,
+  telefono VARCHAR(20),
+  email TEXT,
+  fecha_registro DATE DEFAULT CURRENT_DATE,
   estado BOOLEAN DEFAULT TRUE,
   limite_credito NUMERIC(12,2) DEFAULT 0,
   dias_credito INTEGER DEFAULT 0,
+  observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -280,6 +287,7 @@ CREATE TABLE IF NOT EXISTS observaciones (
 -- Índices para mejorar el rendimiento
 CREATE INDEX IF NOT EXISTS idx_clientes_razon_social ON clientes(razon_social);
 CREATE INDEX IF NOT EXISTS idx_clientes_ruc ON clientes(ruc);
+CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email);
 CREATE INDEX IF NOT EXISTS idx_conductores_nombres_apellidos ON conductores(nombres, apellidos);
 CREATE INDEX IF NOT EXISTS idx_conductores_dni ON conductores(dni);
 CREATE INDEX IF NOT EXISTS idx_conductores_licencia ON conductores(licencia);
