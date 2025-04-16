@@ -12,7 +12,6 @@ import { EditButton, DeleteButton, ActivateButton, DeactivateButton, ActionButto
 interface TipoCliente {
 	id: string;
 	nombre: string;
-	descripcion?: string;
 }
 
 // Componente para la página de clientes
@@ -21,12 +20,15 @@ export default function ClientesPage() {
 	const [clientes, setClientes] = useState<Cliente[]>([]);
 	const [tiposCliente, setTiposCliente] = useState<TipoCliente[]>([]);
 	const [showForm, setShowForm] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+	const [success, setSuccess] = useState<string | null>(null);
 	const [formData, setFormData] = useState<Partial<Cliente>>({
 		razon_social: "",
 		ruc: "",
 		tipo_cliente_id: "",
 		estado: true,
 	});
+	const [editingId, setEditingId] = useState<string | null>(null);
 
 	// Cargar datos desde Supabase al iniciar
 	useEffect(() => {
@@ -87,6 +89,19 @@ export default function ClientesPage() {
 		} catch (error) {
 			console.error("Error al crear tipos de cliente predeterminados:", error);
 		}
+	};
+
+	// Funciones de manejo de notificaciones
+	const handleError = (message: string) => {
+		setError(message);
+		notificationService.error(message);
+		setTimeout(() => setError(null), 5000);
+	};
+
+	const handleSuccess = (message: string) => {
+		setSuccess(message);
+		notificationService.success(message);
+		setTimeout(() => setSuccess(null), 5000);
 	};
 
 	// Columnas para la tabla de clientes
@@ -192,7 +207,7 @@ export default function ClientesPage() {
 			accessor: "id",
 			cell: (value: unknown, row: Cliente) => (
 				<ActionButtonGroup>
-					<EditButton onClick={() => handleEdit(row)} />
+					<EditButton onClick={() => handleEdit(row.id)} />
 					<DeleteButton onClick={() => handleDelete(row.id)} />
 					{row.estado ? <DeactivateButton onClick={() => handleChangeStatus(row.id, false)} /> : <ActivateButton onClick={() => handleChangeStatus(row.id, true)} />}
 				</ActionButtonGroup>
@@ -218,53 +233,88 @@ export default function ClientesPage() {
 		});
 	};
 
+	// Función para manejar la creación/actualización de clientes
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
+
+		// Validar campos requeridos
+		if (!formData.razon_social || !formData.ruc) {
+			handleError("La razón social y el RUC son campos obligatorios");
+			return;
+		}
+
+		// Si tipo_cliente_id está vacío, también es un error
+		if (!formData.tipo_cliente_id) {
+			handleError("Debe seleccionar un tipo de cliente");
+			return;
+		}
 
 		try {
 			setLoading(true);
 
-			// Verificar que tiene un tipo de cliente seleccionado
-			if (!formData.tipo_cliente_id) {
-				notificationService.error("Debe seleccionar un tipo de cliente");
-				setLoading(false);
-				return;
-			}
+			// Preparar los datos con solo los campos básicos
+			// El servicio se encargará de proporcionar valores por defecto para los campos requeridos
+			const datosBasicos = {
+				razon_social: formData.razon_social,
+				ruc: formData.ruc,
+				tipo_cliente_id: formData.tipo_cliente_id,
+				estado: formData.estado === undefined ? true : Boolean(formData.estado),
+			};
 
-			if (formData.id) {
+			// Log para depuración
+			console.log("Datos básicos preparados para enviar:", datosBasicos);
+
+			if (editingId) {
 				// Actualizar cliente existente
-				await clienteService.updateCliente(formData.id, formData);
-				await fetchClientes();
-				notificationService.success("Cliente actualizado correctamente");
+				const clienteActualizado = await clienteService.updateCliente(editingId, datosBasicos);
+				console.log("Cliente actualizado:", clienteActualizado);
+				handleSuccess("Cliente actualizado correctamente");
 			} else {
-				// Agregar nuevo cliente
-				await clienteService.createCliente(formData as Omit<Cliente, "id">);
-				await fetchClientes();
-				notificationService.success("Cliente creado correctamente");
+				// Crear nuevo cliente - La función createCliente añadirá los valores por defecto para campos requeridos
+				const nuevoCliente = await clienteService.createCliente(datosBasicos as any);
+				console.log("Nuevo cliente creado:", nuevoCliente);
+				handleSuccess("Cliente creado correctamente");
 			}
 
-			// Limpiar formulario
+			// Recargar la lista de clientes
+			const clientesActualizados = await clienteService.getClientes();
+			setClientes(clientesActualizados);
+
+			// Resetear form y cerrar modal
 			setFormData({
 				razon_social: "",
 				ruc: "",
 				tipo_cliente_id: tiposCliente.length > 0 ? tiposCliente[0].id : "",
 				estado: true,
 			});
-
 			setShowForm(false);
+			setEditingId(null);
 		} catch (error) {
 			console.error("Error al guardar cliente:", error);
-			notificationService.error("No se pudo guardar el cliente");
+			// Mostrar mensaje de error más específico si está disponible
+			if (error instanceof Error) {
+				handleError(`Error al guardar cliente: ${error.message}`);
+			} else {
+				handleError("Error al guardar cliente. Por favor, inténtelo de nuevo.");
+			}
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const handleEdit = (cliente: Cliente) => {
-		setFormData({
-			...cliente,
-		});
-		setShowForm(true);
+	// Función para cargar cliente para edición
+	const handleEdit = (id: string) => {
+		const clienteToEdit = clientes.find((cliente) => cliente.id === id);
+		if (clienteToEdit) {
+			setFormData({
+				razon_social: clienteToEdit.razon_social || "",
+				ruc: clienteToEdit.ruc || "",
+				tipo_cliente_id: clienteToEdit.tipo_cliente_id || "",
+				estado: clienteToEdit.estado,
+			});
+			setEditingId(id);
+			setShowForm(true);
+		}
 	};
 
 	const handleDelete = async (id: string) => {
@@ -354,7 +404,7 @@ export default function ClientesPage() {
 			{/* Formulario de cliente */}
 			{showForm && (
 				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Cliente" : "Nuevo Cliente"}</h2>
+					<h2 className="text-xl font-bold mb-4">{editingId ? "Editar Cliente" : "Nuevo Cliente"}</h2>
 					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Razón Social / Nombre</label>
@@ -415,7 +465,7 @@ export default function ClientesPage() {
 								Cancelar
 							</button>
 							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
+								{editingId ? "Actualizar" : "Guardar"}
 							</button>
 						</div>
 					</form>
