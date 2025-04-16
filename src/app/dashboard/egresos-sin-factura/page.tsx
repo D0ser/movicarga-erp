@@ -32,11 +32,14 @@ export default function EgresosSinFacturaPage() {
 	const [showForm, setShowForm] = useState(false);
 	const [formData, setFormData] = useState<Partial<EgresoSinFactura>>({
 		fecha: new Date().toISOString().split("T")[0],
-		beneficiario: "",
 		concepto: "",
 		monto: 0,
 		metodo_pago: "Efectivo",
 		observaciones: "",
+		moneda: "PEN",
+		numeroCheque: "",
+		numeroLiquidacion: "",
+		tipoEgreso: "",
 	});
 
 	// Columnas para la tabla de egresos sin factura
@@ -46,12 +49,16 @@ export default function EgresosSinFacturaPage() {
 			accessor: "numeroCheque",
 			cell: (value) => (
 				<div className="flex justify-center">
-					<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-sm flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-						{value as string}
-					</span>
+					{value ? (
+						<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							{value as string}
+						</span>
+					) : (
+						<span className="text-gray-400">-</span>
+					)}
 				</div>
 			),
 		},
@@ -60,17 +67,21 @@ export default function EgresosSinFacturaPage() {
 			accessor: "numeroLiquidacion",
 			cell: (value) => (
 				<div className="flex justify-center">
-					<span className="font-mono bg-blue-50 px-2 py-1 rounded text-blue-700 text-sm flex items-center">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path
-								strokeLinecap="round"
-								strokeLinejoin="round"
-								strokeWidth={1.5}
-								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-							/>
-						</svg>
-						{value as string}
-					</span>
+					{value ? (
+						<span className="font-mono bg-blue-50 px-2 py-1 rounded text-blue-700 text-sm flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={1.5}
+									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+								/>
+							</svg>
+							{value as string}
+						</span>
+					) : (
+						<span className="text-gray-400">-</span>
+					)}
 				</div>
 			),
 		},
@@ -222,11 +233,14 @@ export default function EgresosSinFacturaPage() {
 				// Actualizar egreso existente
 				const egresoActualizado = await egresoSinFacturaService.updateEgresoSinFactura(formData.id.toString(), {
 					fecha: formData.fecha || new Date().toISOString().split("T")[0],
-					beneficiario: formData.beneficiario || "",
 					concepto: formData.concepto || "",
 					monto: formData.monto || 0,
 					metodo_pago: formData.metodo_pago || "Efectivo",
 					observaciones: formData.observaciones || "",
+					moneda: formData.moneda || "PEN",
+					numeroCheque: formData.numeroCheque,
+					numeroLiquidacion: formData.numeroLiquidacion,
+					tipoEgreso: formData.tipoEgreso,
 				});
 
 				setEgresosSinFactura(egresosSinFactura.map((egreso) => (egreso.id === egresoActualizado.id ? egresoActualizado : egreso)));
@@ -235,11 +249,14 @@ export default function EgresosSinFacturaPage() {
 				// Crear nuevo egreso
 				const nuevoEgreso = await egresoSinFacturaService.createEgresoSinFactura({
 					fecha: formData.fecha || new Date().toISOString().split("T")[0],
-					beneficiario: formData.beneficiario || "",
 					concepto: formData.concepto || "",
 					monto: formData.monto || 0,
 					metodo_pago: formData.metodo_pago || "Efectivo",
 					observaciones: formData.observaciones || "",
+					moneda: formData.moneda || "PEN",
+					numeroCheque: formData.numeroCheque,
+					numeroLiquidacion: formData.numeroLiquidacion,
+					tipoEgreso: formData.tipoEgreso,
 				});
 
 				setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);
@@ -249,11 +266,14 @@ export default function EgresosSinFacturaPage() {
 			// Limpiar formulario
 			setFormData({
 				fecha: new Date().toISOString().split("T")[0],
-				beneficiario: "",
 				concepto: "",
 				monto: 0,
 				metodo_pago: "Efectivo",
 				observaciones: "",
+				moneda: "PEN",
+				numeroCheque: "",
+				numeroLiquidacion: "",
+				tipoEgreso: "",
 			});
 
 			setShowForm(false);
@@ -291,17 +311,19 @@ export default function EgresosSinFacturaPage() {
 	// Calcular sumas por liquidación y cheque
 	const resumen = egresosSinFactura.reduce(
 		(acc, egreso) => {
-			// Agrupar por número de liquidación
-			if (!acc.porLiquidacion[egreso.numeroLiquidacion]) {
-				acc.porLiquidacion[egreso.numeroLiquidacion] = 0;
+			// Agrupar por número de liquidación si existe
+			const numeroLiquidacion = egreso.numeroLiquidacion || "Sin liquidación";
+			if (!acc.porLiquidacion[numeroLiquidacion]) {
+				acc.porLiquidacion[numeroLiquidacion] = 0;
 			}
-			acc.porLiquidacion[egreso.numeroLiquidacion] += egreso.monto;
+			acc.porLiquidacion[numeroLiquidacion] += egreso.monto;
 
-			// Agrupar por número de cheque
-			if (!acc.porCheque[egreso.numeroCheque]) {
-				acc.porCheque[egreso.numeroCheque] = 0;
+			// Agrupar por número de cheque si existe
+			const numeroCheque = egreso.numeroCheque || "Sin cheque";
+			if (!acc.porCheque[numeroCheque]) {
+				acc.porCheque[numeroCheque] = 0;
 			}
-			acc.porCheque[egreso.numeroCheque] += egreso.monto;
+			acc.porCheque[numeroCheque] += egreso.monto;
 
 			// Sumar total
 			acc.total += egreso.monto;
@@ -331,24 +353,32 @@ export default function EgresosSinFacturaPage() {
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-lg font-bold mb-3">Resumen por Liquidación</h2>
 					<div className="divide-y">
-						{Object.entries(resumen.porLiquidacion).map(([liquidacion, monto]) => (
-							<div key={liquidacion} className="py-2 flex justify-between">
-								<span>{liquidacion}</span>
-								<span className="font-medium">S/. {monto.toLocaleString("es-PE")}</span>
-							</div>
-						))}
+						{Object.entries(resumen.porLiquidacion).length > 0 ? (
+							Object.entries(resumen.porLiquidacion).map(([liquidacion, monto]) => (
+								<div key={liquidacion} className="py-2 flex justify-between">
+									<span className="font-medium">{liquidacion}</span>
+									<span className="font-mono text-gray-700">S/. {monto.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+								</div>
+							))
+						) : (
+							<div className="py-2 text-gray-500 italic">No hay datos de liquidación disponibles</div>
+						)}
 					</div>
 				</div>
 
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-lg font-bold mb-3">Resumen por Cheque</h2>
 					<div className="divide-y">
-						{Object.entries(resumen.porCheque).map(([cheque, monto]) => (
-							<div key={cheque} className="py-2 flex justify-between">
-								<span>{cheque}</span>
-								<span className="font-medium">S/. {monto.toLocaleString("es-PE")}</span>
-							</div>
-						))}
+						{Object.entries(resumen.porCheque).length > 0 ? (
+							Object.entries(resumen.porCheque).map(([cheque, monto]) => (
+								<div key={cheque} className="py-2 flex justify-between">
+									<span className="font-medium">{cheque}</span>
+									<span className="font-mono text-gray-700">S/. {monto.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+								</div>
+							))
+						) : (
+							<div className="py-2 text-gray-500 italic">No hay datos de cheques disponibles</div>
+						)}
 					</div>
 				</div>
 
@@ -357,15 +387,15 @@ export default function EgresosSinFacturaPage() {
 					<div className="divide-y">
 						<div className="py-2 flex justify-between">
 							<span>Total:</span>
-							<span className="font-medium">S/. {resumen.total.toLocaleString("es-PE")}</span>
+							<span className="font-mono font-medium">S/. {resumen.total.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>IGV (18%):</span>
-							<span className="font-medium">S/. {igv.toLocaleString("es-PE")}</span>
+							<span className="font-mono font-medium">S/. {igv.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span className="font-bold">Total con IGV:</span>
-							<span className="font-bold">S/. {(resumen.total + igv).toLocaleString("es-PE")}</span>
+							<span className="font-mono font-bold">S/. {(resumen.total + igv).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 						</div>
 					</div>
 				</div>
@@ -381,18 +411,6 @@ export default function EgresosSinFacturaPage() {
 								type="date"
 								name="fecha"
 								value={formData.fecha}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Beneficiario</label>
-							<input
-								type="text"
-								name="beneficiario"
-								value={formData.beneficiario}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
@@ -450,6 +468,44 @@ export default function EgresosSinFacturaPage() {
 								<option value="Cheque">Cheque</option>
 								<option value="Tarjeta">Tarjeta</option>
 							</select>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
+							<select
+								name="tipoEgreso"
+								value={formData.tipoEgreso}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+								<option value="">Seleccione un tipo</option>
+								{tiposEgresos.map((tipo) => (
+									<option key={tipo} value={tipo}>
+										{tipo}
+									</option>
+								))}
+							</select>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700">N° de Cheque</label>
+							<input
+								type="text"
+								name="numeroCheque"
+								value={formData.numeroCheque}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700">N° de Liquidación</label>
+							<input
+								type="text"
+								name="numeroLiquidacion"
+								value={formData.numeroLiquidacion}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
 						</div>
 
 						<div className="col-span-full">

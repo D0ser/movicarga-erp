@@ -1,6 +1,6 @@
 -- Script para crear todas las tablas necesarias en Supabase
 -- Actualizado: enero de 2025
--- Última actualización: Se agregaron campos faltantes a la tabla ingresos para compatibilidad con la interfaz del frontend
+-- Última actualización: Se agregaron campos adicionales a la tabla detracciones para soportar la importación de datos desde archivos CSV con el formato estándar de SUNAT. La tabla incluye todos los campos requeridos como tipo_cuenta, numero_cuenta, etc. para detracciones y mantiene la compatibilidad con las tablas relacionadas de viajes, facturas e ingresos.
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS observaciones CASCADE;
@@ -244,6 +244,25 @@ CREATE TABLE IF NOT EXISTS detracciones (
   fecha_constancia DATE,
   estado VARCHAR(20) DEFAULT 'Pendiente',
   observaciones TEXT,
+  
+  -- Campos adicionales para manejo de CSV
+  tipo_cuenta VARCHAR(50),
+  numero_cuenta VARCHAR(50),
+  periodo_tributario VARCHAR(20),
+  ruc_proveedor VARCHAR(20),
+  nombre_proveedor VARCHAR(255),
+  tipo_documento_adquiriente VARCHAR(20),
+  numero_documento_adquiriente VARCHAR(50),
+  nombre_razon_social_adquiriente VARCHAR(255),
+  fecha_pago DATE,
+  tipo_bien VARCHAR(50),
+  tipo_operacion VARCHAR(50),
+  tipo_comprobante VARCHAR(50),
+  serie_comprobante VARCHAR(20),
+  numero_comprobante VARCHAR(50),
+  numero_pago_detracciones VARCHAR(50),
+  origen_csv VARCHAR(255),
+  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -324,6 +343,10 @@ CREATE INDEX IF NOT EXISTS idx_detracciones_viaje_id ON detracciones(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_cliente_id ON detracciones(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_ingreso_id ON detracciones(ingreso_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_factura_id ON detracciones(factura_id);
+CREATE INDEX IF NOT EXISTS idx_detracciones_numero_constancia ON detracciones(numero_constancia);
+CREATE INDEX IF NOT EXISTS idx_detracciones_ruc_proveedor ON detracciones(ruc_proveedor);
+CREATE INDEX IF NOT EXISTS idx_detracciones_periodo_tributario ON detracciones(periodo_tributario);
+CREATE INDEX IF NOT EXISTS idx_detracciones_origen_csv ON detracciones(origen_csv);
 CREATE INDEX IF NOT EXISTS idx_usuarios_email ON usuarios(email);
 CREATE INDEX IF NOT EXISTS idx_auditorias_tabla_accion ON auditorias(tabla, accion);
 CREATE INDEX IF NOT EXISTS idx_auditorias_usuario_id ON auditorias(usuario_id);
@@ -373,6 +396,25 @@ SELECT
 FROM ingresos i
 LEFT JOIN clientes c ON i.cliente_id = c.id
 LEFT JOIN viajes v ON i.viaje_id = v.id;
+
+-- Vista para detracciones completa
+CREATE OR REPLACE VIEW vista_detracciones_completa 
+WITH (security_invoker = true)
+AS
+SELECT 
+  d.*,
+  c.razon_social as cliente_razon_social,
+  c.ruc as cliente_ruc,
+  v.origen as viaje_origen,
+  v.destino as viaje_destino,
+  i.concepto as ingreso_concepto,
+  i.numero_factura as ingreso_numero_factura,
+  f.numero as factura_numero
+FROM detracciones d
+LEFT JOIN clientes c ON d.cliente_id = c.id
+LEFT JOIN viajes v ON d.viaje_id = v.id
+LEFT JOIN ingresos i ON d.ingreso_id = i.id
+LEFT JOIN facturas f ON d.factura_id = f.id;
 
 -- Políticas de seguridad (RLS)
 -- Estas políticas permiten el acceso anónimo para pruebas iniciales
