@@ -262,18 +262,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							/>
 						)}
 
-						{/* Botón de cerrar sesión justo después de la sección usuarios */}
-						<div className="p-4 w-full border-t border-[#1f1f6f] mt-4">
+						{/* Botón de cerrar sesión con estilos consistentes */}
+						<div className="mt-4 px-1">
 							<button
 								onClick={handleLogout}
-								className={`flex items-center p-2 rounded-md hover:bg-[#F39200] bg-[#F39200]/90 text-white transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white ${
-									isSidebarOpen ? "w-full justify-between" : "justify-center"
-								}`}
+								className={`flex items-center py-3 px-4 rounded-md w-full ${
+									isSidebarOpen ? "justify-start" : "justify-center"
+								} bg-[#F39200] text-white hover:bg-[#F39200]/80 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white`}
 								aria-label="Cerrar sesión">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-								</svg>
-								{isSidebarOpen && <span>Cerrar Sesión</span>}
+								<div className={isSidebarOpen ? "mr-3" : ""}>
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+									</svg>
+								</div>
+								{isSidebarOpen && <span className="truncate">Cerrar Sesión</span>}
+								{!isSidebarOpen && <span className="sr-only">Cerrar Sesión</span>}
 							</button>
 						</div>
 					</nav>

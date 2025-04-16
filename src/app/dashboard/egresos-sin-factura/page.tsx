@@ -3,6 +3,7 @@
 import { useState } from "react";
 import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
+import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 
 // Definición de la estructura de datos de Egresos Sin Factura
 interface EgresoSinFactura {
@@ -68,47 +69,165 @@ export default function EgresosSinFacturaPage() {
 	// Columnas para la tabla de egresos sin factura
 	const columns: Column<EgresoSinFactura>[] = [
 		{
-			header: "Fecha",
-			accessor: "fecha",
-			cell: (value: unknown, row: EgresoSinFactura) => format(new Date(value as string), "dd/MM/yyyy"),
-		},
-		{
 			header: "N° Cheque",
 			accessor: "numeroCheque",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "N° Liquidación",
 			accessor: "numeroLiquidacion",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-blue-50 px-2 py-1 rounded text-blue-700 text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Tipo de Egreso",
 			accessor: "tipoEgreso",
+			cell: (value) => {
+				const tipoEgreso = value as string;
+
+				// Determinar colores según el tipo de egreso
+				let bgColor = "bg-gray-100";
+				let textColor = "text-gray-800";
+				let icon = null;
+
+				if (tipoEgreso === "Viáticos") {
+					bgColor = "bg-purple-50";
+					textColor = "text-purple-700";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"
+							/>
+						</svg>
+					);
+				} else if (tipoEgreso === "Combustible") {
+					bgColor = "bg-red-50";
+					textColor = "text-red-700";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+						</svg>
+					);
+				} else if (tipoEgreso === "Mantenimiento") {
+					bgColor = "bg-yellow-50";
+					textColor = "text-yellow-700";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+							/>
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${bgColor} ${textColor}`}>
+							{icon}
+							{tipoEgreso}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Moneda",
 			accessor: "moneda",
+			cell: (value) => {
+				const moneda = value as string;
+				const bgColor = moneda === "PEN" ? "bg-green-100" : "bg-blue-100";
+				const textColor = moneda === "PEN" ? "text-green-800" : "text-blue-800";
+				const symbol = moneda === "PEN" ? "S/." : "$";
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
+							{symbol} {moneda}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Monto",
 			accessor: "monto",
-			cell: (value: unknown, row: EgresoSinFactura) => `${row.moneda === "PEN" ? "S/." : "$"} ${(value as number).toLocaleString("es-PE")}`,
+			cell: (value, row) => (
+				<div className="flex justify-end">
+					<span className="font-mono font-medium text-gray-700">
+						{row.moneda === "PEN" ? "S/." : "$"} {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+					</span>
+				</div>
+			),
+		},
+		{
+			header: "Fecha",
+			accessor: "fecha",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="text-sm font-medium flex items-center text-gray-700">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						{format(new Date(value as string), "dd/MM/yyyy")}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Observación",
 			accessor: "observacion",
+			cell: (value) => (
+				<div className="flex justify-center">
+					{(value as string) ? (
+						<div className="max-w-xs truncate text-sm text-gray-600">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline text-gray-400 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+							</svg>
+							{value as string}
+						</div>
+					) : (
+						<span className="text-gray-400">-</span>
+					)}
+				</div>
+			),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
-			cell: (value: unknown, row: EgresoSinFactura) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-				</div>
+			cell: (value, row) => (
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row)} />
+					<DeleteButton onClick={() => handleDelete(value as number)} />
+				</ActionButtonGroup>
 			),
 		},
 	];

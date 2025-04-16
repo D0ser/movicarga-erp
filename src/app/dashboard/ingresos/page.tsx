@@ -5,6 +5,7 @@ import DataTable from "@/components/DataTable";
 import { format } from "date-fns";
 import type { Column } from "@/components/DataTable";
 import { serieService, Serie, clienteService, Cliente, conductorService, Conductor } from "@/lib/supabaseServices";
+import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 
 // Interfaz que es compatible con DataItem
 interface Ingreso {
@@ -292,119 +293,315 @@ export default function IngresosPage() {
 		{
 			header: "Fecha",
 			accessor: "fecha",
-			cell: (value) => format(new Date(value as string), "dd/MM/yyyy"),
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="text-sm font-medium flex items-center text-gray-700">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						{format(new Date(value as string), "dd/MM/yyyy")}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Serie",
 			accessor: "serie",
-			cell: (value) => {
-				const colorClass = serieColors[value as string] || "bg-gray-100 text-gray-800";
+			cell: (value, row) => {
+				// Determinar color de la serie (podría venir de serieColors si estuviera disponible)
+				const colores: Record<string, string> = {
+					F001: "#3b82f6", // Azul
+					B001: "#10b981", // Verde
+					T001: "#8b5cf6", // Púrpura
+				};
+				const color = colores[value as string] || "#6b7280"; // Gris por defecto
 
-				return <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>{value as string}</span>;
+				return (
+					<div className="flex justify-center">
+						<span className="font-mono px-2 py-1 rounded text-white text-xs font-bold" style={{ backgroundColor: color }}>
+							{value as string}
+						</span>
+					</div>
+				);
 			},
 		},
 		{
 			header: "N° Factura",
 			accessor: "numeroFactura",
-		},
-		{
-			header: "Monto de Flete",
-			accessor: "montoFlete",
-			cell: (value) => `S/. ${(value as number).toLocaleString("es-PE")}`,
-		},
-		{
-			header: "Detracción",
-			accessor: "detraccion",
-			cell: (value) => `S/. ${(value as number).toLocaleString("es-PE")}`,
-		},
-		{
-			header: "Total a Deber",
-			accessor: "totalDeber",
-			cell: (value) => {
-				const monto = value as number;
-				const esNegativo = monto < 0;
-				const esPositivo = monto > 0;
-
-				let textColor = "";
-				if (esNegativo) {
-					textColor = "text-red-600";
-				} else if (esPositivo) {
-					textColor = "text-green-600";
-				}
-
-				return <span className={textColor}>S/. {Math.abs(monto).toLocaleString("es-PE")}</span>;
-			},
-		},
-		{
-			header: "Total Monto",
-			accessor: "totalMonto",
-			cell: (value) => `S/. ${(value as number).toLocaleString("es-PE")}`,
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Empresa",
 			accessor: "empresa",
+			cell: (value, row) => {
+				// Crear un avatar con la primera letra del nombre
+				const inicial = (value as string).charAt(0).toUpperCase();
+
+				return (
+					<div className="flex items-center px-2 justify-center">
+						<div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold mr-3">{inicial}</div>
+						<div className="text-sm font-medium text-gray-900 truncate max-w-[150px]">{value as string}</div>
+					</div>
+				);
+			},
 		},
 		{
 			header: "RUC",
 			accessor: "ruc",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
+		},
+		{
+			header: "Monto Flete",
+			accessor: "montoFlete",
+			cell: (value) => (
+				<div className="flex justify-end">
+					<span className="font-mono text-green-700 font-medium">S/. {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+				</div>
+			),
+		},
+		{
+			header: "Detracción",
+			accessor: "detraccion",
+			cell: (value) => (
+				<div className="flex justify-end">
+					<span className="font-mono text-gray-700">S/. {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+				</div>
+			),
+		},
+		{
+			header: "Total Monto",
+			accessor: "totalMonto",
+			cell: (value) => (
+				<div className="flex justify-end">
+					<span className="font-mono text-blue-700 font-semibold">S/. {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+				</div>
+			),
 		},
 		{
 			header: "Conductor",
 			accessor: "conductor",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Placa Tracto",
 			accessor: "placaTracto",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-blue-50 px-3 py-1.5 rounded-lg text-blue-700 font-semibold flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Placa Carreta",
 			accessor: "placaCarreta",
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-purple-50 px-3 py-1.5 rounded-lg text-purple-700 font-semibold flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l-4-4m4 4l4-4" />
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Observación",
 			accessor: "observacion",
+			cell: (value) => (
+				<div className="flex justify-center">
+					{(value as string) ? (
+						<div className="max-w-xs truncate text-sm text-gray-600">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 inline text-gray-400 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+							</svg>
+							{value as string}
+						</div>
+					) : (
+						<span className="text-gray-400">-</span>
+					)}
+				</div>
+			),
 		},
 		{
 			header: "Guía Remitente",
 			accessor: "documentoGuiaRemit",
+			cell: (value) => (
+				<div className="flex justify-center">
+					{(value as string) ? <span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-xs">{value as string}</span> : <span className="text-gray-400">-</span>}
+				</div>
+			),
 		},
 		{
 			header: "Guía Transportista",
 			accessor: "guiaTransp",
+			cell: (value) => (
+				<div className="flex justify-center">
+					{(value as string) ? <span className="font-mono bg-orange-50 px-2 py-1 rounded text-orange-700 text-xs">{value as string}</span> : <span className="text-gray-400">-</span>}
+				</div>
+			),
 		},
 		{
 			header: "Días Crédito",
 			accessor: "diasCredito",
+			cell: (value) => {
+				const dias = value as number;
+				const colorClass = dias === 0 ? "bg-green-100 text-green-800" : dias <= 15 ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800";
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+							{dias} {dias === 1 ? "día" : "días"}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Fecha Vencimiento",
 			accessor: "fechaVencimiento",
-			cell: (value) => format(new Date(value as string), "dd/MM/yyyy"),
+			cell: (value) => {
+				const fechaVencimiento = new Date(value as string);
+				const fechaActual = new Date();
+
+				// Calcular días restantes
+				const diferenciaDias = Math.ceil((fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
+
+				// Aplicar colores según el vencimiento
+				let colorClass = "bg-green-100 text-green-800";
+				let icon = (
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+					</svg>
+				);
+
+				if (diferenciaDias < 0) {
+					// Vencido
+					colorClass = "bg-red-100 text-red-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				} else if (diferenciaDias <= 5) {
+					// Por vencer pronto
+					colorClass = "bg-yellow-100 text-yellow-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-md text-xs font-medium flex items-center ${colorClass}`}>
+							{icon}
+							{format(fechaVencimiento, "dd/MM/yyyy")}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Estado",
 			accessor: "estado",
-			cell: (value) => (
-				<span
-					className={`px-2 py-1 rounded-full text-xs font-medium ${
-						(value as string) === "Pagado" ? "bg-green-100 text-green-800" : (value as string) === "Pendiente" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"
-					}`}>
-					{value as string}
-				</span>
-			),
+			cell: (value) => {
+				const estado = value as string;
+				const isPagado = estado === "Pagado";
+				const isPendiente = estado === "Pendiente";
+
+				let colorClass = "bg-gray-100 text-gray-800";
+				let icon = null;
+
+				if (isPagado) {
+					colorClass = "bg-green-100 text-green-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+						</svg>
+					);
+				} else if (isPendiente) {
+					colorClass = "bg-yellow-100 text-yellow-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				} else {
+					colorClass = "bg-red-100 text-red-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}>
+							{icon}
+							{estado}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value, row) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row as Ingreso)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row as Ingreso)} />
+					<DeleteButton onClick={() => handleDelete(value as number)} />
+				</ActionButtonGroup>
 			),
 		},
 	];

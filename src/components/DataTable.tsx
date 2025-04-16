@@ -125,12 +125,12 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 			// Filtro por término de búsqueda
 			if (searchTerm) {
 				if (filters?.searchFields && filters.searchFields.length > 0) {
-					// Si hay múltiples campos de búsqueda, buscar en el campo seleccionado
+					// Si hay múltiples campos de búsqueda predefinidos, buscar en el campo seleccionado
 					const searchValue = item[selectedSearchField]?.toString().toLowerCase() || "";
 					if (!searchValue.includes(searchTerm.toLowerCase())) return false;
 				} else if (filters?.searchField) {
-					// Mantener compatibilidad con la búsqueda de campo único
-					const searchValue = item[filters.searchField]?.toString().toLowerCase() || "";
+					// Si solo había un campo de búsqueda original pero el usuario seleccionó otro
+					const searchValue = item[selectedSearchField]?.toString().toLowerCase() || "";
 					if (!searchValue.includes(searchTerm.toLowerCase())) return false;
 				}
 			}
@@ -191,6 +191,11 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 		workbook.created = new Date();
 		workbook.modified = new Date();
 
+		// Filtrar columnas para excluir "Acciones", "Fecha Creación" y "Color"
+		const columnsToExport = columns.filter(
+			(column) => column.header !== "Acciones" && column.header !== "Fecha Creación" && column.accessor !== "fechaCreacion" && column.header !== "Color" && column.accessor !== "color"
+		);
+
 		// Definir estilos para encabezados
 		const headerStyle = {
 			font: { bold: true, color: { argb: "FFFFFF" }, size: 12 },
@@ -239,10 +244,14 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 			"vencimientoRevision",
 			"fechaVencimientoLicencia",
 			"fechaVencimientoExamenMedico",
+			"fecha_soat",
+			"fecha_revision_tecnica",
+			"fecha_vencimiento_licencia",
 		];
+		const estadoColumns = ["estado"];
 
 		// Agregar encabezados con estilo
-		const headerRow = worksheet.addRow(columns.map((column) => column.header));
+		const headerRow = worksheet.addRow(columnsToExport.map((column) => column.header));
 		headerRow.eachCell((cell) => {
 			cell.style = headerStyle;
 		});
@@ -252,13 +261,19 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 
 		// Agregar datos con formato adecuado
 		filteredData.forEach((dataRow) => {
-			const rowData = columns.map((column) => {
+			const rowData = columnsToExport.map((column) => {
 				const value = dataRow[column.accessor];
+				const accessor = column.accessor;
 
-				// Si hay una función de celda y es una fecha o moneda, obtener el valor crudo
+				// Manejar campo estado de tipo boolean (para conductores)
+				if (estadoColumns.includes(accessor) && typeof value === "boolean") {
+					return value ? "Activo" : "Inactivo";
+				}
+
+				// Obtener el valor real de celda cuando hay una función de celda personalizada
 				if (column.cell && typeof value !== "undefined" && value !== null) {
 					// Para fechas
-					if (fechaColumns.includes(column.accessor) || value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
+					if (fechaColumns.includes(accessor) || value instanceof Date || (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/))) {
 						try {
 							return new Date(value as string);
 						} catch {
@@ -267,8 +282,13 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 					}
 
 					// Para monedas - extraer el valor numérico
-					if (monedaColumns.includes(column.accessor) && typeof value === "number") {
+					if (monedaColumns.includes(accessor) && typeof value === "number") {
 						return value;
+					}
+
+					// Para estados que ya son strings pero tienen formato personalizado en la UI
+					if (estadoColumns.includes(accessor) && typeof value === "string") {
+						return value; // Usar el valor de texto directamente
 					}
 				}
 
@@ -282,7 +302,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 				// Aplicar bordes básicos a todas las celdas
 				cell.style = { ...rowStyle };
 
-				const columnName = columns[colNumber - 1].accessor;
+				const columnName = columnsToExport[colNumber - 1].accessor;
 
 				// Aplicar estilo de moneda
 				if (monedaColumns.includes(columnName) && typeof cell.value === "number") {
@@ -489,18 +509,14 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 					<table className="min-w-full divide-y divide-gray-200">
 						<thead className="bg-gray-50">
 							<tr>
-								{columns.map((column) => (
+								{columns.map((column, index) => (
 									<th
-										key={column.accessor.toString()}
-										scope="col"
-										className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${column.accessor === sortConfig.key ? "text-primary" : ""} ${
-											column.header === "Acciones" ? "sticky right-0 bg-gray-50 z-10 shadow-sm" : ""
-										}`}
-										onClick={() => column.accessor !== "id" && handleSort(column.accessor)}
-										style={{ cursor: column.accessor !== "id" ? "pointer" : "default" }}>
-										<div className="flex items-center space-x-1">
+										key={index}
+										className={`px-4 py-2 bg-gray-100 text-center cursor-pointer border-b-2 border-gray-200 ${sortConfig.key === column.accessor ? "text-blue-600 border-blue-500" : "text-gray-600"}`}
+										onClick={() => handleSort(column.accessor)}>
+										<div className="flex items-center justify-center">
 											<span>{column.header}</span>
-											{column.accessor === sortConfig.key && <span>{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
+											{sortConfig.key === column.accessor && <span className="ml-1">{sortConfig.direction === "asc" ? "↑" : "↓"}</span>}
 										</div>
 									</th>
 								))}
@@ -523,7 +539,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 												key={`${item.id}-${column.accessor}`}
 												className={`px-6 py-3 whitespace-nowrap text-sm text-gray-500 ${column.header === "Acciones" ? "sticky right-0 bg-white z-10 shadow-sm" : ""}`}>
 												{column.header === "Acciones" && column.cell ? (
-													<div className="flex gap-1 justify-end">
+													<div className="flex gap-1 justify-center">
 														{(() => {
 															// Capturamos el contenido del cell para analizarlo
 															const cellContent = column.cell(item[column.accessor], item as T) as React.ReactElement;
@@ -692,7 +708,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 		</div>
 	);
 
-	// Función para renderizar los filtros
+	// Renderizar filtros
 	function renderFilters() {
 		return (
 			<div className="flex flex-col sm:flex-row flex-wrap gap-2">
@@ -736,7 +752,35 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 					<div className="flex flex-col">
 						<label className="text-xs text-gray-500 mb-1">Buscar</label>
 						<div className="flex flex-col sm:flex-row gap-1">
-							{/* Selector de campo de búsqueda (solo si hay múltiples campos) */}
+							{/* Selector de campo de búsqueda (siempre visible ahora) */}
+							{filters?.searchField && !filters?.searchFields && (
+								// Crear un searchFields a partir del único searchField para usar la misma lógica
+								<select
+									value={selectedSearchField}
+									onChange={(e) => {
+										setSelectedSearchField(e.target.value);
+										setCurrentPage(1);
+									}}
+									className="border border-primary rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+									aria-label="Seleccionar campo de búsqueda">
+									<option value={filters.searchField}>
+										{/* Convertir camelCase o snake_case a formato legible */}
+										{filters.searchField
+											.replace(/([A-Z])/g, " $1")
+											.replace(/_/g, " ")
+											.replace(/^\w/, (c) => c.toUpperCase())}
+									</option>
+									{/* Incluir todos los demás campos disponibles para búsqueda */}
+									{columns
+										.filter((col) => col.accessor !== filters.searchField && col.header !== "Acciones" && typeof col.accessor === "string")
+										.map((col) => (
+											<option key={col.accessor} value={col.accessor}>
+												{col.header}
+											</option>
+										))}
+								</select>
+							)}
+							{/* Selector de campo de búsqueda (para múltiples campos predefinidos) */}
 							{filters?.searchFields && filters.searchFields.length > 0 && (
 								<select
 									value={selectedSearchField}
@@ -758,7 +802,12 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 								<input
 									type="text"
 									placeholder={`Buscar por ${
-										filters?.searchFields && filters.searchFields.length > 0 ? filters.searchFields.find((f) => f.accessor === selectedSearchField)?.label || selectedSearchField : filters?.searchField
+										filters?.searchFields && filters.searchFields.length > 0
+											? filters.searchFields.find((f) => f.accessor === selectedSearchField)?.label || selectedSearchField
+											: selectedSearchField
+													.replace(/([A-Z])/g, " $1")
+													.replace(/_/g, " ")
+													.replace(/^\w/, (c) => c.toUpperCase())
 									}`}
 									value={searchTerm}
 									onChange={(e) => {

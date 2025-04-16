@@ -35,6 +35,10 @@
 		color: var(--secondary);
 	}
 
+	.text-light {
+		color: #ededed;
+	}
+
 	.border-primary {
 		border-color: var(--primary);
 	}
@@ -71,9 +75,13 @@
 @media (prefers-color-scheme: dark) {
 	:root {
 		--background: #0a0a0a;
-		--foreground: #ededed;
+		--foreground: #000000;
 		--primary: #2d2e83;
 		--secondary: #f39200;
 		--accent: #f39200;
+	}
+
+	::placeholder {
+		color: #ededed;
 	}
 }

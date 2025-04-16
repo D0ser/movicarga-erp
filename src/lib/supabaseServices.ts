@@ -18,7 +18,7 @@ export interface Cliente extends DataItem, RelatedEntities {
 	contacto: string;
 	telefono: string;
 	email: string;
-	tipo_cliente: string;
+	tipo_cliente_id: string;
 	fecha_registro: string;
 	estado: boolean;
 	limite_credito: number;

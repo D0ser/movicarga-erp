@@ -1,5 +1,5 @@
 -- Script para crear todas las tablas necesarias en Supabase
--- Actualizado: agosto de 2024
+-- Actualizado: octubre de 2024
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS auditorias CASCADE;
@@ -36,17 +36,10 @@ CREATE TABLE IF NOT EXISTS clientes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   razon_social TEXT NOT NULL,
   ruc VARCHAR(11),
-  direccion TEXT,
-  ciudad TEXT,
-  contacto TEXT,
-  telefono VARCHAR(20),
-  email TEXT,
   tipo_cliente_id UUID REFERENCES tipo_cliente(id),
-  fecha_registro TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   estado BOOLEAN DEFAULT TRUE,
   limite_credito NUMERIC(12,2) DEFAULT 0,
   dias_credito INTEGER DEFAULT 0,
-  observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

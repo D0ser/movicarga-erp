@@ -32,9 +32,9 @@ export default function VehiculosPage() {
 	// Cargar datos desde Supabase al iniciar
 	useEffect(() => {
 		fetchVehiculos();
-		
+
 		// Verificar si la columna tipo_vehiculo existe
-		handleMissingColumn().then(hasError => {
+		handleMissingColumn().then((hasError) => {
 			if (hasError) {
 				console.log("Se detectó que falta la columna tipo_vehiculo en la base de datos");
 			}
@@ -101,49 +101,245 @@ export default function VehiculosPage() {
 		{
 			header: "Placa",
 			accessor: "placa",
+			cell: (value: unknown, row: VehiculoDataItem) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-blue-50 px-3 py-1.5 rounded-lg text-blue-700 font-semibold flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"
+							/>
+						</svg>
+						{row.placa}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Tipo",
 			accessor: "tipo_vehiculo",
 			cell: (value: unknown, row: VehiculoDataItem) => {
 				const tipoVehiculo = row.tipo_vehiculo || "Tracto";
+
+				let bgColor = "bg-blue-100 text-blue-800";
+				let icon = (
+					<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+					</svg>
+				);
+
+				if (tipoVehiculo === "Carreta") {
+					bgColor = "bg-purple-100 text-purple-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l-4-4m4 4l4-4" />
+						</svg>
+					);
+				}
+
 				return (
-					<span className={`px-2 py-1 rounded-full text-xs font-medium ${
-						tipoVehiculo === "Tracto" ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
-					}`}>
-						{tipoVehiculo}
-					</span>
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${bgColor}`}>
+							{icon}
+							{tipoVehiculo}
+						</span>
+					</div>
 				);
 			},
 		},
 		{
 			header: "Marca",
 			accessor: "marca",
+			cell: (value: unknown, row: VehiculoDataItem) => (
+				<div className="flex justify-center">
+					<div className="text-sm font-medium text-gray-900">{row.marca || "-"}</div>
+				</div>
+			),
 		},
 		{
 			header: "Modelo",
 			accessor: "modelo",
+			cell: (value: unknown, row: VehiculoDataItem) => (
+				<div className="flex justify-center">
+					<div className="text-sm font-medium text-gray-600">{row.modelo || "-"}</div>
+				</div>
+			),
 		},
 		{
 			header: "Año",
 			accessor: "anio",
+			cell: (value: unknown, row: VehiculoDataItem) => {
+				const currentYear = new Date().getFullYear();
+				const age = currentYear - (row.anio || 0);
+
+				let colorClass = "bg-green-100 text-green-800";
+				if (age > 10) {
+					colorClass = "bg-red-100 text-red-800";
+				} else if (age > 5) {
+					colorClass = "bg-yellow-100 text-yellow-800";
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-md text-xs font-medium ${colorClass}`}>{row.anio}</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Capacidad (kg)",
 			accessor: "capacidad_carga",
-			cell: (value: unknown, row: VehiculoDataItem) => row.capacidad_carga.toLocaleString("es-PE"),
+			cell: (value: unknown, row: VehiculoDataItem) => {
+				const capacidad = row.capacidad_carga.toLocaleString("es-PE");
+				return (
+					<div className="flex justify-end">
+						<span className="font-mono text-gray-700">{capacidad} kg</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Kilometraje",
 			accessor: "kilometraje",
-			cell: (value: unknown, row: VehiculoDataItem) => row.kilometraje.toLocaleString("es-PE") + " km",
+			cell: (value: unknown, row: VehiculoDataItem) => {
+				const km = row.kilometraje.toLocaleString("es-PE");
+
+				// Colores según kilometraje
+				let colorClass = "text-green-600";
+				if (row.kilometraje > 300000) {
+					colorClass = "text-red-600 font-semibold";
+				} else if (row.kilometraje > 150000) {
+					colorClass = "text-yellow-600";
+				}
+
+				return (
+					<div className="flex justify-end">
+						<span className={`font-mono ${colorClass}`}>{km} km</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "SOAT Hasta",
 			accessor: "fecha_soat",
 			cell: (value: unknown, row: VehiculoDataItem) => {
 				const dateValue = row.fecha_soat;
-				return dateValue ? format(new Date(dateValue), "dd/MM/yyyy") : "";
+				if (!dateValue) return <div className="text-center">No disponible</div>;
+
+				const fechaVencimiento = new Date(dateValue);
+				const fechaActual = new Date();
+
+				// Calcular días restantes
+				const diferenciaDias = Math.ceil((fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
+
+				// Aplicar colores según el vencimiento
+				let colorClass = "";
+				let icon = null;
+
+				if (diferenciaDias < 0) {
+					// Vencido
+					colorClass = "bg-red-100 text-red-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				} else if (diferenciaDias <= 30) {
+					// Por vencer en menos de 30 días
+					colorClass = "bg-yellow-100 text-yellow-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+							/>
+						</svg>
+					);
+				} else {
+					// Vigente
+					colorClass = "bg-green-100 text-green-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+							/>
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}>
+							{icon}
+							{format(fechaVencimiento, "dd/MM/yyyy")}
+						</span>
+					</div>
+				);
+			},
+		},
+		{
+			header: "Rev. Técnica",
+			accessor: "fecha_revision_tecnica",
+			cell: (value: unknown, row: VehiculoDataItem) => {
+				const dateValue = row.fecha_revision_tecnica;
+				if (!dateValue) return <div className="text-center">No disponible</div>;
+
+				const fechaVencimiento = new Date(dateValue);
+				const fechaActual = new Date();
+
+				// Calcular días restantes
+				const diferenciaDias = Math.ceil((fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
+
+				// Aplicar colores según el vencimiento
+				let colorClass = "";
+				let icon = null;
+
+				if (diferenciaDias < 0) {
+					// Vencido
+					colorClass = "bg-red-100 text-red-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				} else if (diferenciaDias <= 30) {
+					// Por vencer en menos de 30 días
+					colorClass = "bg-yellow-100 text-yellow-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+							/>
+						</svg>
+					);
+				} else {
+					// Vigente
+					colorClass = "bg-green-100 text-green-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}>
+							{icon}
+							{format(fechaVencimiento, "dd/MM/yyyy")}
+						</span>
+					</div>
+				);
 			},
 		},
 		{
@@ -151,14 +347,45 @@ export default function VehiculosPage() {
 			accessor: "estado",
 			cell: (value: unknown, row: VehiculoDataItem) => {
 				let colorClass = "bg-gray-100 text-gray-800";
+				let icon = null;
+
 				if (row.estado === "Operativo") {
 					colorClass = "bg-green-100 text-green-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+						</svg>
+					);
 				} else if (row.estado === "Mantenimiento") {
 					colorClass = "bg-yellow-100 text-yellow-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+							/>
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+						</svg>
+					);
 				} else if (row.estado === "Fuera de Servicio") {
 					colorClass = "bg-red-100 text-red-800";
+					icon = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+						</svg>
+					);
 				}
-				return <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>{row.estado}</span>;
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}>
+							{icon}
+							{row.estado}
+						</span>
+					</div>
+				);
 			},
 		},
 		{

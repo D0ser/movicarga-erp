@@ -4,8 +4,6 @@ import { useEffect, useState } from "react";
 import { format, subMonths, parseISO } from "date-fns";
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale, Filler } from "chart.js";
 import { Line, Bar, Doughnut, Radar } from "react-chartjs-2";
-import SupabaseConnectionStatus from "@/components/SupabaseConnectionStatus";
-import NotificationDemo from "@/components/notifications/NotificationDemo";
 
 // Registramos los componentes necesarios de Chart.js
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale, Filler);
@@ -280,12 +278,6 @@ export default function Dashboard() {
 				<h1 className="text-2xl font-bold">Dashboard</h1>
 				<div className="text-sm bg-primary text-white px-3 py-1 rounded-full">{format(new Date(), "EEEE, d 'de' MMMM 'de' yyyy")}</div>
 			</div>
-
-			{/* Estado de conexión con Supabase */}
-			<SupabaseConnectionStatus />
-
-			{/* Demostración de notificaciones */}
-			<NotificationDemo className="mb-6" />
 
 			{/* Tarjetas de estadísticas principales */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

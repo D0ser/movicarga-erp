@@ -1,16 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
-
-// Definición de la estructura de datos para Series
-interface Serie {
-	id: number;
-	serie: string;
-	fecha_creacion: string;
-	color?: string;
-}
+import { serieService, Serie } from "@/lib/supabaseServices";
+import notificationService from "@/components/notifications/NotificationService";
+import { ActionButtonGroup, EditButton, DeleteButton } from "@/components/ActionIcons";
 
 // Definición de la estructura de datos para Observaciones
 interface Observacion {
@@ -22,28 +17,28 @@ interface Observacion {
 export default function OtrasListasPage() {
 	// Estado para controlar qué tabla se muestra
 	const [tablaActiva, setTablaActiva] = useState<"series" | "observaciones">("series");
+	const [loading, setLoading] = useState(false);
 
 	// Estado para los datos de Series
-	const [series, setSeries] = useState<Serie[]>([
-		{
-			id: 1,
-			serie: "F001",
-			fecha_creacion: "2025-04-10",
-			color: "#3b82f6",
-		},
-		{
-			id: 2,
-			serie: "B001",
-			fecha_creacion: "2025-04-10",
-			color: "#10b981",
-		},
-		{
-			id: 3,
-			serie: "T001",
-			fecha_creacion: "2025-04-12",
-			color: "#8b5cf6",
-		},
-	]);
+	const [series, setSeries] = useState<Serie[]>([]);
+
+	// Cargar series desde Supabase
+	useEffect(() => {
+		async function cargarSeries() {
+			setLoading(true);
+			try {
+				const data = await serieService.getSeries();
+				setSeries(data);
+			} catch (error) {
+				console.error("Error al cargar series:", error);
+				notificationService.error("No se pudieron cargar las series. Inténtelo de nuevo más tarde.");
+			} finally {
+				setLoading(false);
+			}
+		}
+
+		cargarSeries();
+	}, []);
 
 	// Estado para los datos de Observaciones
 	const [observaciones, setObservaciones] = useState<Observacion[]>([
@@ -85,7 +80,7 @@ export default function OtrasListasPage() {
 			header: "Serie",
 			accessor: "serie",
 			cell: (value: unknown, row: Serie) => (
-				<div className="flex items-center">
+				<div className="flex items-center justify-center">
 					<div className="w-4 h-4 rounded-full mr-2" style={{ backgroundColor: row.color || "#e5e7eb" }}></div>
 					<span>{value as string}</span>
 				</div>
@@ -94,25 +89,25 @@ export default function OtrasListasPage() {
 		{
 			header: "Color",
 			accessor: "color",
-			cell: (value: unknown, row: Serie) => <div className="w-6 h-6 rounded-full" style={{ backgroundColor: (value as string) || "#e5e7eb" }}></div>,
+			cell: (value: unknown, row: Serie) => (
+				<div className="flex justify-center">
+					<div className="w-6 h-6 rounded-full" style={{ backgroundColor: (value as string) || "#e5e7eb" }}></div>
+				</div>
+			),
 		},
 		{
 			header: "Fecha Creación",
 			accessor: "fecha_creacion",
-			cell: (value: unknown, row: Serie) => format(new Date(value as string), "dd/MM/yyyy"),
+			cell: (value: unknown, row: Serie) => <div className="text-center">{format(new Date(value as string), "dd/MM/yyyy")}</div>,
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: Serie) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEditSerie(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDeleteSerie(value as number)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEditSerie(row)} />
+					<DeleteButton onClick={() => handleDeleteSerie(value as string)} />
+				</ActionButtonGroup>
 			),
 		},
 	];
@@ -122,24 +117,21 @@ export default function OtrasListasPage() {
 		{
 			header: "Observación",
 			accessor: "observacion",
+			cell: (value: unknown, row: Observacion) => <div className="text-center">{row.observacion}</div>,
 		},
 		{
 			header: "Fecha Creación",
 			accessor: "fecha_creacion",
-			cell: (value: unknown, row: Observacion) => format(new Date(value as string), "dd/MM/yyyy"),
+			cell: (value: unknown, row: Observacion) => <div className="text-center">{format(new Date(value as string), "dd/MM/yyyy")}</div>,
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: Observacion) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEditObservacion(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDeleteObservacion(value as number)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEditObservacion(row)} />
+					<DeleteButton onClick={() => handleDeleteObservacion(value as number)} />
+				</ActionButtonGroup>
 			),
 		},
 	];
@@ -153,32 +145,45 @@ export default function OtrasListasPage() {
 		});
 	};
 
-	const handleSubmitSeries = (e: React.FormEvent) => {
+	const handleSubmitSeries = async (e: React.FormEvent) => {
 		e.preventDefault();
+		setLoading(true);
 
-		const nuevaSerie: Serie = {
-			id: formDataSeries.id || Date.now(),
-			serie: formDataSeries.serie || "",
-			fecha_creacion: formDataSeries.fecha_creacion || new Date().toISOString().split("T")[0],
-			color: formDataSeries.color || "#3b82f6",
-		};
+		try {
+			const serieDatos = {
+				serie: formDataSeries.serie || "",
+				fecha_creacion: formDataSeries.fecha_creacion || new Date().toISOString().split("T")[0],
+				color: formDataSeries.color || "#3b82f6",
+			};
 
-		if (formDataSeries.id) {
-			// Actualizar serie existente
-			setSeries(series.map((s) => (s.id === formDataSeries.id ? nuevaSerie : s)));
-		} else {
-			// Agregar nueva serie
-			setSeries([...series, nuevaSerie]);
+			if (formDataSeries.id) {
+				// Actualizar serie existente
+				await serieService.updateSerie(formDataSeries.id as string, serieDatos);
+				notificationService.success("La serie se actualizó correctamente");
+			} else {
+				// Agregar nueva serie
+				await serieService.createSerie(serieDatos);
+				notificationService.success("La serie se creó correctamente");
+			}
+
+			// Recargar series
+			const seriesActualizadas = await serieService.getSeries();
+			setSeries(seriesActualizadas);
+
+			// Limpiar formulario
+			setFormDataSeries({
+				serie: "",
+				fecha_creacion: new Date().toISOString().split("T")[0],
+				color: "#3b82f6",
+			});
+
+			setShowFormSeries(false);
+		} catch (error) {
+			console.error("Error al guardar serie:", error);
+			notificationService.error("No se pudo guardar la serie. Inténtelo de nuevo más tarde.");
+		} finally {
+			setLoading(false);
 		}
-
-		// Limpiar formulario
-		setFormDataSeries({
-			serie: "",
-			fecha_creacion: new Date().toISOString().split("T")[0],
-			color: "#3b82f6",
-		});
-
-		setShowFormSeries(false);
 	};
 
 	const handleEditSerie = (serie: Serie) => {
@@ -188,9 +193,21 @@ export default function OtrasListasPage() {
 		setShowFormSeries(true);
 	};
 
-	const handleDeleteSerie = (id: number) => {
+	const handleDeleteSerie = async (id: string) => {
 		if (confirm("¿Está seguro de que desea eliminar esta serie?")) {
-			setSeries(series.filter((s) => s.id !== id));
+			setLoading(true);
+			try {
+				await serieService.deleteSerie(id);
+				// Recargar series
+				const seriesActualizadas = await serieService.getSeries();
+				setSeries(seriesActualizadas);
+				notificationService.success("La serie se eliminó correctamente");
+			} catch (error) {
+				console.error("Error al eliminar serie:", error);
+				notificationService.error("No se pudo eliminar la serie. Inténtelo de nuevo más tarde.");
+			} finally {
+				setLoading(false);
+			}
 		}
 	};
 

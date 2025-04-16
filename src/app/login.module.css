@@ -1,0 +1,148 @@
+.loginContainer {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(135deg, #f0f0f0, #e0e0e0);
+	padding: 1rem;
+}
+
+.loginForm {
+	background-color: white;
+	padding: 2rem;
+	border-radius: 0.5rem;
+	box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+	width: 100%;
+	max-width: 28rem;
+	border-top: 4px solid #f39200;
+	transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.loginForm:hover {
+	transform: translateY(-5px);
+	box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+}
+
+.logoContainer {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 1.5rem;
+	position: relative;
+}
+
+.logoContainer::after {
+	content: "";
+	position: absolute;
+	bottom: -10px;
+	left: 50%;
+	width: 50px;
+	height: 3px;
+	background-color: #f39200;
+	transform: translateX(-50%);
+	border-radius: 3px;
+}
+
+.formInput {
+	width: 100%;
+	padding: 0.75rem 1rem;
+	border: 1px solid #e2e8f0;
+	border-radius: 0.375rem;
+	font-size: 1rem;
+	transition: all 0.3s;
+	background-color: #f9fafb;
+}
+
+.formInput:focus {
+	outline: none;
+	border-color: #2d2e83;
+	box-shadow: 0 0 0 3px rgba(45, 46, 131, 0.1);
+	background-color: #fff;
+}
+
+.formInput::placeholder {
+	color: #a0aec0;
+}
+
+.passwordInput {
+	padding-right: 2.5rem;
+}
+
+.passwordToggle {
+	position: absolute;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	padding: 0 0.75rem;
+	color: #718096;
+	cursor: pointer;
+	background: transparent;
+	border: none;
+	transition: color 0.2s;
+}
+
+.passwordToggle:hover {
+	color: #4a5568;
+}
+
+.passwordToggle:focus {
+	outline: none;
+}
+
+.loginButton {
+	width: 100%;
+	background-color: #2d2e83;
+	color: white;
+	font-weight: 600;
+	padding: 0.75rem 1rem;
+	border-radius: 0.375rem;
+	transition: all 0.3s;
+	border: none;
+	cursor: pointer;
+	position: relative;
+	overflow: hidden;
+}
+
+.loginButton:hover {
+	background-color: #1f1f6f;
+	transform: translateY(-2px);
+	box-shadow: 0 4px 6px rgba(45, 46, 131, 0.1);
+}
+
+.loginButton:active {
+	transform: translateY(0);
+	box-shadow: none;
+}
+
+.loginButton:focus {
+	outline: none;
+	box-shadow: 0 0 0 3px rgba(45, 46, 131, 0.3);
+}
+
+.forgotPassword {
+	color: #2d2e83;
+	font-size: 0.875rem;
+	text-decoration: none;
+	transition: all 0.2s;
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+}
+
+.forgotPassword:hover {
+	color: #1f1f6f;
+	text-decoration: underline;
+}
+
+.forgotPassword:focus {
+	outline: none;
+	text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+	.loginForm {
+		padding: 1.5rem;
+	}
+}

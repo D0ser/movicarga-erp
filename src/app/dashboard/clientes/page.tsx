@@ -5,31 +5,33 @@ import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { clienteService, Cliente } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
+import supabase from "@/lib/supabase";
+import { EditButton, DeleteButton, ActivateButton, DeactivateButton, ActionButtonGroup } from "@/components/ActionIcons";
+
+// Interfaz para tipo de cliente
+interface TipoCliente {
+	id: string;
+	nombre: string;
+	descripcion?: string;
+}
 
 // Componente para la página de clientes
 export default function ClientesPage() {
 	const [loading, setLoading] = useState(true);
 	const [clientes, setClientes] = useState<Cliente[]>([]);
+	const [tiposCliente, setTiposCliente] = useState<TipoCliente[]>([]);
 	const [showForm, setShowForm] = useState(false);
 	const [formData, setFormData] = useState<Partial<Cliente>>({
 		razon_social: "",
 		ruc: "",
-		direccion: "",
-		ciudad: "",
-		contacto: "",
-		telefono: "",
-		email: "",
-		tipo_cliente: "Empresa",
-		fecha_registro: new Date().toISOString().split("T")[0],
+		tipo_cliente_id: "",
 		estado: true,
-		limite_credito: 0,
-		dias_credito: 0,
-		observaciones: "",
 	});
 
 	// Cargar datos desde Supabase al iniciar
 	useEffect(() => {
 		fetchClientes();
+		fetchTiposCliente();
 	}, []);
 
 	const fetchClientes = async () => {
@@ -45,81 +47,155 @@ export default function ClientesPage() {
 		}
 	};
 
+	// Función para cargar tipos de cliente
+	const fetchTiposCliente = async () => {
+		try {
+			const { data, error } = await supabase.from("tipo_cliente").select("*").order("nombre");
+			if (error) throw error;
+			setTiposCliente(data || []);
+
+			// Si no hay tipos de cliente, crear los predeterminados
+			if (data && data.length === 0) {
+				await crearTiposClientePredeterminados();
+			}
+		} catch (error) {
+			console.error("Error al cargar tipos de cliente:", error);
+			notificationService.error("No se pudieron cargar los tipos de cliente");
+		}
+	};
+
+	// Función para crear tipos de cliente predeterminados
+	const crearTiposClientePredeterminados = async () => {
+		try {
+			// Datos predeterminados
+			const tiposPredeterminados = [
+				{ nombre: "Empresa", descripcion: "Cliente empresarial o jurídico" },
+				{ nombre: "Persona", descripcion: "Cliente natural o persona física" },
+				{ nombre: "Ocasional", descripcion: "Cliente de una sola vez" },
+			];
+
+			// Insertar datos
+			const { data, error } = await supabase.from("tipo_cliente").insert(tiposPredeterminados).select();
+
+			if (error) throw error;
+
+			// Actualizar el estado
+			if (data) {
+				setTiposCliente(data);
+				notificationService.info("Se han creado los tipos de cliente predeterminados");
+			}
+		} catch (error) {
+			console.error("Error al crear tipos de cliente predeterminados:", error);
+		}
+	};
+
 	// Columnas para la tabla de clientes
 	const columns: Column<Cliente>[] = [
 		{
 			header: "Razón Social",
 			accessor: "razon_social",
+			cell: (value: unknown, row: Cliente) => {
+				// Determinar icono según el tipo de cliente
+				const tipoCliente = tiposCliente.find((tipo) => tipo.id === row.tipo_cliente_id);
+				const tipoNombre = tipoCliente ? tipoCliente.nombre.toLowerCase() : "";
+
+				let inicialClass = "bg-blue-100 text-blue-800";
+				if (tipoNombre.includes("persona")) {
+					inicialClass = "bg-green-100 text-green-800";
+				} else if (tipoNombre.includes("ocasional")) {
+					inicialClass = "bg-yellow-100 text-yellow-800";
+				}
+
+				// Obtener la primera letra para el avatar
+				const inicial = row.razon_social ? row.razon_social.charAt(0).toUpperCase() : "?";
+
+				return (
+					<div className="flex items-center px-2">
+						<div className={`flex-shrink-0 h-8 w-8 rounded-full ${inicialClass} flex items-center justify-center font-bold mr-3`}>{inicial}</div>
+						<div className="text-sm font-medium text-gray-900 truncate">{row.razon_social}</div>
+					</div>
+				);
+			},
 		},
 		{
 			header: "RUC",
 			accessor: "ruc",
-		},
-		{
-			header: "Contacto",
-			accessor: "contacto",
-		},
-		{
-			header: "Teléfono",
-			accessor: "telefono",
-		},
-		{
-			header: "Email",
-			accessor: "email",
-		},
-		{
-			header: "Ciudad",
-			accessor: "ciudad",
+			cell: (value: unknown, row: Cliente) => (
+				<div className="text-center">
+					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700">{row.ruc || "-"}</span>
+				</div>
+			),
 		},
 		{
 			header: "Tipo",
-			accessor: "tipo_cliente",
-		},
-		{
-			header: "Fecha Registro",
-			accessor: "fecha_registro",
+			accessor: "tipo_cliente_id",
 			cell: (value: unknown, row: Cliente) => {
-				const dateValue = row.fecha_registro;
-				return dateValue ? format(new Date(dateValue), "dd/MM/yyyy") : "";
+				const tipoCliente = tiposCliente.find((tipo) => tipo.id === row.tipo_cliente_id);
+				const nombre = tipoCliente ? tipoCliente.nombre : "No asignado";
+
+				let bgColor = "bg-gray-100";
+				let textColor = "text-gray-800";
+				let icono = null;
+
+				if (nombre.toLowerCase().includes("empresa")) {
+					bgColor = "bg-blue-100";
+					textColor = "text-blue-800";
+					icono = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+							/>
+						</svg>
+					);
+				} else if (nombre.toLowerCase().includes("persona")) {
+					bgColor = "bg-green-100";
+					textColor = "text-green-800";
+					icono = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+						</svg>
+					);
+				} else if (nombre.toLowerCase().includes("ocasional")) {
+					bgColor = "bg-yellow-100";
+					textColor = "text-yellow-800";
+					icono = (
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					);
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor} flex items-center`}>
+							{icono}
+							{nombre}
+						</span>
+					</div>
+				);
 			},
 		},
 		{
 			header: "Estado",
 			accessor: "estado",
 			cell: (value: unknown, row: Cliente) => (
-				<span className={`px-2 py-1 rounded-full text-xs font-medium ${row.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{row.estado ? "Activo" : "Inactivo"}</span>
+				<div className="flex justify-center">
+					<span className={`px-2 py-1 rounded-full text-xs font-medium ${row.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{row.estado ? "Activo" : "Inactivo"}</span>
+				</div>
 			),
-		},
-		{
-			header: "Límite Crédito",
-			accessor: "limite_credito",
-			cell: (value: unknown, row: Cliente) => `S/. ${row.limite_credito.toLocaleString("es-PE")}`,
-		},
-		{
-			header: "Días Crédito",
-			accessor: "dias_credito",
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: Cliente) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(row.id)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-					{row.estado ? (
-						<button onClick={() => handleChangeStatus(row.id, false)} className="text-yellow-600 hover:text-yellow-800">
-							Desactivar
-						</button>
-					) : (
-						<button onClick={() => handleChangeStatus(row.id, true)} className="text-green-600 hover:text-green-800">
-							Activar
-						</button>
-					)}
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row)} />
+					<DeleteButton onClick={() => handleDelete(row.id)} />
+					{row.estado ? <DeactivateButton onClick={() => handleChangeStatus(row.id, false)} /> : <ActivateButton onClick={() => handleChangeStatus(row.id, true)} />}
+				</ActionButtonGroup>
 			),
 		},
 	];
@@ -148,15 +224,22 @@ export default function ClientesPage() {
 		try {
 			setLoading(true);
 
+			// Verificar que tiene un tipo de cliente seleccionado
+			if (!formData.tipo_cliente_id) {
+				notificationService.error("Debe seleccionar un tipo de cliente");
+				setLoading(false);
+				return;
+			}
+
 			if (formData.id) {
 				// Actualizar cliente existente
-				const updatedCliente = await clienteService.updateCliente(formData.id, formData);
-				setClientes(clientes.map((c) => (c.id === updatedCliente.id ? updatedCliente : c)));
+				await clienteService.updateCliente(formData.id, formData);
+				await fetchClientes();
 				notificationService.success("Cliente actualizado correctamente");
 			} else {
 				// Agregar nuevo cliente
-				const newCliente = await clienteService.createCliente(formData as Omit<Cliente, "id">);
-				setClientes([...clientes, newCliente]);
+				await clienteService.createCliente(formData as Omit<Cliente, "id">);
+				await fetchClientes();
 				notificationService.success("Cliente creado correctamente");
 			}
 
@@ -164,17 +247,8 @@ export default function ClientesPage() {
 			setFormData({
 				razon_social: "",
 				ruc: "",
-				direccion: "",
-				ciudad: "",
-				contacto: "",
-				telefono: "",
-				email: "",
-				tipo_cliente: "Empresa",
-				fecha_registro: new Date().toISOString().split("T")[0],
+				tipo_cliente_id: tiposCliente.length > 0 ? tiposCliente[0].id : "",
 				estado: true,
-				limite_credito: 0,
-				dias_credito: 0,
-				observaciones: "",
 			});
 
 			setShowForm(false);
@@ -198,7 +272,7 @@ export default function ClientesPage() {
 			try {
 				setLoading(true);
 				await clienteService.deleteCliente(id);
-				setClientes(clientes.filter((c) => c.id !== id));
+				await fetchClientes();
 				notificationService.success("Cliente eliminado correctamente");
 			} catch (error) {
 				console.error("Error al eliminar cliente:", error);
@@ -212,8 +286,8 @@ export default function ClientesPage() {
 	const handleChangeStatus = async (id: string, newStatus: boolean) => {
 		try {
 			setLoading(true);
-			const updatedCliente = await clienteService.updateCliente(id, { estado: newStatus });
-			setClientes(clientes.map((c) => (c.id === id ? updatedCliente : c)));
+			await clienteService.updateCliente(id, { estado: newStatus });
+			await fetchClientes();
 			notificationService.success(`Cliente ${newStatus ? "activado" : "desactivado"} correctamente`);
 		} catch (error) {
 			console.error("Error al cambiar estado del cliente:", error);
@@ -226,7 +300,6 @@ export default function ClientesPage() {
 	// Estadísticas de clientes
 	const clientesActivos = clientes.filter((c) => c.estado).length;
 	const clientesInactivos = clientes.filter((c) => !c.estado).length;
-	const totalCredito = clientes.reduce((sum, c) => sum + c.limite_credito, 0);
 
 	if (loading && clientes.length === 0) {
 		return <div className="flex justify-center items-center h-64">Cargando clientes...</div>;
@@ -242,7 +315,7 @@ export default function ClientesPage() {
 			</div>
 
 			{/* Estadísticas rápidas */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h3 className="font-bold text-lg mb-2">Resumen de Clientes</h3>
 					<div className="space-y-1">
@@ -262,29 +335,17 @@ export default function ClientesPage() {
 				</div>
 
 				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Crédito</h3>
-					<div className="space-y-1">
-						<div className="flex justify-between">
-							<span>Total de crédito otorgado:</span>
-							<span className="font-medium">S/. {totalCredito.toLocaleString("es-PE")}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Crédito promedio:</span>
-							<span className="font-medium">S/. {clientes.length > 0 ? (totalCredito / clientes.length).toLocaleString("es-PE") : 0}</span>
-						</div>
-					</div>
-				</div>
-
-				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h3 className="font-bold text-lg mb-2">Distribución</h3>
 					<div className="space-y-1">
+						{tiposCliente.map((tipo) => (
+							<div key={tipo.id} className="flex justify-between">
+								<span>{tipo.nombre}:</span>
+								<span className="font-medium">{clientes.filter((c) => c.tipo_cliente_id === tipo.id).length}</span>
+							</div>
+						))}
 						<div className="flex justify-between">
-							<span>Empresas:</span>
-							<span className="font-medium">{clientes.filter((c) => c.tipo_cliente === "Empresa").length}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Personas:</span>
-							<span className="font-medium">{clientes.filter((c) => c.tipo_cliente === "Persona").length}</span>
+							<span>Sin asignar:</span>
+							<span className="font-medium">{clientes.filter((c) => !c.tipo_cliente_id).length}</span>
 						</div>
 					</div>
 				</div>
@@ -294,7 +355,7 @@ export default function ClientesPage() {
 			{showForm && (
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Cliente" : "Nuevo Cliente"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Razón Social / Nombre</label>
 							<input
@@ -322,111 +383,18 @@ export default function ClientesPage() {
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Tipo de Cliente</label>
 							<select
-								name="tipo_cliente"
-								value={formData.tipo_cliente || "Empresa"}
+								name="tipo_cliente_id"
+								value={formData.tipo_cliente_id || ""}
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required>
-								<option value="Empresa">Empresa</option>
-								<option value="Persona">Persona</option>
+								<option value="">Seleccione un tipo</option>
+								{tiposCliente.map((tipo) => (
+									<option key={tipo.id} value={tipo.id}>
+										{tipo.nombre}
+									</option>
+								))}
 							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Nombre de Contacto</label>
-							<input
-								type="text"
-								name="contacto"
-								value={formData.contacto || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Teléfono</label>
-							<input
-								type="text"
-								name="telefono"
-								value={formData.telefono || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Email</label>
-							<input
-								type="email"
-								name="email"
-								value={formData.email || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Ciudad</label>
-							<input
-								type="text"
-								name="ciudad"
-								value={formData.ciudad || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Dirección</label>
-							<input
-								type="text"
-								name="direccion"
-								value={formData.direccion || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Registro</label>
-							<input
-								type="date"
-								name="fecha_registro"
-								value={formData.fecha_registro ? formData.fecha_registro.toString().split("T")[0] : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Límite de Crédito</label>
-							<input
-								type="number"
-								step="0.01"
-								name="limite_credito"
-								value={formData.limite_credito || 0}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Días de Crédito</label>
-							<input
-								type="number"
-								name="dias_credito"
-								value={formData.dias_credito || 0}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
 						</div>
 
 						<div>
@@ -440,17 +408,6 @@ export default function ClientesPage() {
 								<option value="true">Activo</option>
 								<option value="false">Inactivo</option>
 							</select>
-						</div>
-
-						<div className="col-span-full">
-							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
-							<textarea
-								name="observaciones"
-								value={formData.observaciones || ""}
-								onChange={handleInputChange}
-								rows={3}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
 						</div>
 
 						<div className="col-span-full mt-4 flex justify-end">

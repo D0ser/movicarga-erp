@@ -5,6 +5,7 @@ import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { conductorService, Conductor } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
+import { EditButton, DeleteButton, ActivateButton, DeactivateButton, ActionButtonGroup } from "@/components/ActionIcons";
 
 // Componente para la página de conductores
 export default function ConductoresPage() {
@@ -18,13 +19,9 @@ export default function ConductoresPage() {
 		licencia: "",
 		categoria_licencia: "",
 		fecha_vencimiento_licencia: new Date().toISOString().split("T")[0],
-		direccion: "",
-		telefono: "",
-		email: "",
 		fecha_nacimiento: "",
 		fecha_ingreso: new Date().toISOString().split("T")[0],
 		estado: true,
-		observaciones: "",
 	});
 
 	// Cargar datos desde Supabase al iniciar
@@ -50,63 +47,147 @@ export default function ConductoresPage() {
 		{
 			header: "Nombres",
 			accessor: "nombres",
+			cell: (value: unknown, row: Conductor) => {
+				// Crear un avatar con las iniciales del nombre
+				const nombre = row.nombres || "";
+				const apellido = row.apellidos || "";
+				const iniciales = (nombre.charAt(0) + (apellido ? apellido.charAt(0) : "")).toUpperCase();
+
+				// Determinar color según estado del conductor
+				const colorClass = row.estado ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800";
+
+				return (
+					<div className="flex items-center px-2">
+						<div className={`flex-shrink-0 h-8 w-8 rounded-full ${colorClass} flex items-center justify-center font-bold mr-3`}>{iniciales}</div>
+						<div className="text-sm font-medium text-gray-900">{row.nombres}</div>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Apellidos",
 			accessor: "apellidos",
+			cell: (value: unknown, row: Conductor) => <div className="text-sm text-gray-900 px-2">{row.apellidos}</div>,
 		},
 		{
 			header: "DNI",
 			accessor: "dni",
+			cell: (value: unknown, row: Conductor) => (
+				<div className="text-center">
+					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700">{row.dni || "-"}</span>
+				</div>
+			),
 		},
 		{
 			header: "Licencia",
 			accessor: "licencia",
+			cell: (value: unknown, row: Conductor) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+							/>
+						</svg>
+						{row.licencia}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Categoría",
 			accessor: "categoria_licencia",
+			cell: (value: unknown, row: Conductor) => {
+				// Definir colores para diferentes categorías
+				let colorClass = "bg-gray-100 text-gray-800";
+
+				if (row.categoria_licencia) {
+					if (row.categoria_licencia.includes("III")) {
+						colorClass = "bg-purple-100 text-purple-800";
+					} else if (row.categoria_licencia.includes("II")) {
+						colorClass = "bg-blue-100 text-blue-800";
+					} else if (row.categoria_licencia.includes("I")) {
+						colorClass = "bg-green-100 text-green-800";
+					}
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>{row.categoria_licencia || "No asignada"}</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Venc. Licencia",
 			accessor: "fecha_vencimiento_licencia",
 			cell: (value: unknown, row: Conductor) => {
 				const dateValue = row.fecha_vencimiento_licencia;
-				return dateValue ? format(new Date(dateValue), "dd/MM/yyyy") : "";
+				if (!dateValue) return <div className="text-center">No disponible</div>;
+
+				const fechaVencimiento = new Date(dateValue);
+				const fechaActual = new Date();
+
+				// Calcular días restantes
+				const diferenciaDias = Math.ceil((fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24));
+
+				// Aplicar colores según el vencimiento
+				let colorClass = "";
+				if (diferenciaDias < 0) {
+					// Vencido
+					colorClass = "bg-red-100 text-red-800";
+				} else if (diferenciaDias <= 30) {
+					// Por vencer en menos de 30 días
+					colorClass = "bg-yellow-100 text-yellow-800";
+				} else {
+					// Vigente
+					colorClass = "bg-green-100 text-green-800";
+				}
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>{format(fechaVencimiento, "dd/MM/yyyy")}</span>
+					</div>
+				);
 			},
-		},
-		{
-			header: "Teléfono",
-			accessor: "telefono",
 		},
 		{
 			header: "Estado",
 			accessor: "estado",
 			cell: (value: unknown, row: Conductor) => (
-				<span className={`px-2 py-1 rounded-full text-xs font-medium ${row.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{row.estado ? "Activo" : "Inactivo"}</span>
+				<div className="flex justify-center">
+					<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${row.estado ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+						{row.estado ? (
+							<>
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+								</svg>
+								Activo
+							</>
+						) : (
+							<>
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+								</svg>
+								Inactivo
+							</>
+						)}
+					</span>
+				</div>
 			),
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: Conductor) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(row.id)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-					{row.estado ? (
-						<button onClick={() => handleChangeStatus(row.id, false)} className="text-yellow-600 hover:text-yellow-800">
-							Desactivar
-						</button>
-					) : (
-						<button onClick={() => handleChangeStatus(row.id, true)} className="text-green-600 hover:text-green-800">
-							Activar
-						</button>
-					)}
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row)} />
+					<DeleteButton onClick={() => handleDelete(row.id)} />
+					{row.estado ? <DeactivateButton onClick={() => handleChangeStatus(row.id, false)} /> : <ActivateButton onClick={() => handleChangeStatus(row.id, true)} />}
+				</ActionButtonGroup>
 			),
 		},
 	];
@@ -155,13 +236,9 @@ export default function ConductoresPage() {
 				licencia: "",
 				categoria_licencia: "",
 				fecha_vencimiento_licencia: new Date().toISOString().split("T")[0],
-				direccion: "",
-				telefono: "",
-				email: "",
 				fecha_nacimiento: "",
 				fecha_ingreso: new Date().toISOString().split("T")[0],
 				estado: true,
-				observaciones: "",
 			});
 
 			setShowForm(false);
@@ -366,40 +443,6 @@ export default function ConductoresPage() {
 						</div>
 
 						<div>
-							<label className="block text-sm font-medium text-gray-700">Dirección</label>
-							<input
-								type="text"
-								name="direccion"
-								value={formData.direccion || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Teléfono</label>
-							<input
-								type="text"
-								name="telefono"
-								value={formData.telefono || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Email</label>
-							<input
-								type="email"
-								name="email"
-								value={formData.email || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div>
 							<label className="block text-sm font-medium text-gray-700">Fecha de Nacimiento</label>
 							<input
 								type="date"
@@ -433,17 +476,6 @@ export default function ConductoresPage() {
 								<option value="true">Activo</option>
 								<option value="false">Inactivo</option>
 							</select>
-						</div>
-
-						<div className="col-span-full">
-							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
-							<textarea
-								name="observaciones"
-								value={formData.observaciones || ""}
-								onChange={handleInputChange}
-								rows={3}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
 						</div>
 
 						<div className="col-span-full mt-4 flex justify-end">

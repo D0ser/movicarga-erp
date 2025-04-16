@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
+import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup, ActionButton, ActivateIcon } from "@/components/ActionIcons";
 
 // Definición de la estructura de datos de Detracciones
 interface Detraccion extends DataItem {
@@ -97,73 +98,200 @@ export default function DetraccionesPage() {
 		{
 			header: "Fecha",
 			accessor: "fecha",
-			cell: (value: unknown) => format(new Date(value as string), "dd/MM/yyyy"),
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="text-sm font-medium flex items-center text-gray-700">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+						</svg>
+						{format(new Date(value as string), "dd/MM/yyyy")}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "N° Constancia",
 			accessor: "numeroConstancia",
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm">{value as string}</span>
+				</div>
+			),
 		},
 		{
 			header: "RUC Proveedor",
 			accessor: "rucProveedor",
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Proveedor",
 			accessor: "nombreProveedor",
+			cell: (value: unknown, row: Detraccion) => {
+				// Crear un avatar con la primera letra del nombre
+				const inicial = (value as string).charAt(0).toUpperCase();
+
+				return (
+					<div className="flex items-center px-2 justify-center">
+						<div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold mr-3">{inicial}</div>
+						<div className="text-sm font-medium text-gray-900 truncate">{value as string}</div>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Moneda",
 			accessor: "moneda",
+			cell: (value: unknown) => {
+				const moneda = value as string;
+				const bgColor = moneda === "PEN" ? "bg-green-100" : "bg-blue-100";
+				const textColor = moneda === "PEN" ? "text-green-800" : "text-blue-800";
+				const symbol = moneda === "PEN" ? "S/." : "$";
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
+							{symbol} {moneda}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Importe",
 			accessor: "importe",
-			cell: (value: unknown, row: Detraccion) => `${row.moneda === "PEN" ? "S/." : "$"} ${(value as number).toLocaleString("es-PE")}`,
+			cell: (value: unknown, row: Detraccion) => (
+				<div className="flex justify-end">
+					<span className="font-mono text-gray-700 font-medium">
+						{row.moneda === "PEN" ? "S/." : "$"} {(value as number).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Tipo Operación",
 			accessor: "tipoOperacion",
+			cell: (value: unknown) => {
+				return (
+					<div className="flex justify-center">
+						<span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 flex items-center">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={1.5}
+									d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+								/>
+							</svg>
+							{value as string}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Tipo Comprobante",
 			accessor: "tipoComprobante",
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{value as string}</span>
+				</div>
+			),
 		},
 		{
 			header: "Serie",
 			accessor: "serieComprobante",
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-sm">{value as string}</span>
+				</div>
+			),
 		},
 		{
 			header: "Número",
 			accessor: "numeroComprobante",
+			cell: (value: unknown) => (
+				<div className="flex justify-center">
+					<span className="font-mono">{value as string}</span>
+				</div>
+			),
 		},
 		{
 			header: "Periodo",
 			accessor: "periodo",
+			cell: (value: unknown) => {
+				const periodo = value as string;
+				const [year, month] = periodo.split("-");
+
+				const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+				const monthName = monthNames[parseInt(month) - 1];
+
+				return (
+					<div className="flex justify-center">
+						<span className="px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700">
+							{monthName} {year}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Estado",
 			accessor: "estado",
-			cell: (value: unknown) => (
-				<span className={`px-2 py-1 rounded-full text-xs font-medium ${(value as string) === "Pagado" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>{value as string}</span>
-			),
+			cell: (value: unknown) => {
+				const estado = value as string;
+				const isPagado = estado === "Pagado";
+
+				return (
+					<div className="flex justify-center">
+						<span className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${isPagado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"}`}>
+							{isPagado ? (
+								<>
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+									</svg>
+									Pagado
+								</>
+							) : (
+								<>
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+									Pendiente
+								</>
+							)}
+						</span>
+					</div>
+				);
+			},
 		},
 		{
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: Detraccion) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(value as number)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row)} />
+					<DeleteButton onClick={() => handleDelete(value as number)} />
 					{row.estado === "Pendiente" && (
-						<button onClick={() => handlePagar(value as number)} className="text-green-600 hover:text-green-800">
-							Pagar
-						</button>
+						<ActionButton onClick={() => handlePagar(value as number)} title="Pagar" bgColor="bg-green-100" textColor="text-green-700" hoverColor="bg-green-200">
+							<ActivateIcon />
+						</ActionButton>
 					)}
-				</div>
+				</ActionButtonGroup>
 			),
 		},
 	];

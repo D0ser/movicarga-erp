@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_2" data-name="Capa 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1068.22 220.13">
+  <defs>
+    <style>
+      .cls-1 {
+        letter-spacing: .02em;
+      }
+
+      .cls-2, .cls-3, .cls-4 {
+        fill: #f39200;
+      }
+
+      .cls-5 {
+        letter-spacing: .03em;
+      }
+
+      .cls-6, .cls-7 {
+        fill: #2d2e83;
+      }
+
+      .cls-3 {
+        font-size: 24px;
+      }
+
+      .cls-3, .cls-7, .cls-4 {
+        font-family: Swiss721BT-Bold, 'Swis721 BT';
+        font-weight: 700;
+      }
+
+      .cls-7, .cls-4 {
+        font-size: 121.48px;
+      }
+
+      .cls-4 {
+        letter-spacing: .03em;
+      }
+    </style>
+  </defs>
+  <g id="Capa_1-2" data-name="Capa 1">
+    <text class="cls-7" transform="translate(261.51 170.75)"><tspan class="cls-5" x="0" y="0">M</tspan><tspan class="cls-1" x="109.58" y="0">O</tspan><tspan class="cls-5" x="208.13" y="0">VI</tspan></text>
+    <text class="cls-4" transform="translate(581.57 170.75)"><tspan x="0" y="0">CARGA</tspan></text>
+    <g>
+      <polygon class="cls-2" points="0 106.07 40 106.07 146.07 0 106.07 0 0 106.07"/>
+      <polygon class="cls-2" points="146.07 220.13 106.07 220.13 0 114.07 40 114.07 146.07 220.13"/>
+      <polygon class="cls-2" points="50 106.07 90 106.07 196.07 0 156.07 0 50 106.07"/>
+      <g>
+        <polygon class="cls-2" points="100 106.07 140 106.07 246.07 0 206.07 0 100 106.07"/>
+        <polygon class="cls-2" points="246.07 220.13 206.07 220.13 100 114.07 140 114.07 246.07 220.13"/>
+      </g>
+      <g>
+        <polygon class="cls-6" points="150 106.07 190 106.07 296.07 0 256.07 0 150 106.07"/>
+        <polygon class="cls-6" points="296.07 220.13 256.07 220.13 150 114.07 190 114.07 296.07 220.13"/>
+      </g>
+    </g>
+    <text class="cls-3" transform="translate(267.58 70.04)"><tspan x="0" y="0">TRANSPORTES</tspan></text>
+  </g>
+</svg>
