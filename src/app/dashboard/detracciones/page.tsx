@@ -130,7 +130,7 @@ export default function DetraccionesPage() {
 								strokeLinecap="round"
 								strokeLinejoin="round"
 								strokeWidth={1.5}
-								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
+								d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h3m-6-4h.01M9 16h.01"
 							/>
 						</svg>
 						{value as string}
@@ -286,9 +286,9 @@ export default function DetraccionesPage() {
 			cell: (value: unknown, row: Detraccion) => (
 				<ActionButtonGroup>
 					<EditButton onClick={() => handleEdit(row)} />
-					<DeleteButton onClick={() => handleDelete(value as number)} />
+					<DeleteButton onClick={() => handleDelete(value as number | string)} />
 					{row.estado === "Pendiente" && (
-						<ActionButton onClick={() => handlePagar(value as number)} title="Pagar" bgColor="bg-green-100" textColor="text-green-700" hoverColor="bg-green-200">
+						<ActionButton onClick={() => handlePagar(value as number | string)} title="Pagar" bgColor="bg-green-100" textColor="text-green-700" hoverColor="bg-green-200">
 							<ActivateIcon />
 						</ActionButton>
 					)}
@@ -300,10 +300,23 @@ export default function DetraccionesPage() {
 	// Funciones para manejo de formulario
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		const { name, value, type } = e.target;
-		setFormData({
-			...formData,
-			[name]: type === "number" ? parseFloat(value) || 0 : value,
-		});
+
+		if (name.startsWith("cliente.")) {
+			// Para propiedades anidadas como cliente.ruc o cliente.razon_social
+			const prop = name.split(".")[1];
+			setFormData({
+				...formData,
+				cliente: {
+					...(formData.cliente || { razon_social: "", ruc: "" }),
+					[prop]: value,
+				},
+			});
+		} else {
+			setFormData({
+				...formData,
+				[name]: type === "number" ? parseFloat(value) || 0 : value,
+			});
+		}
 	};
 
 	const handleSubmit = (e: React.FormEvent) => {
@@ -354,13 +367,13 @@ export default function DetraccionesPage() {
 		setShowForm(true);
 	};
 
-	const handleDelete = (id: number) => {
+	const handleDelete = (id: number | string) => {
 		if (confirm("¿Está seguro de que desea eliminar esta detracción?")) {
 			setDetracciones(detracciones.filter((det) => det.id !== id));
 		}
 	};
 
-	const handlePagar = (id: number) => {
+	const handlePagar = (id: number | string) => {
 		setDetracciones(detracciones.map((det) => (det.id === id ? { ...det, estado: "Pagado" } : det)));
 	};
 
@@ -445,13 +458,13 @@ export default function DetraccionesPage() {
 						detraccion.observaciones = value;
 					} else if (header === "cliente.razon_social") {
 						detraccion.cliente = {
-							razon_social: value,
+							razon_social: value || "Cliente sin nombre",
 							ruc: detraccion.cliente?.ruc || "",
 						};
 					} else if (header === "cliente.ruc") {
 						detraccion.cliente = {
-							...detraccion.cliente,
-							ruc: value,
+							razon_social: detraccion.cliente?.razon_social || "Cliente sin nombre",
+							ruc: value || "",
 						};
 					}
 				});
