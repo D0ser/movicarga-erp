@@ -13,18 +13,17 @@ export interface Cliente extends DataItem, RelatedEntities {
 	id: string;
 	razon_social: string;
 	ruc: string;
+	direccion: string;
+	ciudad: string;
+	contacto: string;
+	telefono: string;
+	email: string;
 	tipo_cliente_id: string;
+	fecha_registro: string;
 	estado: boolean;
-	// Campos opcionales
-	direccion?: string;
-	ciudad?: string;
-	contacto?: string;
-	telefono?: string;
-	email?: string;
-	fecha_registro?: string;
-	limite_credito?: number;
-	dias_credito?: number;
-	observaciones?: string;
+	limite_credito: number;
+	dias_credito: number;
+	observaciones: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -35,15 +34,15 @@ export interface Conductor extends DataItem, RelatedEntities {
 	apellidos: string;
 	dni: string;
 	licencia: string;
-	categoria_licencia?: string;
-	fecha_vencimiento_licencia?: string;
-	direccion?: string;
-	telefono?: string;
-	email?: string;
-	fecha_nacimiento?: string;
-	fecha_ingreso?: string;
+	categoria_licencia: string;
+	fecha_vencimiento_licencia: string;
+	direccion: string;
+	telefono: string;
+	email: string;
+	fecha_nacimiento: string;
+	fecha_ingreso: string;
 	estado: boolean;
-	observaciones?: string;
+	observaciones: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -98,7 +97,6 @@ export interface Ingreso extends DataItem, RelatedEntities {
 	fecha: string;
 	cliente_id: string;
 	viaje_id: string | null;
-	conductor_id?: string | null;
 	concepto: string;
 	monto: number;
 	metodo_pago: string;
@@ -106,18 +104,6 @@ export interface Ingreso extends DataItem, RelatedEntities {
 	fecha_factura: string;
 	estado_factura: string;
 	observaciones: string;
-	dias_credito?: number;
-	fecha_vencimiento?: string;
-	documento_guia_remit?: string;
-	guia_transp?: string;
-	detraccion_monto?: number;
-	primera_cuota?: number;
-	segunda_cuota?: number;
-	placa_tracto?: string;
-	placa_carreta?: string;
-	conductor_nombre?: string;
-	total_monto?: number;
-	total_deber?: number;
 	created_at?: string;
 	updated_at?: string;
 	cliente?: Cliente;
@@ -240,104 +226,17 @@ export const clienteService = {
 	},
 
 	async createCliente(cliente: Omit<Cliente, "id">): Promise<Cliente> {
-		console.log("Intentando crear cliente con datos:", JSON.stringify(cliente));
+		const { data, error } = await supabase.from("clientes").insert([cliente]).select();
 
-		try {
-			// Incluir campos obligatorios y proporcionar valores por defecto para campos requeridos en la BD
-			const clienteCompleto = {
-				razon_social: cliente.razon_social,
-				ruc: cliente.ruc,
-				tipo_cliente_id: cliente.tipo_cliente_id,
-				estado: cliente.estado === undefined ? true : Boolean(cliente.estado),
-				// Campos que podrían ser necesarios en la BD aunque sean opcionales en nuestra interfaz
-				direccion: cliente.direccion || "",
-				ciudad: cliente.ciudad || "",
-				contacto: cliente.contacto || "",
-				telefono: cliente.telefono || "",
-				email: cliente.email || "",
-				fecha_registro: cliente.fecha_registro || new Date().toISOString().split("T")[0],
-				limite_credito: cliente.limite_credito || 0,
-				dias_credito: cliente.dias_credito || 0,
-				observaciones: cliente.observaciones || "",
-			};
-
-			console.log("Datos completos preparados para Supabase:", JSON.stringify(clienteCompleto));
-
-			const { data, error } = await supabase.from("clientes").insert([clienteCompleto]).select();
-
-			if (error) {
-				console.error("Error de Supabase al crear cliente:", error);
-				throw error;
-			}
-
-			if (!data || data.length === 0) {
-				console.error("No se recibieron datos de respuesta al crear el cliente");
-				throw new Error("No se recibieron datos de respuesta al crear el cliente");
-			}
-
-			console.log("Cliente creado exitosamente:", data[0]);
-			return data[0];
-		} catch (error) {
-			console.error("Error detallado al crear cliente:", error);
-			throw error;
-		}
+		if (error) throw error;
+		return data[0];
 	},
 
 	async updateCliente(id: string, cliente: Partial<Cliente>): Promise<Cliente> {
-		console.log("Intentando actualizar cliente con ID", id, "y datos:", JSON.stringify(cliente));
+		const { data, error } = await supabase.from("clientes").update(cliente).eq("id", id).select();
 
-		try {
-			// Para actualización sólo incluimos los campos que nos proporcionan
-			// pero aseguramos que se formateen correctamente
-			const clienteActualizar: Partial<Cliente> = {};
-
-			if (cliente.razon_social !== undefined) clienteActualizar.razon_social = cliente.razon_social;
-
-			if (cliente.ruc !== undefined) clienteActualizar.ruc = cliente.ruc;
-
-			if (cliente.tipo_cliente_id !== undefined) clienteActualizar.tipo_cliente_id = cliente.tipo_cliente_id;
-
-			if (cliente.estado !== undefined) clienteActualizar.estado = Boolean(cliente.estado);
-
-			// Incluir otros campos si fueron proporcionados
-			if (cliente.direccion !== undefined) clienteActualizar.direccion = cliente.direccion;
-
-			if (cliente.ciudad !== undefined) clienteActualizar.ciudad = cliente.ciudad;
-
-			if (cliente.contacto !== undefined) clienteActualizar.contacto = cliente.contacto;
-
-			if (cliente.telefono !== undefined) clienteActualizar.telefono = cliente.telefono;
-
-			if (cliente.email !== undefined) clienteActualizar.email = cliente.email;
-
-			if (cliente.fecha_registro !== undefined) clienteActualizar.fecha_registro = cliente.fecha_registro;
-
-			if (cliente.limite_credito !== undefined) clienteActualizar.limite_credito = Number(cliente.limite_credito);
-
-			if (cliente.dias_credito !== undefined) clienteActualizar.dias_credito = Number(cliente.dias_credito);
-
-			if (cliente.observaciones !== undefined) clienteActualizar.observaciones = cliente.observaciones;
-
-			console.log("Datos preparados para actualizar:", JSON.stringify(clienteActualizar));
-
-			const { data, error } = await supabase.from("clientes").update(clienteActualizar).eq("id", id).select();
-
-			if (error) {
-				console.error("Error de Supabase al actualizar cliente:", error);
-				throw error;
-			}
-
-			if (!data || data.length === 0) {
-				console.error("No se recibieron datos de respuesta al actualizar el cliente");
-				throw new Error("No se recibieron datos de respuesta al actualizar el cliente");
-			}
-
-			console.log("Cliente actualizado exitosamente:", data[0]);
-			return data[0];
-		} catch (error) {
-			console.error("Error detallado al actualizar cliente:", error);
-			throw error;
-		}
+		if (error) throw error;
+		return data[0];
 	},
 
 	async deleteCliente(id: string): Promise<void> {
@@ -364,104 +263,17 @@ export const conductorService = {
 	},
 
 	async createConductor(conductor: Omit<Conductor, "id">): Promise<Conductor> {
-		console.log("Intentando crear conductor con datos:", JSON.stringify(conductor));
+		const { data, error } = await supabase.from("conductores").insert([conductor]).select();
 
-		try {
-			// Incluir todos los campos con valores por defecto para los que no se proporcionan
-			const conductorCompleto = {
-				nombres: conductor.nombres,
-				apellidos: conductor.apellidos,
-				dni: conductor.dni,
-				licencia: conductor.licencia,
-				categoria_licencia: conductor.categoria_licencia || "",
-				fecha_vencimiento_licencia: conductor.fecha_vencimiento_licencia || null,
-				direccion: conductor.direccion || "",
-				telefono: conductor.telefono || "",
-				email: conductor.email || "",
-				fecha_nacimiento: conductor.fecha_nacimiento || null,
-				fecha_ingreso: conductor.fecha_ingreso || new Date().toISOString().split("T")[0],
-				estado: conductor.estado === undefined ? true : Boolean(conductor.estado),
-				observaciones: conductor.observaciones || "",
-			};
-
-			console.log("Datos completos preparados para Supabase:", JSON.stringify(conductorCompleto));
-
-			const { data, error } = await supabase.from("conductores").insert([conductorCompleto]).select();
-
-			if (error) {
-				console.error("Error de Supabase al crear conductor:", error);
-				throw error;
-			}
-
-			if (!data || data.length === 0) {
-				console.error("No se recibieron datos de respuesta al crear el conductor");
-				throw new Error("No se recibieron datos de respuesta al crear el conductor");
-			}
-
-			console.log("Conductor creado exitosamente:", data[0]);
-			return data[0];
-		} catch (error) {
-			console.error("Error detallado al crear conductor:", error);
-			throw error;
-		}
+		if (error) throw error;
+		return data[0];
 	},
 
 	async updateConductor(id: string, conductor: Partial<Conductor>): Promise<Conductor> {
-		console.log("Intentando actualizar conductor con ID", id, "y datos:", JSON.stringify(conductor));
+		const { data, error } = await supabase.from("conductores").update(conductor).eq("id", id).select();
 
-		try {
-			// Para actualización solo incluimos los campos que nos proporcionan
-			const conductorActualizar: Partial<Conductor> = {};
-
-			// Mapear todos los campos posibles
-			const camposPosibles: (keyof Conductor)[] = [
-				"nombres",
-				"apellidos",
-				"dni",
-				"licencia",
-				"categoria_licencia",
-				"fecha_vencimiento_licencia",
-				"direccion",
-				"telefono",
-				"email",
-				"fecha_nacimiento",
-				"fecha_ingreso",
-				"estado",
-				"observaciones",
-			];
-
-			// Agregar solo los campos que tienen valor
-			camposPosibles.forEach((campo) => {
-				if (conductor[campo] !== undefined) {
-					// Si es boolean, asegurar que sea booleano
-					if (campo === "estado") {
-						conductorActualizar[campo] = Boolean(conductor[campo]);
-					} else {
-						conductorActualizar[campo] = conductor[campo];
-					}
-				}
-			});
-
-			console.log("Datos preparados para actualizar:", JSON.stringify(conductorActualizar));
-
-			const { data, error } = await supabase.from("conductores").update(conductorActualizar).eq("id", id).select();
-
-			if (error) {
-				console.error("Error de Supabase al actualizar conductor:", error);
-				throw error;
-			}
-
-			if (!data || data.length === 0) {
-				console.error("No se recibieron datos de respuesta al actualizar el conductor");
-				throw new Error("No se recibieron datos de respuesta al actualizar el conductor");
-			}
-
-			console.log("Conductor actualizado exitosamente:", data[0]);
-			return data[0];
-		} catch (error) {
-			console.error("Error detallado al actualizar conductor:", error);
-			throw error;
-		}
+		if (error) throw error;
+		return data[0];
 	},
 
 	async deleteConductor(id: string): Promise<void> {

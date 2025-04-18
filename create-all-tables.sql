@@ -39,13 +39,13 @@ CREATE TABLE IF NOT EXISTS clientes (
   razon_social TEXT NOT NULL,
   ruc VARCHAR(11),
   tipo_cliente_id UUID REFERENCES tipo_cliente(id),
-  estado BOOLEAN DEFAULT TRUE,
   direccion TEXT,
   ciudad TEXT,
   contacto TEXT,
   telefono VARCHAR(20),
   email TEXT,
   fecha_registro DATE DEFAULT CURRENT_DATE,
+  estado BOOLEAN DEFAULT TRUE,
   limite_credito NUMERIC(12,2) DEFAULT 0,
   dias_credito INTEGER DEFAULT 0,
   observaciones TEXT,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS conductores (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nombres TEXT NOT NULL,
   apellidos TEXT NOT NULL,
-  dni VARCHAR(8) NOT NULL,
+  dni VARCHAR(8),
   licencia VARCHAR(10) NOT NULL,
   categoria_licencia VARCHAR(10),
   fecha_vencimiento_licencia DATE,
@@ -66,8 +66,8 @@ CREATE TABLE IF NOT EXISTS conductores (
   telefono VARCHAR(20),
   email TEXT,
   fecha_nacimiento DATE,
-  fecha_ingreso DATE DEFAULT CURRENT_DATE,
-  estado BOOLEAN DEFAULT TRUE NOT NULL,
+  fecha_ingreso DATE,
+  estado BOOLEAN DEFAULT TRUE,
   observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -163,7 +163,6 @@ CREATE TABLE IF NOT EXISTS ingresos (
   cliente_id UUID REFERENCES clientes(id),
   viaje_id UUID REFERENCES viajes(id),
   factura_id UUID REFERENCES facturas(id),
-  conductor_id UUID REFERENCES conductores(id),
   concepto TEXT NOT NULL,
   monto NUMERIC(12,2) NOT NULL,
   metodo_pago VARCHAR(20) DEFAULT 'Efectivo',
@@ -173,16 +172,13 @@ CREATE TABLE IF NOT EXISTS ingresos (
   observaciones TEXT,
   dias_credito INTEGER DEFAULT 0,
   fecha_vencimiento DATE,
-  documento_guia_remit VARCHAR(20),
-  guia_transp VARCHAR(20),
+  guia_remision VARCHAR(20),
+  guia_transportista VARCHAR(20),
   detraccion_monto NUMERIC(12,2) DEFAULT 0,
   primera_cuota NUMERIC(12,2) DEFAULT 0,
   segunda_cuota NUMERIC(12,2) DEFAULT 0,
-  total_monto NUMERIC(12,2) DEFAULT 0,
-  total_deber NUMERIC(12,2) DEFAULT 0,
   placa_tracto VARCHAR(20),
   placa_carreta VARCHAR(20),
-  conductor_nombre TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -335,7 +331,6 @@ CREATE INDEX IF NOT EXISTS idx_factura_detalles_viaje_id ON factura_detalles(via
 CREATE INDEX IF NOT EXISTS idx_ingresos_cliente_id ON ingresos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_viaje_id ON ingresos(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_factura_id ON ingresos(factura_id);
-CREATE INDEX IF NOT EXISTS idx_ingresos_conductor_id ON ingresos(conductor_id);
 CREATE INDEX IF NOT EXISTS idx_egresos_viaje_id ON egresos(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_egresos_vehiculo_id ON egresos(vehiculo_id);
 CREATE INDEX IF NOT EXISTS idx_egresos_conductor_id ON egresos(conductor_id);
@@ -397,13 +392,10 @@ SELECT
   c.razon_social as cliente_nombre,
   c.ruc as cliente_ruc,
   v.origen as viaje_origen,
-  v.destino as viaje_destino,
-  co.nombres || ' ' || co.apellidos as conductor_nombre_completo,
-  co.licencia as conductor_licencia
+  v.destino as viaje_destino
 FROM ingresos i
 LEFT JOIN clientes c ON i.cliente_id = c.id
-LEFT JOIN viajes v ON i.viaje_id = v.id
-LEFT JOIN conductores co ON i.conductor_id = co.id;
+LEFT JOIN viajes v ON i.viaje_id = v.id;
 
 -- Vista para detracciones completa
 CREATE OR REPLACE VIEW vista_detracciones_completa 

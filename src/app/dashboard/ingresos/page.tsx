@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import { format } from "date-fns";
 import type { Column } from "@/components/DataTable";
-import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType, vehiculoService, Vehiculo } from "@/lib/supabaseServices";
+import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType } from "@/lib/supabaseServices";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
 
@@ -145,7 +145,6 @@ export default function IngresosPage() {
 	const [serieColors, setSerieColors] = useState<Record<string, string>>({});
 	const [clientes, setClientes] = useState<Cliente[]>([]);
 	const [conductores, setConductores] = useState<Conductor[]>([]);
-	const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
 
 	// Estado para los ingresos filtrados
 	const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
@@ -155,18 +154,12 @@ export default function IngresosPage() {
 		const cargarDatos = async () => {
 			try {
 				setLoading(true);
-				// Cargar clientes, conductores, vehículos y series
-				const [clientesData, conductoresData, seriesData, vehiculosData] = await Promise.all([
-					clienteService.getClientes(),
-					conductorService.getConductores(),
-					serieService.getSeries(),
-					vehiculoService.getVehiculos(),
-				]);
+				// Cargar clientes, conductores y series
+				const [clientesData, conductoresData, seriesData] = await Promise.all([clienteService.getClientes(), conductorService.getConductores(), serieService.getSeries()]);
 
 				setClientes(clientesData);
 				setConductores(conductoresData);
 				setSeriesDisponibles(seriesData);
-				setVehiculos(vehiculosData);
 
 				// Crear un mapa de colores para las series
 				const coloresMap: Record<string, string> = {};
@@ -194,57 +187,37 @@ export default function IngresosPage() {
 	const cargarIngresos = async () => {
 		try {
 			const ingresosSupabase = await ingresoService.getIngresos();
-			console.log("Ingresos cargados desde Supabase:", ingresosSupabase);
 
 			// Transformar los datos al formato esperado por la interfaz
 			const ingresosFormateados = ingresosSupabase.map((ing) => {
 				// Buscar el cliente relacionado para obtener la razón social y RUC
 				const cliente = ing.cliente || { razon_social: "", ruc: "" };
 
-				// Extraer correctamente la serie del número de factura
-				const numeroFactura = ing.numero_factura || "";
-				const serie = numeroFactura.includes("-") ? numeroFactura.split("-")[0] : "";
-
-				// Calcular el total a deber correctamente
-				const montoFlete = ing.monto || 0;
-				const detraccion = ing.detraccion_monto || montoFlete * 0.04; // Usar detraccion_monto si existe, sino calcular 4%
-
-				// Calcular el totalDeber como la diferencia entre lo que se debe y lo que se pagó
-				const totalDeber = montoFlete + detraccion - (ing.total_monto || montoFlete);
-
-				// Obtener la información del conductor
-				// Preferir usar el nombre explícito, pero caer de vuelta al nombre basado en el ID
-				const conductorNombre = ing.conductor_nombre || "";
-
-				// Crear el objeto formateado
-				const ingresoFormateado = {
+				return {
 					id: ing.id,
 					fecha: ing.fecha,
-					serie: serie,
+					serie: ing.numero_factura ? ing.numero_factura.split("-")[0] : "",
 					numeroFactura: ing.numero_factura || "",
-					montoFlete: montoFlete,
-					primeraCuota: ing.primera_cuota || montoFlete / 2, // Usar primera_cuota si existe
-					segundaCuota: ing.segunda_cuota || montoFlete / 2, // Usar segunda_cuota si existe
-					detraccion: detraccion,
-					totalDeber: totalDeber,
-					totalMonto: ing.total_monto || montoFlete, // Usar total_monto si existe
+					montoFlete: ing.monto || 0,
+					primeraCuota: ing.monto / 2, // Dividimos el monto en dos cuotas por defecto
+					segundaCuota: ing.monto / 2,
+					detraccion: ing.monto * 0.04, // 4% de detracción por defecto
+					totalDeber: ing.monto,
+					totalMonto: ing.monto,
 					empresa: cliente.razon_social || "",
 					ruc: cliente.ruc || "",
-					conductor: conductorNombre,
-					placaTracto: ing.placa_tracto || "",
-					placaCarreta: ing.placa_carreta || "",
+					conductor: "",
+					placaTracto: "",
+					placaCarreta: "",
 					observacion: ing.observaciones || "",
-					documentoGuiaRemit: ing.documento_guia_remit || "",
-					guiaTransp: ing.guia_transp || "",
-					diasCredito: ing.dias_credito || 0,
-					fechaVencimiento: ing.fecha_vencimiento || ing.fecha,
+					documentoGuiaRemit: "",
+					guiaTransp: "",
+					diasCredito: 0,
+					fechaVencimiento: ing.fecha,
 					estado: ing.estado_factura || "Pendiente",
 				};
-
-				return ingresoFormateado;
 			});
 
-			console.log("Ingresos formateados para UI:", ingresosFormateados);
 			return ingresosFormateados;
 		} catch (error) {
 			console.error("Error al cargar ingresos:", error);
@@ -290,8 +263,13 @@ export default function IngresosPage() {
 			header: "Serie",
 			accessor: "serie",
 			cell: (value, row) => {
-				// Obtener el color de la serie desde serieColors
-				const color = serieColors[value as string] || "#6b7280"; // Gris por defecto
+				// Determinar color de la serie (podría venir de serieColors si estuviera disponible)
+				const colores: Record<string, string> = {
+					F001: "#3b82f6", // Azul
+					B001: "#10b981", // Verde
+					T001: "#8b5cf6", // Púrpura
+				};
+				const color = colores[value as string] || "#6b7280"; // Gris por defecto
 
 				return (
 					<div className="flex justify-center">
@@ -305,31 +283,21 @@ export default function IngresosPage() {
 		{
 			header: "N° Factura",
 			accessor: "numeroFactura",
-			cell: (value, row) => {
-				// Extraer solo la parte del número sin la serie
-				const numeroFactura = value as string;
-				let numeroSinSerie = numeroFactura;
-
-				if (numeroFactura && numeroFactura.includes("-") && row.serie) {
-					numeroSinSerie = numeroFactura.split("-")[1];
-				}
-
-				return (
-					<div className="flex justify-center">
-						<span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm flex items-center">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={1.5}
-									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-								/>
-							</svg>
-							{numeroSinSerie}
-						</span>
-					</div>
-				);
-			},
+			cell: (value) => (
+				<div className="flex justify-center">
+					<span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm flex items-center">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={1.5}
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
+						</svg>
+						{value as string}
+					</span>
+				</div>
+			),
 		},
 		{
 			header: "Empresa",
@@ -654,8 +622,6 @@ export default function IngresosPage() {
 			const montoFlete = formData.montoFlete || 0;
 			const detraccion = formData.detraccion || 0;
 			const totalMonto = formData.totalMonto || 0;
-			const primeraCuota = formData.primeraCuota || 0;
-			const segundaCuota = formData.segundaCuota || 0;
 
 			const diferencia = -totalMonto + montoFlete + detraccion;
 			const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
@@ -663,59 +629,18 @@ export default function IngresosPage() {
 			// Buscar cliente_id basado en RUC
 			const cliente = clientes.find((c) => c.ruc === formData.ruc);
 
-			// Buscar conductor_id basado en el nombre completo
-			const conductorNombreCompleto = formData.conductor || "";
-			const conductor = conductores.find((c) => `${c.nombres} ${c.apellidos}` === conductorNombreCompleto);
-
-			// Log para depuración
-			console.log("Conductor seleccionado:", conductorNombreCompleto);
-			console.log("ID del conductor encontrado:", conductor?.id);
-
-			// Asegurarse de que el número de factura no incluya ya la serie
-			// y luego formatear correctamente como serie-numero
-			let numeroFacturaLimpio = formData.numeroFactura.trim();
-			// Si el número ya comienza con la serie (ej: "F001-"), quitársela
-			if (numeroFacturaLimpio.startsWith(`${formData.serie}-`)) {
-				numeroFacturaLimpio = numeroFacturaLimpio.substring(formData.serie.length + 1);
-			}
-			// Crear el formato correcto serie-numero
-			const numeroFacturaCompleto = `${formData.serie}-${numeroFacturaLimpio}`;
-
-			// Datos para Supabase - añadir todos los campos relacionados con montos
+			// Datos para Supabase
 			const ingresoData: Partial<IngresoType> = {
 				fecha: formData.fecha || new Date().toISOString().split("T")[0],
 				cliente_id: cliente?.id,
 				concepto: formData.observacion || "Ingreso por flete",
-				monto: montoFlete, // Guardamos el monto de flete
-				total_monto: totalMonto, // Guardamos el total monto
+				monto: formData.montoFlete || 0,
 				metodo_pago: "Transferencia",
-				numero_factura: numeroFacturaCompleto,
+				numero_factura: formData.numeroFactura,
 				fecha_factura: formData.fecha || new Date().toISOString().split("T")[0],
 				estado_factura: formData.estado || "Pendiente",
 				observaciones: formData.observacion,
-				placa_tracto: formData.placaTracto,
-				placa_carreta: formData.placaCarreta,
-				documento_guia_remit: formData.documentoGuiaRemit,
-				guia_transp: formData.guiaTransp,
-				dias_credito: formData.diasCredito,
-				fecha_vencimiento: formData.fechaVencimiento,
-				total_deber: totalDeberFinal, // Guardamos el total a deber
-				detraccion_monto: detraccion, // Guardamos la detracción
-				primera_cuota: primeraCuota, // Guardamos primera cuota
-				segunda_cuota: segundaCuota, // Guardamos segunda cuota
 			};
-
-			// Solo agregar conductor_id y conductor_nombre si hay un conductor seleccionado
-			if (conductor?.id) {
-				ingresoData.conductor_id = conductor.id;
-				ingresoData.conductor_nombre = conductorNombreCompleto;
-			} else if (conductorNombreCompleto) {
-				// Si tenemos un nombre pero no ID, solo guardar el nombre
-				ingresoData.conductor_nombre = conductorNombreCompleto;
-			}
-
-			// Log para depuración
-			console.log("Datos que se enviarán a Supabase:", ingresoData);
 
 			if (formData.id && typeof formData.id === "string") {
 				// Actualizar ingreso existente
@@ -757,7 +682,7 @@ export default function IngresosPage() {
 			setShowForm(false);
 		} catch (error) {
 			console.error("Error al guardar ingreso:", error);
-			handleError(`Error al guardar el ingreso: ${error instanceof Error ? error.message : "Error desconocido"}`);
+			handleError("Error al guardar el ingreso. Por favor, inténtalo de nuevo.");
 		} finally {
 			setLoading(false);
 		}
@@ -791,15 +716,8 @@ export default function IngresosPage() {
 		const diferencia = -ingreso.totalMonto + ingreso.montoFlete + ingreso.detraccion;
 		const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
 
-		// Extraer solo el número sin la serie del número de factura
-		let numeroFacturaSinSerie = ingreso.numeroFactura;
-		if (ingreso.numeroFactura.includes("-") && ingreso.serie) {
-			numeroFacturaSinSerie = ingreso.numeroFactura.split("-")[1];
-		}
-
 		setFormData({
 			...ingreso,
-			numeroFactura: numeroFacturaSinSerie,
 			totalDeber: totalDeberFinal,
 		});
 		setShowForm(true);
@@ -1017,15 +935,10 @@ export default function IngresosPage() {
 								value={formData.conductor}
 								onChange={(e) => {
 									const conductorSeleccionado = conductores.find((c) => `${c.nombres} ${c.apellidos}` === e.target.value);
-									// Solo asignar la placa del tracto si no hay una seleccionada o si está vacía
-									const placaTractoActual = formData.placaTracto || "";
-									const placaTractoSugerida = conductorSeleccionado?.vehiculo?.placa || "";
-
 									setFormData((prev) => ({
 										...prev,
 										conductor: e.target.value,
-										// Solo usar la placa del vehículo del conductor si no hay una placa ya seleccionada
-										placaTracto: placaTractoActual === "" ? placaTractoSugerida : placaTractoActual,
+										placaTracto: conductorSeleccionado?.vehiculo?.placa || "",
 									}));
 								}}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -1041,38 +954,24 @@ export default function IngresosPage() {
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Placa Tracto</label>
-							<select
+							<input
+								type="text"
 								name="placaTracto"
 								value={formData.placaTracto}
 								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-								<option value="">Seleccione una placa de tracto</option>
-								{vehiculos
-									.filter((v) => v.tipo_vehiculo === "Tracto")
-									.map((vehiculo) => (
-										<option key={vehiculo.id} value={vehiculo.placa}>
-											{vehiculo.placa}
-										</option>
-									))}
-							</select>
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
 						</div>
 
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Placa Carreta</label>
-							<select
+							<input
+								type="text"
 								name="placaCarreta"
 								value={formData.placaCarreta}
 								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-								<option value="">Seleccione una placa de carreta</option>
-								{vehiculos
-									.filter((v) => v.tipo_vehiculo === "Carreta")
-									.map((vehiculo) => (
-										<option key={vehiculo.id} value={vehiculo.placa}>
-											{vehiculo.placa}
-										</option>
-									))}
-							</select>
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
 						</div>
 
 						<div>
