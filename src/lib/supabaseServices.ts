@@ -13,17 +13,9 @@ export interface Cliente extends DataItem, RelatedEntities {
 	id: string;
 	razon_social: string;
 	ruc: string;
-	direccion: string;
-	ciudad: string;
-	contacto: string;
-	telefono: string;
-	email: string;
 	tipo_cliente_id: string;
 	fecha_registro: string;
 	estado: boolean;
-	limite_credito: number;
-	dias_credito: number;
-	observaciones: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -36,13 +28,9 @@ export interface Conductor extends DataItem, RelatedEntities {
 	licencia: string;
 	categoria_licencia: string;
 	fecha_vencimiento_licencia: string;
-	direccion: string;
-	telefono: string;
-	email: string;
 	fecha_nacimiento: string;
 	fecha_ingreso: string;
 	estado: boolean;
-	observaciones: string;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -157,7 +145,6 @@ export interface Detraccion extends DataItem, RelatedEntities {
 	ingreso_id: string | null;
 	viaje_id: string | null;
 	cliente_id: string;
-	factura_id: string | null;
 	fecha_deposito: string;
 	monto: number;
 	porcentaje: number;
@@ -189,7 +176,6 @@ export interface Detraccion extends DataItem, RelatedEntities {
 	ingreso?: Ingreso;
 	viaje?: Viaje;
 	cliente?: Cliente;
-	factura?: any; // Añadimos la relación con facturas
 }
 
 export interface Serie extends DataItem {
@@ -740,21 +726,18 @@ export const detraccionService = {
 			const clienteIds = [...new Set(detracciones.map((d) => d.cliente_id).filter(Boolean))];
 			const viajeIds = [...new Set(detracciones.map((d) => d.viaje_id).filter(Boolean))];
 			const ingresoIds = [...new Set(detracciones.map((d) => d.ingreso_id).filter(Boolean))];
-			const facturaIds = [...new Set(detracciones.map((d) => d.factura_id).filter(Boolean))];
 
 			// Obtener datos relacionados en consultas separadas
-			const [clientesResult, viajesResult, ingresosResult, facturasResult] = await Promise.all([
+			const [clientesResult, viajesResult, ingresosResult] = await Promise.all([
 				clienteIds.length > 0 ? supabase.from("clientes").select("id, razon_social, ruc").in("id", clienteIds) : { data: [] },
 				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
 				ingresoIds.length > 0 ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").in("id", ingresoIds) : { data: [] },
-				facturaIds.length > 0 ? supabase.from("facturas").select("id, numero, fecha_emision, total").in("id", facturaIds) : { data: [] },
 			]);
 
 			// Crear mapas para búsqueda rápida
 			const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
 			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
 			const ingresoMap = new Map((ingresosResult.data || []).map((i) => [i.id, i]));
-			const facturaMap = new Map((facturasResult.data || []).map((f) => [f.id, f]));
 
 			// Combinar datos
 			return detracciones.map((detraccion) => ({
@@ -762,7 +745,6 @@ export const detraccionService = {
 				cliente: detraccion.cliente_id ? clienteMap.get(detraccion.cliente_id) : undefined,
 				viaje: detraccion.viaje_id ? viajeMap.get(detraccion.viaje_id) : undefined,
 				ingreso: detraccion.ingreso_id ? ingresoMap.get(detraccion.ingreso_id) : undefined,
-				factura: detraccion.factura_id ? facturaMap.get(detraccion.factura_id) : undefined,
 			}));
 		} catch (error) {
 			console.error("Error en getDetracciones:", error);
@@ -779,11 +761,10 @@ export const detraccionService = {
 			if (!detraccion) return null;
 
 			// Obtener datos relacionados en consultas separadas
-			const [clienteResult, viajeResult, ingresoResult, facturaResult] = await Promise.all([
+			const [clienteResult, viajeResult, ingresoResult] = await Promise.all([
 				detraccion.cliente_id ? supabase.from("clientes").select("id, razon_social, ruc").eq("id", detraccion.cliente_id).single() : { data: null },
 				detraccion.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", detraccion.viaje_id).single() : { data: null },
 				detraccion.ingreso_id ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").eq("id", detraccion.ingreso_id).single() : { data: null },
-				detraccion.factura_id ? supabase.from("facturas").select("id, numero, fecha_emision, total").eq("id", detraccion.factura_id).single() : { data: null },
 			]);
 
 			// Combinar datos
@@ -792,7 +773,6 @@ export const detraccionService = {
 				cliente: clienteResult.data || undefined,
 				viaje: viajeResult.data || undefined,
 				ingreso: ingresoResult.data || undefined,
-				factura: facturaResult.data || undefined,
 			};
 		} catch (error) {
 			console.error("Error en getDetraccionById:", error);

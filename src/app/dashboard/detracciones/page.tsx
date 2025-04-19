@@ -5,6 +5,7 @@ import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup, ActionButton, ActivateIcon } from "@/components/ActionIcons";
 import { detraccionService, Detraccion as DetraccionType } from "@/lib/supabaseServices";
+import supabase from "@/lib/supabase";
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -12,7 +13,6 @@ interface Detraccion extends DataItem {
 	cliente_id: string;
 	viaje_id?: string | null;
 	ingreso_id?: string | null;
-	factura_id?: string | null;
 
 	// Campos básicos y principales
 	fecha_deposito: string;
@@ -757,7 +757,6 @@ export default function DetraccionesPage() {
 				if (detraccion.cliente_id === "") detraccion.cliente_id = null as any;
 				if (detraccion.viaje_id === "") detraccion.viaje_id = null;
 				if (detraccion.ingreso_id === "") detraccion.ingreso_id = null;
-				if (detraccion.factura_id === "") detraccion.factura_id = null;
 
 				// Asegurar formato de fechas correcto para Supabase (YYYY-MM-DD)
 				if (detraccion.fecha_pago && !detraccion.fecha_pago.match(/^\d{4}-\d{2}-\d{2}$/)) {
@@ -936,8 +935,8 @@ export default function DetraccionesPage() {
 		try {
 			setTestConnectionResult({ success: false, message: "Probando conexión..." });
 
-			// Intentar una operación simple en Supabase
-			const { data, error } = await detraccionService.testConnection();
+			// Usar la función más simple para probar la conexión
+			const { data, error } = await supabase.from("detracciones").select("id").limit(1);
 
 			if (error) {
 				console.error("Error en prueba de conexión:", error);

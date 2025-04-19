@@ -1,6 +1,6 @@
 -- Script para crear todas las tablas necesarias en Supabase
 -- Actualizado: enero de 2025
--- Última actualización: Se agregaron campos adicionales a la tabla detracciones para soportar la importación de datos desde archivos CSV con el formato estándar de SUNAT. La tabla incluye todos los campos requeridos como tipo_cuenta, numero_cuenta, etc. para detracciones y mantiene la compatibilidad con las tablas relacionadas de viajes, facturas e ingresos.
+-- Última actualización: Se eliminaron las tablas facturas y factura_detalles por redundancia ya que los registros de facturas se hacen a través de los módulos de ingresos y egresos.
 --ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS observaciones CASCADE;
@@ -10,8 +10,6 @@ DROP TABLE IF EXISTS detracciones CASCADE;
 DROP TABLE IF EXISTS egresos_sin_factura CASCADE;
 DROP TABLE IF EXISTS egresos CASCADE;
 DROP TABLE IF EXISTS ingresos CASCADE;
-DROP TABLE IF EXISTS factura_detalles CASCADE;
-DROP TABLE IF EXISTS facturas CASCADE;
 DROP TABLE IF EXISTS viajes CASCADE;
 DROP TABLE IF EXISTS vehiculos CASCADE;
 DROP TABLE IF EXISTS conductores CASCADE;
@@ -39,16 +37,8 @@ CREATE TABLE IF NOT EXISTS clientes (
   razon_social TEXT NOT NULL,
   ruc VARCHAR(11),
   tipo_cliente_id UUID REFERENCES tipo_cliente(id),
-  direccion TEXT,
-  ciudad TEXT,
-  contacto TEXT,
-  telefono VARCHAR(20),
-  email TEXT,
   fecha_registro DATE DEFAULT CURRENT_DATE,
   estado BOOLEAN DEFAULT TRUE,
-  limite_credito NUMERIC(12,2) DEFAULT 0,
-  dias_credito INTEGER DEFAULT 0,
-  observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -62,13 +52,9 @@ CREATE TABLE IF NOT EXISTS conductores (
   licencia VARCHAR(10) NOT NULL,
   categoria_licencia VARCHAR(10),
   fecha_vencimiento_licencia DATE,
-  direccion TEXT,
-  telefono VARCHAR(20),
-  email TEXT,
   fecha_nacimiento DATE,
   fecha_ingreso DATE,
   estado BOOLEAN DEFAULT TRUE,
-  observaciones TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -128,47 +114,19 @@ CREATE TABLE IF NOT EXISTS viajes (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabla de Facturas
-CREATE TABLE IF NOT EXISTS facturas (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  serie_id UUID REFERENCES series(id),
-  numero VARCHAR(10) NOT NULL,
-  fecha_emision DATE NOT NULL,
-  cliente_id UUID REFERENCES clientes(id),
-  total NUMERIC(12,2) NOT NULL,
-  estado VARCHAR(20) DEFAULT 'Emitida',
-  observaciones TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(serie_id, numero)
-);
-
--- Tabla de Detalle de Facturas
-CREATE TABLE IF NOT EXISTS factura_detalles (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  factura_id UUID REFERENCES facturas(id) ON DELETE CASCADE,
-  viaje_id UUID REFERENCES viajes(id),
-  descripcion TEXT NOT NULL,
-  cantidad NUMERIC(10,2) DEFAULT 1,
-  precio_unitario NUMERIC(12,2) NOT NULL,
-  subtotal NUMERIC(12,2) NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- Tabla de Ingresos
 CREATE TABLE IF NOT EXISTS ingresos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   fecha DATE NOT NULL,
   cliente_id UUID REFERENCES clientes(id),
   viaje_id UUID REFERENCES viajes(id),
-  factura_id UUID REFERENCES facturas(id),
   concepto TEXT NOT NULL,
   monto NUMERIC(12,2) NOT NULL,
   metodo_pago VARCHAR(20) DEFAULT 'Efectivo',
   numero_factura VARCHAR(20),
   fecha_factura DATE,
   estado_factura VARCHAR(20) DEFAULT 'Emitida',
+  serie_factura VARCHAR(10),
   observaciones TEXT,
   dias_credito INTEGER DEFAULT 0,
   fecha_vencimiento DATE,
@@ -236,7 +194,6 @@ CREATE TABLE IF NOT EXISTS detracciones (
   ingreso_id UUID REFERENCES ingresos(id),
   viaje_id UUID REFERENCES viajes(id),
   cliente_id UUID REFERENCES clientes(id),
-  factura_id UUID REFERENCES facturas(id),
   fecha_deposito DATE,
   monto NUMERIC(12,2) NOT NULL,
   porcentaje NUMERIC(5,2) DEFAULT 4.00,
@@ -314,7 +271,6 @@ CREATE TABLE IF NOT EXISTS observaciones (
 -- Índices para mejorar el rendimiento
 CREATE INDEX IF NOT EXISTS idx_clientes_razon_social ON clientes(razon_social);
 CREATE INDEX IF NOT EXISTS idx_clientes_ruc ON clientes(ruc);
-CREATE INDEX IF NOT EXISTS idx_clientes_email ON clientes(email);
 CREATE INDEX IF NOT EXISTS idx_conductores_nombres_apellidos ON conductores(nombres, apellidos);
 CREATE INDEX IF NOT EXISTS idx_conductores_dni ON conductores(dni);
 CREATE INDEX IF NOT EXISTS idx_conductores_licencia ON conductores(licencia);
@@ -324,13 +280,9 @@ CREATE INDEX IF NOT EXISTS idx_viajes_cliente_id ON viajes(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_viajes_conductor_id ON viajes(conductor_id);
 CREATE INDEX IF NOT EXISTS idx_viajes_vehiculo_id ON viajes(vehiculo_id);
 CREATE INDEX IF NOT EXISTS idx_viajes_estado ON viajes(estado);
-CREATE INDEX IF NOT EXISTS idx_facturas_cliente_id ON facturas(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_facturas_serie_numero ON facturas(serie_id, numero);
-CREATE INDEX IF NOT EXISTS idx_factura_detalles_factura_id ON factura_detalles(factura_id);
-CREATE INDEX IF NOT EXISTS idx_factura_detalles_viaje_id ON factura_detalles(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_cliente_id ON ingresos(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_ingresos_viaje_id ON ingresos(viaje_id);
-CREATE INDEX IF NOT EXISTS idx_ingresos_factura_id ON ingresos(factura_id);
+CREATE INDEX IF NOT EXISTS idx_ingresos_numero_factura ON ingresos(numero_factura);
 CREATE INDEX IF NOT EXISTS idx_egresos_viaje_id ON egresos(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_egresos_vehiculo_id ON egresos(vehiculo_id);
 CREATE INDEX IF NOT EXISTS idx_egresos_conductor_id ON egresos(conductor_id);
@@ -342,7 +294,6 @@ CREATE INDEX IF NOT EXISTS idx_egresos_sin_factura_categoria_id ON egresos_sin_f
 CREATE INDEX IF NOT EXISTS idx_detracciones_viaje_id ON detracciones(viaje_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_cliente_id ON detracciones(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_ingreso_id ON detracciones(ingreso_id);
-CREATE INDEX IF NOT EXISTS idx_detracciones_factura_id ON detracciones(factura_id);
 CREATE INDEX IF NOT EXISTS idx_detracciones_numero_constancia ON detracciones(numero_constancia);
 CREATE INDEX IF NOT EXISTS idx_detracciones_ruc_proveedor ON detracciones(ruc_proveedor);
 CREATE INDEX IF NOT EXISTS idx_detracciones_periodo_tributario ON detracciones(periodo_tributario);
@@ -371,18 +322,6 @@ LEFT JOIN clientes c ON v.cliente_id = c.id
 LEFT JOIN conductores co ON v.conductor_id = co.id
 LEFT JOIN vehiculos ve ON v.vehiculo_id = ve.id;
 
-CREATE OR REPLACE VIEW vista_facturas_completa 
-WITH (security_invoker = true)
-AS
-SELECT 
-  f.*,
-  s.serie,
-  c.razon_social as cliente_nombre,
-  c.ruc as cliente_ruc
-FROM facturas f
-LEFT JOIN series s ON f.serie_id = s.id
-LEFT JOIN clientes c ON f.cliente_id = c.id;
-
 -- Vista para ingresos completa
 CREATE OR REPLACE VIEW vista_ingresos_completa 
 WITH (security_invoker = true)
@@ -408,13 +347,11 @@ SELECT
   v.origen as viaje_origen,
   v.destino as viaje_destino,
   i.concepto as ingreso_concepto,
-  i.numero_factura as ingreso_numero_factura,
-  f.numero as factura_numero
+  i.numero_factura as ingreso_numero_factura
 FROM detracciones d
 LEFT JOIN clientes c ON d.cliente_id = c.id
 LEFT JOIN viajes v ON d.viaje_id = v.id
-LEFT JOIN ingresos i ON d.ingreso_id = i.id
-LEFT JOIN facturas f ON d.factura_id = f.id;
+LEFT JOIN ingresos i ON d.ingreso_id = i.id;
 
 -- Políticas de seguridad (RLS)
 -- Estas políticas permiten el acceso anónimo para pruebas iniciales
@@ -425,8 +362,6 @@ ALTER TABLE conductores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vehiculos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE series ENABLE ROW LEVEL SECURITY;
 ALTER TABLE viajes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE facturas ENABLE ROW LEVEL SECURITY;
-ALTER TABLE factura_detalles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ingresos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE egresos ENABLE ROW LEVEL SECURITY;
@@ -463,16 +398,6 @@ CREATE POLICY "Permitir select para usuarios anónimos" ON viajes FOR SELECT TO 
 CREATE POLICY "Permitir insert para usuarios anónimos" ON viajes FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Permitir update para usuarios anónimos" ON viajes FOR UPDATE TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "Permitir delete para usuarios anónimos" ON viajes FOR DELETE TO anon USING (true);
-
-CREATE POLICY "Permitir select para usuarios anónimos" ON facturas FOR SELECT TO anon USING (true);
-CREATE POLICY "Permitir insert para usuarios anónimos" ON facturas FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "Permitir update para usuarios anónimos" ON facturas FOR UPDATE TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "Permitir delete para usuarios anónimos" ON facturas FOR DELETE TO anon USING (true);
-
-CREATE POLICY "Permitir select para usuarios anónimos" ON factura_detalles FOR SELECT TO anon USING (true);
-CREATE POLICY "Permitir insert para usuarios anónimos" ON factura_detalles FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "Permitir update para usuarios anónimos" ON factura_detalles FOR UPDATE TO anon USING (true) WITH CHECK (true);
-CREATE POLICY "Permitir delete para usuarios anónimos" ON factura_detalles FOR DELETE TO anon USING (true);
 
 CREATE POLICY "Permitir select para usuarios anónimos" ON ingresos FOR SELECT TO anon USING (true);
 CREATE POLICY "Permitir insert para usuarios anónimos" ON ingresos FOR INSERT TO anon WITH CHECK (true);
