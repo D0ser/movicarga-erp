@@ -211,6 +211,25 @@ export const clienteService = {
 		return data;
 	},
 
+	async getClienteByRuc(ruc: string): Promise<Cliente | null> {
+		try {
+			const { data, error } = await supabase.from("clientes").select("*").eq("ruc", ruc).single();
+
+			if (error) {
+				// Si es error de "no data" (no encontrado), simplemente devolvemos null
+				if (error.code === "PGRST116") {
+					return null;
+				}
+				throw error;
+			}
+
+			return data;
+		} catch (error) {
+			console.error("Error al buscar cliente por RUC:", error);
+			return null;
+		}
+	},
+
 	async createCliente(cliente: Omit<Cliente, "id">): Promise<Cliente> {
 		const { data, error } = await supabase.from("clientes").insert([cliente]).select();
 
@@ -780,7 +799,6 @@ export const detraccionService = {
 		}
 	},
 
-	// Los métodos de crear, actualizar y eliminar permanecen igual
 	async createDetraccion(detraccion: Omit<Detraccion, "id" | "cliente" | "viaje" | "ingreso">): Promise<Detraccion> {
 		try {
 			console.log("[Supabase] Intentando crear detracción con datos:", JSON.stringify(detraccion));
@@ -794,12 +812,43 @@ export const detraccionService = {
 				console.warn("[Supabase] Advertencia: Creando detracción sin fecha de depósito");
 			}
 
-			// Realizar la inserción
-			const { data, error } = await supabase.from("detracciones").insert([detraccion]).select();
+			// Sanitizar datos antes de insertar (eliminar campos undefined o null que podrían causar problemas)
+			const datosSanitizados: any = {};
+
+			// Solo incluir propiedades que no son undefined
+			Object.keys(detraccion).forEach((key) => {
+				const valor = (detraccion as any)[key];
+				if (valor !== undefined) {
+					datosSanitizados[key] = valor;
+				}
+			});
+
+			console.log("[Supabase] Datos sanitizados para inserción:", JSON.stringify(datosSanitizados));
+
+			// Realizar la inserción con datos sanitizados
+			const { data, error } = await supabase.from("detracciones").insert([datosSanitizados]).select();
 
 			if (error) {
 				console.error("[Supabase] Error al insertar detracción:", error);
+				console.error("[Supabase] Detalles del error:", error.details);
+				console.error("[Supabase] Código de error:", error.code);
+				console.error("[Supabase] Mensaje:", error.message);
+
+				// Manejo específico de errores comunes
+				if (error.code === "23502") {
+					throw new Error("Error: Campo obligatorio faltante. Revise que los campos requeridos no estén vacíos.");
+				} else if (error.code === "23505") {
+					throw new Error("Error: Registro duplicado. Ya existe una detracción con la misma constancia o identificador.");
+				} else if (error.code === "23503") {
+					throw new Error("Error: Clave foránea inválida. Asegúrese de que los IDs de cliente, viaje o ingreso existan.");
+				}
+
 				throw error;
+			}
+
+			if (!data || data.length === 0) {
+				console.error("[Supabase] No se recibieron datos de respuesta al crear la detracción");
+				throw new Error("No se recibieron datos de respuesta al crear la detracción");
 			}
 
 			console.log("[Supabase] Detracción creada exitosamente:", data[0]);

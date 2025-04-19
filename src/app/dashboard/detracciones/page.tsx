@@ -5,7 +5,8 @@ import DataTable, { DataItem, Column } from "@/components/DataTable";
 import { format } from "date-fns";
 import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup, ActionButton, ActivateIcon } from "@/components/ActionIcons";
 import { detraccionService, Detraccion as DetraccionType } from "@/lib/supabaseServices";
-import supabase from "@/lib/supabase";
+import supabase, { testSupabaseConnection as testConnection } from "@/lib/supabase";
+import { clienteService } from "@/lib/supabaseServices";
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -94,9 +95,62 @@ export default function DetraccionesPage() {
 		const fetchDetracciones = async () => {
 			try {
 				setLoading(true);
+
+				// Verificar primero la conexión a Supabase
+				const connectionResult = await testConnection();
+				if (!connectionResult.success) {
+					console.error("Error de conexión a Supabase:", connectionResult.message);
+					setError(`Error de conexión a Supabase: ${connectionResult.message}. Verifique su conexión a internet o contacte al administrador.`);
+
+					// Cargar datos de respaldo solo en caso de error
+					setDetracciones([
+						{
+							id: "1",
+							cliente_id: "1",
+							fecha_deposito: "2025-03-05",
+							numero_constancia: "DET-001-2025",
+							monto: 250.5,
+							porcentaje: 4.0,
+							estado: "Pendiente",
+							observaciones: "Detracción por servicio de transporte",
+							ruc_proveedor: "20123456789",
+							nombre_proveedor: "Transportes S.A.",
+							tipo_comprobante: "Factura",
+							cliente: {
+								razon_social: "Transportes S.A.",
+								ruc: "20123456789",
+							},
+						},
+						{
+							id: "2",
+							cliente_id: "2",
+							fecha_deposito: "2025-03-12",
+							numero_constancia: "DET-002-2025",
+							monto: 320.0,
+							porcentaje: 4.0,
+							estado: "Pendiente",
+							observaciones: "Detracción por flete Lima-Arequipa",
+							ruc_proveedor: "20987654321",
+							nombre_proveedor: "Logística Express",
+							tipo_comprobante: "Factura",
+							cliente: {
+								razon_social: "Logística Express",
+								ruc: "20987654321",
+							},
+						},
+					]);
+					return;
+				}
+
+				// Si la conexión es exitosa, cargar datos reales
+				console.log("Conexión a Supabase verificada, cargando datos...");
 				const data = await detraccionService.getDetracciones();
 				setDetracciones(data);
 				setError(null);
+
+				// Cargar orígenes CSV
+				const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
+				setCsvOrigenes(origenes as string[]);
 			} catch (err) {
 				console.error("Error al cargar detracciones:", err);
 				setError("Error al cargar las detracciones. Por favor, inténtelo de nuevo.");
@@ -440,23 +494,34 @@ export default function DetraccionesPage() {
 			}
 
 			if (confirm(`¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}"?`)) {
-				// En modo development, solo actualizamos el estado local
-				const isOfflineMode = (process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_OFFLINE_MODE === "true") && !debugMode;
+				// MODIFICADO: Usar la misma lógica de modo offline que en el resto del código
+				const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === "true";
 
 				if (isOfflineMode) {
 					const nuevasDetracciones = detracciones.filter((d) => d.origen_csv !== origen);
 					setDetracciones(nuevasDetracciones);
 					actualizarOrigenesCsv(nuevasDetracciones);
 				} else {
-					// En producción, eliminamos de Supabase
+					// En modo online, eliminamos de Supabase
+					console.log(`Eliminando ${detracionesAEliminar.length} detracciones de Supabase...`);
+					let eliminadasCount = 0;
+
 					for (const det of detracionesAEliminar) {
-						await detraccionService.deleteDetraccion(det.id);
+						try {
+							await detraccionService.deleteDetraccion(det.id);
+							eliminadasCount++;
+							console.log(`Detracción ${det.id} eliminada (${eliminadasCount}/${detracionesAEliminar.length})`);
+						} catch (err) {
+							console.error(`Error al eliminar detracción ${det.id}:`, err);
+						}
 					}
 
 					// Actualizar estado local
 					const nuevasDetracciones = detracciones.filter((d) => d.origen_csv !== origen);
 					setDetracciones(nuevasDetracciones);
 					actualizarOrigenesCsv(nuevasDetracciones);
+
+					console.log(`Eliminación completada: ${eliminadasCount} de ${detracionesAEliminar.length} detracciones eliminadas`);
 				}
 
 				setShowDeleteModal(false);
@@ -522,10 +587,42 @@ export default function DetraccionesPage() {
 		reader.readAsText(file, "windows-1252");
 	};
 
+	// Función para probar la conexión con Supabase
+	const testSupabaseConnection = async () => {
+		try {
+			setTestConnectionResult({ success: false, message: "Probando conexión..." });
+
+			// Usar la función mejorada para probar la conexión
+			const result = await testConnection();
+			setTestConnectionResult(result);
+
+			if (result.success) {
+				console.log("Conexión exitosa a Supabase:", result);
+			} else {
+				console.error("Error de conexión a Supabase:", result);
+			}
+		} catch (error) {
+			console.error("Excepción en prueba de conexión:", error);
+			setTestConnectionResult({
+				success: false,
+				message: `Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`,
+			});
+		}
+	};
+
 	const processCSV = async () => {
 		try {
 			// Eliminar errores previos
 			setImportError("");
+
+			// Primero verificar la conexión a Supabase
+			console.log("Verificando conexión a Supabase antes de procesar CSV...");
+			const connectionResult = await testConnection();
+			if (!connectionResult.success) {
+				setImportError(`Error de conexión a Supabase: ${connectionResult.message}`);
+				return;
+			}
+			console.log("Conexión a Supabase verificada, continuando con el procesamiento CSV");
 
 			// Procesar CSV - Usando delimitador adaptativo
 			const lines = csvData.split("\n");
@@ -793,16 +890,19 @@ export default function DetraccionesPage() {
 					}
 				}
 
-				// Asegurar que cliente_id sea un UUID válido
-				if (detraccion.cliente_id && !detraccion.cliente_id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-					// Si no es un UUID válido, lo dejamos en blanco - Supabase buscará o creará el cliente por RUC
-					console.log(`Cliente ID no es un UUID válido en línea ${i}: ${detraccion.cliente_id}`);
-					detraccion.cliente_id = null as any; // Usar null en lugar de string vacío
+				// Verificar que los datos obligatorios estén presentes
+				if (!detraccion.numero_constancia) {
+					console.warn("Advertencia: Falta número de constancia en la línea", i);
+				}
+				if (!detraccion.monto || detraccion.monto <= 0) {
+					console.warn("Advertencia: Monto inválido en la línea", i);
+					detraccion.monto = 0; // Asignar 0 para evitar errores de tipo
 				}
 
 				try {
 					// Para modo offline o pruebas, agregar sin llamar a Supabase
-					const isOfflineMode = (process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_OFFLINE_MODE === "true") && !debugMode;
+					// MODIFICADO: Ahora solo usa modo offline si NEXT_PUBLIC_OFFLINE_MODE está específicamente configurado como true
+					const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === "true";
 
 					if (isOfflineMode) {
 						console.log("Modo offline/desarrollo: guardando datos localmente");
@@ -828,11 +928,48 @@ export default function DetraccionesPage() {
 								console.warn("Advertencia: Monto inválido en la línea", i);
 								detraccion.monto = 0; // Asignar 0 para evitar errores de tipo
 							}
+
+							// NUEVO: Buscar cliente por RUC del adquiriente antes de insertar
+							// Ahora usamos los datos del adquiriente en lugar del proveedor
+							if (detraccion.numero_documento_adquiriente) {
+								try {
+									console.log(`Buscando cliente con RUC/Documento: ${detraccion.numero_documento_adquiriente}`);
+									const clienteExistente = await clienteService.getClienteByRuc(detraccion.numero_documento_adquiriente);
+
+									if (clienteExistente) {
+										console.log(`Cliente encontrado con ID: ${clienteExistente.id}`);
+										detraccion.cliente_id = clienteExistente.id;
+									} else {
+										console.log(`No se encontró cliente con RUC/Documento: ${detraccion.numero_documento_adquiriente}`);
+
+										// Opcionalmente, crear un nuevo cliente si no existe
+										if (detraccion.nombre_razon_social_adquiriente && detraccion.numero_documento_adquiriente) {
+											try {
+												console.log(`Creando nuevo cliente: ${detraccion.nombre_razon_social_adquiriente}`);
+												const nuevoCliente = await clienteService.createCliente({
+													razon_social: detraccion.nombre_razon_social_adquiriente,
+													ruc: detraccion.numero_documento_adquiriente,
+													tipo_cliente_id: null as any, // Usar ID de tipo cliente predeterminado
+													fecha_registro: new Date().toISOString().split("T")[0],
+													estado: true,
+												});
+
+												detraccion.cliente_id = nuevoCliente.id;
+												console.log(`Nuevo cliente creado con ID: ${nuevoCliente.id}`);
+											} catch (errorCreacion) {
+												console.error("Error al crear nuevo cliente:", errorCreacion);
+											}
+										}
+									}
+								} catch (errorBusqueda) {
+									console.error("Error al buscar cliente por RUC/Documento:", errorBusqueda);
+								}
+							}
+
+							// Si después de todo esto el cliente_id sigue sin asignarse, dejarlo como null
 							if (!detraccion.cliente_id) {
 								console.warn("Advertencia: cliente_id vacío en la línea", i);
-								// Para evitar error de clave foránea, usar un ID de cliente válido o null
-								// Si no hay id de cliente, usaremos el primer cliente (normalmente el de la empresa)
-								detraccion.cliente_id = "00000000-0000-0000-0000-000000000000"; // ID genérico que será reemplazado
+								detraccion.cliente_id = null as any;
 							}
 
 							// Añadir fecha_deposito si está ausente
@@ -909,8 +1046,14 @@ export default function DetraccionesPage() {
 			setDetracciones((prev) => [...prev, ...importedDetracciones]);
 
 			// Actualizar la lista de orígenes CSV
-			if (nombreArchivoCsv && !csvOrigenes.includes(nombreArchivoCsv)) {
-				setCsvOrigenes([...csvOrigenes, nombreArchivoCsv]);
+			if (nombreArchivoCsv) {
+				console.log(`Actualizando orígenes CSV, agregando: "${nombreArchivoCsv}"`);
+				const nuevosOrigenes = [...csvOrigenes];
+				if (!nuevosOrigenes.includes(nombreArchivoCsv)) {
+					nuevosOrigenes.push(nombreArchivoCsv);
+				}
+				setCsvOrigenes(nuevosOrigenes);
+				console.log("Lista actualizada de orígenes CSV:", nuevosOrigenes);
 			}
 
 			// Limpiar
@@ -930,33 +1073,31 @@ export default function DetraccionesPage() {
 		}
 	};
 
-	// Función para probar la conexión con Supabase
-	const testSupabaseConnection = async () => {
+	// Función para actualizar manualmente los orígenes CSV desde la base de datos
+	const actualizarOrigenesCsvDesdeDB = async () => {
 		try {
-			setTestConnectionResult({ success: false, message: "Probando conexión..." });
+			console.log("Actualizando orígenes CSV desde la base de datos...");
 
-			// Usar la función más simple para probar la conexión
-			const { data, error } = await supabase.from("detracciones").select("id").limit(1);
-
-			if (error) {
-				console.error("Error en prueba de conexión:", error);
-				setTestConnectionResult({
-					success: false,
-					message: `Error de conexión: ${error.message || "Error desconocido"}`,
-				});
-			} else {
-				console.log("Conexión exitosa:", data);
-				setTestConnectionResult({
-					success: true,
-					message: "Conexión exitosa a Supabase",
-				});
+			// Verificar conexión
+			const connectionResult = await testConnection();
+			if (!connectionResult.success) {
+				console.error("Error de conexión a Supabase:", connectionResult.message);
+				alert("Error de conexión con la base de datos. No se pueden actualizar los orígenes CSV.");
+				return;
 			}
+
+			// Obtener todas las detracciones de la base de datos
+			const data = await detraccionService.getDetracciones();
+
+			// Extraer y actualizar los orígenes CSV
+			const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
+			setCsvOrigenes(origenes as string[]);
+
+			console.log("Orígenes CSV actualizados desde la base de datos:", origenes);
+			alert("Lista de orígenes CSV actualizada correctamente desde la base de datos.");
 		} catch (error) {
-			console.error("Excepción en prueba de conexión:", error);
-			setTestConnectionResult({
-				success: false,
-				message: `Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`,
-			});
+			console.error("Error al actualizar orígenes CSV desde la base de datos:", error);
+			alert("Error al actualizar la lista de orígenes CSV.");
 		}
 	};
 
@@ -977,6 +1118,14 @@ export default function DetraccionesPage() {
 						title="Activar/desactivar modo depuración">
 						{debugMode ? "Debug ON" : "Debug OFF"}
 					</button>
+
+					{/* Indicador del modo de almacenamiento */}
+					<div
+						className={`px-4 py-2 rounded-md ${process.env.NEXT_PUBLIC_OFFLINE_MODE === "true" ? "bg-red-600 text-white" : "bg-green-600 text-white"}`}
+						title="Indica si los datos se guardan en Supabase o solo localmente">
+						{process.env.NEXT_PUBLIC_OFFLINE_MODE === "true" ? "Modo Offline" : "Modo Online (Supabase)"}
+					</div>
+
 					<button
 						onClick={() => {
 							setShowImportForm(!showImportForm);
@@ -1118,17 +1267,33 @@ export default function DetraccionesPage() {
 								<p className="text-sm text-gray-600 mb-4">Seleccione el archivo CSV del que desea eliminar todas las detracciones:</p>
 
 								<div className="mb-4">
-									<select
-										value={selectedCsvOrigen}
-										onChange={(e) => setSelectedCsvOrigen(e.target.value)}
-										className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-										<option value="">Seleccione un archivo</option>
-										{csvOrigenes.map((origen) => (
-											<option key={origen} value={origen}>
-												{origen}
-											</option>
-										))}
-									</select>
+									<div className="flex space-x-2">
+										<select
+											value={selectedCsvOrigen}
+											onChange={(e) => setSelectedCsvOrigen(e.target.value)}
+											className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+											<option value="">Seleccione un archivo</option>
+											{csvOrigenes.map((origen) => (
+												<option key={origen} value={origen}>
+													{origen}
+												</option>
+											))}
+										</select>
+
+										<button
+											type="button"
+											onClick={actualizarOrigenesCsvDesdeDB}
+											className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
+											title="Actualizar lista de orígenes CSV desde la base de datos">
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+												<path
+													fillRule="evenodd"
+													d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+													clipRule="evenodd"
+												/>
+											</svg>
+										</button>
+									</div>
 								</div>
 
 								<div className="flex justify-end">
