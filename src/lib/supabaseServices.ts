@@ -195,6 +195,42 @@ export interface Observacion extends DataItem, RelatedEntities {
 	updated_at?: string;
 }
 
+export interface TipoEgreso extends DataItem {
+	id: string;
+	tipo: string;
+	fecha_creacion: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface TipoEgresoSF extends DataItem {
+	id: string;
+	tipo: string;
+	fecha_creacion: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface CuentaBanco extends DataItem {
+	id: string;
+	banco: string;
+	numero_cuenta: string;
+	moneda: string;
+	fecha_creacion: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface Empresa extends DataItem {
+	id: string;
+	nombre: string;
+	ruc_dni: string;
+	cuenta_abonada: string;
+	fecha_creacion: string;
+	created_at?: string;
+	updated_at?: string;
+}
+
 // Servicios para clientes
 export const clienteService = {
 	async getClientes(): Promise<Cliente[]> {
@@ -969,6 +1005,262 @@ export const observacionService = {
 			if (error) throw error;
 		} catch (error) {
 			console.error("Error en deleteObservacion:", error);
+			throw error;
+		}
+	},
+};
+
+// Servicios para tipos de egreso
+export const tipoEgresoService = {
+	async getTiposEgreso(): Promise<TipoEgreso[]> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso").select("*").order("tipo");
+
+			if (error) throw error;
+			if (!data || data.length === 0) return [];
+
+			return data;
+		} catch (error) {
+			console.error("Error en getTiposEgreso:", error);
+			throw error;
+		}
+	},
+
+	async getTipoEgresoById(id: string): Promise<TipoEgreso | null> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso").select("*").eq("id", id).single();
+
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error("Error en getTipoEgresoById:", error);
+			throw error;
+		}
+	},
+
+	async createTipoEgreso(tipoEgreso: Omit<TipoEgreso, "id">): Promise<TipoEgreso> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso").insert([tipoEgreso]).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en createTipoEgreso:", error);
+			throw error;
+		}
+	},
+
+	async updateTipoEgreso(id: string, tipoEgreso: Partial<TipoEgreso>): Promise<TipoEgreso> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso").update(tipoEgreso).eq("id", id).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateTipoEgreso:", error);
+			throw error;
+		}
+	},
+
+	async deleteTipoEgreso(id: string): Promise<void> {
+		try {
+			const { error } = await supabase.from("tipos_egreso").delete().eq("id", id);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error("Error en deleteTipoEgreso:", error);
+			throw error;
+		}
+	},
+};
+
+// Servicios para tipos de egreso sin factura
+export const tipoEgresoSFService = {
+	async getTiposEgresoSF(): Promise<TipoEgresoSF[]> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso_sf").select("*").order("tipo");
+
+			if (error) throw error;
+			if (!data || data.length === 0) return [];
+
+			return data;
+		} catch (error) {
+			console.error("Error en getTiposEgresoSF:", error);
+			throw error;
+		}
+	},
+
+	async getTipoEgresoSFById(id: string): Promise<TipoEgresoSF | null> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso_sf").select("*").eq("id", id).single();
+
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error("Error en getTipoEgresoSFById:", error);
+			throw error;
+		}
+	},
+
+	async createTipoEgresoSF(tipoEgresoSF: Omit<TipoEgresoSF, "id">): Promise<TipoEgresoSF> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso_sf").insert([tipoEgresoSF]).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en createTipoEgresoSF:", error);
+			throw error;
+		}
+	},
+
+	async updateTipoEgresoSF(id: string, tipoEgresoSF: Partial<TipoEgresoSF>): Promise<TipoEgresoSF> {
+		try {
+			const { data, error } = await supabase.from("tipos_egreso_sf").update(tipoEgresoSF).eq("id", id).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateTipoEgresoSF:", error);
+			throw error;
+		}
+	},
+
+	async deleteTipoEgresoSF(id: string): Promise<void> {
+		try {
+			const { error } = await supabase.from("tipos_egreso_sf").delete().eq("id", id);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error("Error en deleteTipoEgresoSF:", error);
+			throw error;
+		}
+	},
+};
+
+// Servicios para cuentas bancarias
+export const cuentaBancoService = {
+	async getCuentasBanco(): Promise<CuentaBanco[]> {
+		try {
+			const { data, error } = await supabase.from("cuentas_banco").select("*").order("banco");
+
+			if (error) throw error;
+			if (!data || data.length === 0) return [];
+
+			return data;
+		} catch (error) {
+			console.error("Error en getCuentasBanco:", error);
+			throw error;
+		}
+	},
+
+	async getCuentaBancoById(id: string): Promise<CuentaBanco | null> {
+		try {
+			const { data, error } = await supabase.from("cuentas_banco").select("*").eq("id", id).single();
+
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error("Error en getCuentaBancoById:", error);
+			throw error;
+		}
+	},
+
+	async createCuentaBanco(cuentaBanco: Omit<CuentaBanco, "id">): Promise<CuentaBanco> {
+		try {
+			const { data, error } = await supabase.from("cuentas_banco").insert([cuentaBanco]).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en createCuentaBanco:", error);
+			throw error;
+		}
+	},
+
+	async updateCuentaBanco(id: string, cuentaBanco: Partial<CuentaBanco>): Promise<CuentaBanco> {
+		try {
+			const { data, error } = await supabase.from("cuentas_banco").update(cuentaBanco).eq("id", id).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateCuentaBanco:", error);
+			throw error;
+		}
+	},
+
+	async deleteCuentaBanco(id: string): Promise<void> {
+		try {
+			const { error } = await supabase.from("cuentas_banco").delete().eq("id", id);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error("Error en deleteCuentaBanco:", error);
+			throw error;
+		}
+	},
+};
+
+// Servicios para empresas
+export const empresaService = {
+	async getEmpresas(): Promise<Empresa[]> {
+		try {
+			const { data, error } = await supabase.from("empresas").select("*").order("nombre");
+
+			if (error) throw error;
+			if (!data || data.length === 0) return [];
+
+			return data;
+		} catch (error) {
+			console.error("Error en getEmpresas:", error);
+			throw error;
+		}
+	},
+
+	async getEmpresaById(id: string): Promise<Empresa | null> {
+		try {
+			const { data, error } = await supabase.from("empresas").select("*").eq("id", id).single();
+
+			if (error) throw error;
+			return data;
+		} catch (error) {
+			console.error("Error en getEmpresaById:", error);
+			throw error;
+		}
+	},
+
+	async createEmpresa(empresa: Omit<Empresa, "id">): Promise<Empresa> {
+		try {
+			const { data, error } = await supabase.from("empresas").insert([empresa]).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en createEmpresa:", error);
+			throw error;
+		}
+	},
+
+	async updateEmpresa(id: string, empresa: Partial<Empresa>): Promise<Empresa> {
+		try {
+			const { data, error } = await supabase.from("empresas").update(empresa).eq("id", id).select();
+
+			if (error) throw error;
+			return data[0];
+		} catch (error) {
+			console.error("Error en updateEmpresa:", error);
+			throw error;
+		}
+	},
+
+	async deleteEmpresa(id: string): Promise<void> {
+		try {
+			const { error } = await supabase.from("empresas").delete().eq("id", id);
+
+			if (error) throw error;
+		} catch (error) {
+			console.error("Error en deleteEmpresa:", error);
 			throw error;
 		}
 	},

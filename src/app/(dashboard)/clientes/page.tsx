@@ -372,39 +372,6 @@ export default function ClientesPage() {
 					</div>
 
 					<div>
-						<label className="block text-sm font-medium text-gray-700">Dirección</label>
-						<input
-							type="text"
-							name="direccion"
-							value={formData.direccion || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Teléfono</label>
-						<input
-							type="text"
-							name="telefono"
-							value={formData.telefono || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Email</label>
-						<input
-							type="email"
-							name="email"
-							value={formData.email || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-
-					<div>
 						<label className="block text-sm font-medium text-gray-700">Estado</label>
 						<div className="mt-2">
 							<div className="flex items-center">

@@ -287,7 +287,7 @@ export default function OtrasListasPage() {
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
-				<h1 className="text-2xl font-bold">Otras Listas</h1>
+				<h1 className="text-2xl font-bold">Lista Ingresos</h1>
 				<div className="flex gap-2">
 					<button
 						onClick={() => {
@@ -399,11 +399,11 @@ export default function OtrasListasPage() {
 						<form onSubmit={handleSubmitObservaciones} className="space-y-4">
 							<div>
 								<label className="block text-sm font-medium text-gray-700">Observación</label>
-								<textarea
+								<input
+									type="text"
 									name="observacion"
 									value={formDataObservaciones.observacion || ""}
 									onChange={handleInputChangeObservaciones}
-									rows={4}
 									className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 									required
 								/>

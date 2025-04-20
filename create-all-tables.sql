@@ -18,6 +18,9 @@ DROP TABLE IF EXISTS categorias CASCADE;
 DROP TABLE IF EXISTS series CASCADE;
 DROP TABLE IF EXISTS tipo_cliente CASCADE;
 DROP TABLE IF EXISTS usuarios CASCADE;
+DROP TABLE IF EXISTS tipos_egreso CASCADE;
+DROP TABLE IF EXISTS tipos_egreso_sf CASCADE;
+DROP TABLE IF EXISTS cuentas_banco CASCADE;
 
 -- Crear extensión para generar UUIDs si no existe
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -274,6 +277,35 @@ CREATE TABLE IF NOT EXISTS observaciones (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Tabla de Tipos de Egreso
+CREATE TABLE IF NOT EXISTS tipos_egreso (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tipo VARCHAR(100) NOT NULL,
+  fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Tabla de Tipos de Egreso Sin Factura
+CREATE TABLE IF NOT EXISTS tipos_egreso_sf (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  tipo VARCHAR(100) NOT NULL,
+  fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Tabla de Cuentas Bancarias
+CREATE TABLE IF NOT EXISTS cuentas_banco (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  banco VARCHAR(50) NOT NULL,
+  numero_cuenta VARCHAR(50) NOT NULL,
+  moneda VARCHAR(20) DEFAULT 'Soles',
+  fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Índices para mejorar el rendimiento
 CREATE INDEX IF NOT EXISTS idx_clientes_razon_social ON clientes(razon_social);
 CREATE INDEX IF NOT EXISTS idx_clientes_ruc ON clientes(ruc);
@@ -309,6 +341,9 @@ CREATE INDEX IF NOT EXISTS idx_auditorias_tabla_accion ON auditorias(tabla, acci
 CREATE INDEX IF NOT EXISTS idx_auditorias_usuario_id ON auditorias(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_configuracion_clave ON configuracion(clave);
 CREATE INDEX IF NOT EXISTS idx_observaciones_fecha ON observaciones(fecha_creacion);
+CREATE INDEX IF NOT EXISTS idx_tipos_egreso_tipo ON tipos_egreso(tipo);
+CREATE INDEX IF NOT EXISTS idx_cuentas_banco_banco ON cuentas_banco(banco);
+CREATE INDEX IF NOT EXISTS idx_cuentas_banco_moneda ON cuentas_banco(moneda);
 
 -- Vistas para reportes comunes
 CREATE OR REPLACE VIEW vista_viajes_completa 
@@ -378,6 +413,9 @@ ALTER TABLE auditorias ENABLE ROW LEVEL SECURITY;
 ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tipo_cliente ENABLE ROW LEVEL SECURITY;
 ALTER TABLE observaciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tipos_egreso ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tipos_egreso_sf ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cuentas_banco ENABLE ROW LEVEL SECURITY;
 
 -- Políticas básicas para todas las tablas
 CREATE POLICY "Permitir select para usuarios anónimos" ON clientes FOR SELECT TO anon USING (true);
@@ -450,6 +488,21 @@ CREATE POLICY "Permitir select para usuarios anónimos" ON observaciones FOR SEL
 CREATE POLICY "Permitir insert para usuarios anónimos" ON observaciones FOR INSERT TO anon WITH CHECK (true);
 CREATE POLICY "Permitir update para usuarios anónimos" ON observaciones FOR UPDATE TO anon USING (true) WITH CHECK (true);
 CREATE POLICY "Permitir delete para usuarios anónimos" ON observaciones FOR DELETE TO anon USING (true);
+
+CREATE POLICY "Permitir select para usuarios anónimos" ON tipos_egreso FOR SELECT TO anon USING (true);
+CREATE POLICY "Permitir insert para usuarios anónimos" ON tipos_egreso FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Permitir update para usuarios anónimos" ON tipos_egreso FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir delete para usuarios anónimos" ON tipos_egreso FOR DELETE TO anon USING (true);
+
+CREATE POLICY "Permitir select para usuarios anónimos" ON tipos_egreso_sf FOR SELECT TO anon USING (true);
+CREATE POLICY "Permitir insert para usuarios anónimos" ON tipos_egreso_sf FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Permitir update para usuarios anónimos" ON tipos_egreso_sf FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir delete para usuarios anónimos" ON tipos_egreso_sf FOR DELETE TO anon USING (true);
+
+CREATE POLICY "Permitir select para usuarios anónimos" ON cuentas_banco FOR SELECT TO anon USING (true);
+CREATE POLICY "Permitir insert para usuarios anónimos" ON cuentas_banco FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "Permitir update para usuarios anónimos" ON cuentas_banco FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir delete para usuarios anónimos" ON cuentas_banco FOR DELETE TO anon USING (true);
 
 -- Funciones y procedimientos almacenados
 CREATE OR REPLACE FUNCTION actualizar_saldo_viaje() 
