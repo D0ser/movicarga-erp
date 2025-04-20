@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { viajeService, clienteService, conductorService, vehiculoService, Viaje, Cliente, Conductor, Vehiculo } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import { ActionButtonGroup, EditButton, DeleteButton, ActionButton } from "@/components/ActionIcons";
+import Modal from "@/components/Modal";
 
 // Componente para la página de viajes
 export default function ViajesPage() {
@@ -540,57 +541,49 @@ export default function ViajesPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Viajes</h1>
-				<div className="space-x-2">
-					<button onClick={() => setShowFilters(!showFilters)} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-200">
-						{showFilters ? "Ocultar Filtros" : "Filtros Avanzados"}
+				<div className="flex gap-2">
+					<button onClick={() => setShowFilters(!showFilters)} className={`px-4 py-2 rounded-md ${showFilters ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700"}`}>
+						{showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
 					</button>
-					<button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-						{showForm ? "Cancelar" : "Nuevo Viaje"}
+					<button
+						onClick={() => {
+							setFormData({
+								cliente_id: "",
+								conductor_id: "",
+								vehiculo_id: "",
+								origen: "",
+								destino: "",
+								fecha_salida: new Date().toISOString(),
+								fecha_llegada: null,
+								carga: "",
+								peso: 0,
+								estado: "Programado",
+								tarifa: 0,
+								adelanto: 0,
+								saldo: 0,
+								detraccion: false,
+								observaciones: "",
+							});
+							setShowForm(true);
+						}}
+						className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+						Nuevo Viaje
 					</button>
 				</div>
 			</div>
 
-			{/* Barra de búsqueda principal */}
-			<div className="flex items-center bg-white rounded-lg shadow-sm p-2 border border-gray-200">
-				<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 mx-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-					<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-				</svg>
-				<input
-					type="text"
-					value={searchTerm}
-					onChange={(e) => setSearchTerm(e.target.value)}
-					placeholder="Buscar por cliente, origen, destino, conductor, vehículo..."
-					className="flex-grow py-2 px-2 focus:outline-none"
-				/>
-				{searchTerm && (
-					<button onClick={() => setSearchTerm("")} className="mx-1 text-gray-400 hover:text-gray-600">
-						<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-						</svg>
-					</button>
-				)}
-			</div>
-
 			{/* Filtros avanzados */}
 			{showFilters && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<div className="flex justify-between items-center mb-4">
-						<h3 className="font-bold text-lg">Filtros Avanzados</h3>
-						<button onClick={resetFilters} className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center">
-							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-							</svg>
-							Resetear filtros
-						</button>
-					</div>
+				<div className="bg-white p-4 rounded-lg shadow">
+					<h2 className="text-lg font-medium mb-3">Filtros Avanzados</h2>
 					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+							<label className="block text-sm font-medium text-gray-700">Cliente</label>
 							<select
 								name="cliente_id"
 								value={filters.cliente_id}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
 								<option value="">Todos los clientes</option>
 								{clientes.map((cliente) => (
 									<option key={cliente.id} value={cliente.id}>
@@ -599,14 +592,13 @@ export default function ViajesPage() {
 								))}
 							</select>
 						</div>
-
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
+							<label className="block text-sm font-medium text-gray-700">Conductor</label>
 							<select
 								name="conductor_id"
 								value={filters.conductor_id}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
 								<option value="">Todos los conductores</option>
 								{conductores.map((conductor) => (
 									<option key={conductor.id} value={conductor.id}>
@@ -615,352 +607,282 @@ export default function ViajesPage() {
 								))}
 							</select>
 						</div>
-
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Vehículo</label>
+							<label className="block text-sm font-medium text-gray-700">Vehículo</label>
 							<select
 								name="vehiculo_id"
 								value={filters.vehiculo_id}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
 								<option value="">Todos los vehículos</option>
 								{vehiculos.map((vehiculo) => (
 									<option key={vehiculo.id} value={vehiculo.id}>
-										{vehiculo.placa}
+										{vehiculo.placa} - {vehiculo.marca} {vehiculo.modelo}
 									</option>
 								))}
 							</select>
 						</div>
-
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+							<label className="block text-sm font-medium text-gray-700">Estado</label>
 							<select
 								name="estado"
 								value={filters.estado}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm">
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
 								<option value="">Todos los estados</option>
 								<option value="Programado">Programado</option>
-								<option value="En Ruta">En Ruta</option>
+								<option value="En ruta">En ruta</option>
 								<option value="Completado">Completado</option>
 								<option value="Cancelado">Cancelado</option>
 							</select>
 						</div>
-
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Fecha desde</label>
+							<label className="block text-sm font-medium text-gray-700">Fecha Desde</label>
 							<input
 								type="date"
 								name="fecha_desde"
 								value={filters.fecha_desde}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
-
 						<div>
-							<label className="block text-sm font-medium text-gray-700 mb-1">Fecha hasta</label>
+							<label className="block text-sm font-medium text-gray-700">Fecha Hasta</label>
 							<input
 								type="date"
 								name="fecha_hasta"
 								value={filters.fecha_hasta}
 								onChange={handleFilterChange}
-								className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 							/>
 						</div>
+					</div>
+					<div className="mt-4 flex justify-end">
+						<button onClick={resetFilters} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
+							Limpiar Filtros
+						</button>
 					</div>
 				</div>
 			)}
 
-			{/* Estadísticas rápidas */}
-			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Estado de Viajes</h3>
-					<div className="space-y-1">
-						<div className="flex justify-between">
-							<span>Total de viajes:</span>
-							<span className="font-medium">{viajes.length}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Programados:</span>
-							<span className="font-medium text-blue-600">{viajesProgramados}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>En ruta:</span>
-							<span className="font-medium text-yellow-600">{viajesEnRuta}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Completados:</span>
-							<span className="font-medium text-green-600">{viajesCompletados}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Cancelados:</span>
-							<span className="font-medium text-red-600">{viajesCancelados}</span>
-						</div>
+			{/* Modal de formulario de viaje */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Viaje" : "Nuevo Viaje"} size="xl">
+				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Cliente</label>
+						<select
+							name="cliente_id"
+							value={formData.cliente_id || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione un cliente</option>
+							{clientes.map((cliente) => (
+								<option key={cliente.id} value={cliente.id}>
+									{cliente.razon_social}
+								</option>
+							))}
+						</select>
 					</div>
-				</div>
 
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Finanzas</h3>
-					<div className="space-y-1">
-						<div className="flex justify-between">
-							<span>Total de tarifas:</span>
-							<span className="font-medium">S/. {totalTarifas.toLocaleString("es-PE")}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Total de adelantos:</span>
-							<span className="font-medium">S/. {totalAdelantos.toLocaleString("es-PE")}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Total de saldos:</span>
-							<span className="font-medium">S/. {totalSaldos.toLocaleString("es-PE")}</span>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Conductor</label>
+						<select
+							name="conductor_id"
+							value={formData.conductor_id || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione un conductor</option>
+							{conductores.map((conductor) => (
+								<option key={conductor.id} value={conductor.id}>
+									{conductor.nombres} {conductor.apellidos}
+								</option>
+							))}
+						</select>
 					</div>
-				</div>
 
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Detracciones</h3>
-					<div className="space-y-1">
-						<div className="flex justify-between">
-							<span>Viajes con detracción:</span>
-							<span className="font-medium">{viajes.filter((v) => v.detraccion).length}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Monto estimado:</span>
-							<span className="font-medium">S/. {(totalTarifas * 0.04).toLocaleString("es-PE")}</span>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Vehículo</label>
+						<select
+							name="vehiculo_id"
+							value={formData.vehiculo_id || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione un vehículo</option>
+							{vehiculos.map((vehiculo) => (
+								<option key={vehiculo.id} value={vehiculo.id}>
+									{vehiculo.placa} - {vehiculo.marca} {vehiculo.modelo}
+								</option>
+							))}
+						</select>
 					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Origen</label>
+						<input
+							type="text"
+							name="origen"
+							value={formData.origen || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Destino</label>
+						<input
+							type="text"
+							name="destino"
+							value={formData.destino || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha de Salida</label>
+						<input
+							type="date"
+							name="fecha_salida"
+							value={formData.fecha_salida ? formData.fecha_salida.split("T")[0] : ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha de Llegada</label>
+						<input
+							type="date"
+							name="fecha_llegada"
+							value={formData.fecha_llegada ? formData.fecha_llegada.split("T")[0] : ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Carga</label>
+						<input
+							type="text"
+							name="carga"
+							value={formData.carga || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Peso (kg)</label>
+						<input
+							type="number"
+							name="peso"
+							value={formData.peso || 0}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Estado</label>
+						<select
+							name="estado"
+							value={formData.estado || "Programado"}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="Programado">Programado</option>
+							<option value="En ruta">En ruta</option>
+							<option value="Completado">Completado</option>
+							<option value="Cancelado">Cancelado</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Tarifa (S/.)</label>
+						<input
+							type="number"
+							name="tarifa"
+							value={formData.tarifa || 0}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Adelanto (S/.)</label>
+						<input
+							type="number"
+							name="adelanto"
+							value={formData.adelanto || 0}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Saldo (S/.)</label>
+						<input type="number" name="saldo" value={formData.saldo || 0} readOnly className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" />
+					</div>
+
+					<div className="flex items-center mt-5">
+						<input
+							type="checkbox"
+							id="detraccion"
+							name="detraccion"
+							checked={formData.detraccion || false}
+							onChange={(e) => setFormData({ ...formData, detraccion: e.target.checked })}
+							className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+						/>
+						<label htmlFor="detraccion" className="ml-2 block text-sm text-gray-700">
+							Sujeto a detracción
+						</label>
+					</div>
+
+					<div className="md:col-span-3">
+						<label className="block text-sm font-medium text-gray-700">Observaciones</label>
+						<textarea
+							name="observaciones"
+							value={formData.observaciones || ""}
+							onChange={handleInputChange}
+							rows={2}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div className="md:col-span-3 flex justify-end">
+						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
+
+			{/* Búsqueda general */}
+			<div className="relative">
+				<input
+					type="text"
+					value={searchTerm}
+					onChange={(e) => setSearchTerm(e.target.value)}
+					placeholder="Buscar viajes..."
+					className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+				/>
+				<div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+					<svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+					</svg>
 				</div>
 			</div>
-
-			{/* Formulario de viaje */}
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Viaje" : "Nuevo Viaje"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Cliente</label>
-							<select
-								name="cliente_id"
-								value={formData.cliente_id || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un cliente</option>
-								{clientes
-									.filter((c) => c.estado)
-									.map((cliente) => (
-										<option key={cliente.id} value={cliente.id}>
-											{cliente.razon_social} - {cliente.ruc}
-										</option>
-									))}
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Conductor</label>
-							<select
-								name="conductor_id"
-								value={formData.conductor_id || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un conductor</option>
-								{conductores
-									.filter((c) => c.estado)
-									.map((conductor) => (
-										<option key={conductor.id} value={conductor.id}>
-											{conductor.nombres} {conductor.apellidos} - {conductor.licencia}
-										</option>
-									))}
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Vehículo</label>
-							<select
-								name="vehiculo_id"
-								value={formData.vehiculo_id || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un vehículo</option>
-								{vehiculos
-									.filter((v) => v.estado === "Operativo")
-									.map((vehiculo) => (
-										<option key={vehiculo.id} value={vehiculo.id}>
-											{vehiculo.placa} - {vehiculo.marca} {vehiculo.modelo}
-										</option>
-									))}
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Origen</label>
-							<input
-								type="text"
-								name="origen"
-								value={formData.origen || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Destino</label>
-							<input
-								type="text"
-								name="destino"
-								value={formData.destino || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Salida</label>
-							<input
-								type="datetime-local"
-								name="fecha_salida"
-								value={formData.fecha_salida ? new Date(formData.fecha_salida).toISOString().slice(0, 16) : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Llegada</label>
-							<input
-								type="datetime-local"
-								name="fecha_llegada"
-								value={formData.fecha_llegada ? new Date(formData.fecha_llegada).toISOString().slice(0, 16) : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Descripción de la Carga</label>
-							<input
-								type="text"
-								name="carga"
-								value={formData.carga || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Peso (kg)</label>
-							<input
-								type="number"
-								name="peso"
-								value={formData.peso || ""}
-								onChange={handleInputChange}
-								min="0"
-								step="0.01"
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Estado</label>
-							<select
-								name="estado"
-								value={formData.estado || "Programado"}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="Programado">Programado</option>
-								<option value="En Ruta">En Ruta</option>
-								<option value="Completado">Completado</option>
-								<option value="Cancelado">Cancelado</option>
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Tarifa (S/.)</label>
-							<input
-								type="number"
-								name="tarifa"
-								value={formData.tarifa || ""}
-								onChange={handleInputChange}
-								min="0"
-								step="0.01"
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Adelanto (S/.)</label>
-							<input
-								type="number"
-								name="adelanto"
-								value={formData.adelanto || ""}
-								onChange={handleInputChange}
-								min="0"
-								step="0.01"
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Saldo (S/.)</label>
-							<input
-								type="number"
-								name="saldo"
-								value={formData.saldo || ""}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-100"
-								readOnly
-							/>
-						</div>
-
-						<div className="flex items-center">
-							<input type="checkbox" name="detraccion" checked={formData.detraccion} onChange={handleInputChange} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
-							<label className="ml-2 block text-sm text-gray-700">Aplica Detracción (4%)</label>
-						</div>
-
-						<div className="col-span-full">
-							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
-							<textarea
-								name="observaciones"
-								value={formData.observaciones || ""}
-								onChange={handleInputChange}
-								rows={3}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
 
 			{/* Tabla de viajes */}
-			<div className="bg-white rounded-lg shadow-md overflow-hidden">
-				<div className="p-4 border-b border-gray-200">
-					<h2 className="text-lg font-semibold">Listado de Viajes</h2>
-					<p className="text-sm text-gray-600 mt-1">
-						{filteredViajes.length} {filteredViajes.length === 1 ? "viaje encontrado" : "viajes encontrados"}
-						{filteredViajes.length < viajes.length && ` (de ${viajes.length} totales)`}
-					</p>
-				</div>
-				<DataTable data={filteredViajes as unknown as DataItem[]} columns={columns as unknown as Column<DataItem>[]} title="Lista de Viajes" />
-			</div>
+			<DataTable columns={columns} data={filteredViajes} title="Registro de Viajes" isLoading={loading} />
 		</div>
 	);
 }

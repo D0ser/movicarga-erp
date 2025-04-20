@@ -1,0 +1,41 @@
+# Configuración de proyecto Supabase
+project_id = "movicarga-erp-local"
+
+[api]
+# Puerto para la API de Supabase
+port = 54321
+enabled = true
+
+[db]
+# Configuración de PostgreSQL
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+# Puerto para Supabase Studio
+port = 54323
+enabled = true
+
+[inbucket]
+# Puerto para el servicio de email
+port = 54324
+enabled = true
+
+[auth]
+enabled = true
+# URL de redirección después de la autenticación
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["https://localhost:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[analytics]
+enabled = false

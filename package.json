@@ -11,7 +11,12 @@
 		"fix-db": "ts-node supabase-test.ts",
 		"test-relations": "npx tsx src/lib/test-relations.ts",
 		"test-connection": "npx tsx src/lib/test-supabase.ts",
-		"test-database": "npx tsx src/lib/test-database.ts"
+		"test-database": "npx tsx src/lib/test-database.ts",
+		"supabase:start": "node scripts/supabase-local.js start",
+		"supabase:stop": "node scripts/supabase-local.js stop",
+		"supabase:import": "node scripts/supabase-local.js import",
+		"supabase:reset": "node scripts/supabase-local.js reset",
+		"dev:local": "npm run supabase:start && next dev"
 	},
 	"dependencies": {
 		"@supabase/supabase-js": "^2.49.4",
@@ -40,6 +45,7 @@
 		"eslint": "^8.56.0",
 		"eslint-config-next": "14.1.0",
 		"postcss": "^8.4.33",
+		"supabase": "^2.20.12",
 		"tailwindcss": "^3.4.1",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.8.3"

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { egresoSinFacturaService, EgresoSinFactura } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
+import Modal from "@/components/Modal";
 
 export default function EgresosSinFacturaPage() {
 	// Cargar datos de Supabase
@@ -352,11 +353,170 @@ export default function EgresosSinFacturaPage() {
 	return (
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
-				<h1 className="text-2xl font-bold">Gestión de Egresos sin Factura</h1>
-				<button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					{showForm ? "Cancelar" : "Nuevo Egreso sin Factura"}
+				<h1 className="text-2xl font-bold">Egresos sin Factura</h1>
+				<button
+					onClick={() => {
+						setFormData({
+							fecha: new Date().toISOString().split("T")[0],
+							beneficiario: "",
+							concepto: "",
+							monto: 0,
+							metodo_pago: "Efectivo",
+							observaciones: "",
+							moneda: "PEN",
+							numeroCheque: "",
+							numeroLiquidacion: "",
+							tipoEgreso: "",
+							comprobante: "",
+						});
+						setShowForm(true);
+					}}
+					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+					Nuevo Egreso
 				</button>
 			</div>
+
+			{/* Usar el componente Modal para el formulario */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Egreso sin Factura" : "Nuevo Egreso sin Factura"} size="lg">
+				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha</label>
+						<input
+							type="date"
+							name="fecha"
+							value={formData.fecha || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Beneficiario</label>
+						<input
+							type="text"
+							name="beneficiario"
+							value={formData.beneficiario || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Método de Pago</label>
+						<select
+							name="metodo_pago"
+							value={formData.metodo_pago || "Efectivo"}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="Efectivo">Efectivo</option>
+							<option value="Transferencia">Transferencia</option>
+							<option value="Cheque">Cheque</option>
+							<option value="Tarjeta">Tarjeta</option>
+							<option value="Otro">Otro</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Moneda</label>
+						<select
+							name="moneda"
+							value={formData.moneda || "PEN"}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="PEN">Soles (PEN)</option>
+							<option value="USD">Dólares (USD)</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Monto</label>
+						<input
+							type="number"
+							name="monto"
+							value={formData.monto || ""}
+							onChange={handleInputChange}
+							step="0.01"
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
+						<select
+							name="tipoEgreso"
+							value={formData.tipoEgreso || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione un tipo</option>
+							<option value="Viáticos">Viáticos</option>
+							<option value="Combustible">Combustible</option>
+							<option value="Mantenimiento">Mantenimiento</option>
+							<option value="Administrativo">Administrativo</option>
+							<option value="Otro">Otro</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Número de Cheque</label>
+						<input
+							type="text"
+							name="numeroCheque"
+							value={formData.numeroCheque || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Número de Liquidación</label>
+						<input
+							type="text"
+							name="numeroLiquidacion"
+							value={formData.numeroLiquidacion || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Comprobante</label>
+						<input
+							type="text"
+							name="comprobante"
+							value={formData.comprobante || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div className="md:col-span-3">
+						<label className="block text-sm font-medium text-gray-700">Concepto/Observaciones</label>
+						<textarea
+							name="concepto"
+							value={formData.concepto || ""}
+							onChange={handleInputChange}
+							rows={3}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div className="col-span-full mt-4 flex justify-end">
+						<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
+							Cancelar
+						</button>
+						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
 
 			{/* Resumen de egresos sin factura */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -410,147 +570,6 @@ export default function EgresosSinFacturaPage() {
 					</div>
 				</div>
 			</div>
-
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Egreso sin Factura" : "Nuevo Egreso sin Factura"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha</label>
-							<input
-								type="date"
-								name="fecha"
-								value={formData.fecha}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Beneficiario</label>
-							<input
-								type="text"
-								name="beneficiario"
-								value={formData.beneficiario}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								placeholder="Nombre del beneficiario"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Concepto</label>
-							<input
-								type="text"
-								name="concepto"
-								value={formData.concepto}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Moneda</label>
-							<select
-								name="moneda"
-								value={formData.moneda}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="PEN">Soles (PEN)</option>
-								<option value="USD">Dólares (USD)</option>
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Monto</label>
-							<input
-								type="number"
-								step="0.01"
-								name="monto"
-								value={formData.monto}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Método de Pago</label>
-							<select
-								name="metodo_pago"
-								value={formData.metodo_pago}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="Efectivo">Efectivo</option>
-								<option value="Transferencia">Transferencia</option>
-								<option value="Cheque">Cheque</option>
-								<option value="Tarjeta">Tarjeta</option>
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
-							<select
-								name="tipoEgreso"
-								value={formData.tipoEgreso}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-								<option value="">Seleccione un tipo</option>
-								{tiposEgresos.map((tipo) => (
-									<option key={tipo} value={tipo}>
-										{tipo}
-									</option>
-								))}
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">N° de Cheque</label>
-							<input
-								type="text"
-								name="numeroCheque"
-								value={formData.numeroCheque}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">N° de Liquidación</label>
-							<input
-								type="text"
-								name="numeroLiquidacion"
-								value={formData.numeroLiquidacion}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div className="col-span-full">
-							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
-							<textarea
-								name="observaciones"
-								value={formData.observaciones}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
 
 			<DataTable
 				columns={columns}

@@ -5,6 +5,7 @@ import DataTable, { Column, DataItem } from "@/components/DataTable";
 import { format } from "date-fns";
 import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
+import Modal from "@/components/Modal";
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -524,167 +525,148 @@ export default function EgresosPage() {
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Egresos</h1>
 				<button onClick={() => setShowForm(!showForm)} className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-dark">
-					{showForm ? "Cancelar" : "Nuevo Egreso"}
+					Nuevo Egreso
 				</button>
 			</div>
 
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4 text-primary">{formData.id ? "Editar Egreso" : "Nuevo Egreso"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha</label>
-							<input
-								type="date"
-								name="fecha"
-								value={formData.fecha}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required
-							/>
-						</div>
+			{/* Modal para formulario de egreso */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Egreso" : "Nuevo Egreso"} size="lg">
+				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha</label>
+						<input
+							type="date"
+							name="fecha"
+							value={formData.fecha}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Hora</label>
-							<input
-								type="time"
-								name="hora"
-								value={formData.hora}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Hora</label>
+						<input
+							type="time"
+							name="hora"
+							value={formData.hora}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Factura</label>
-							<input
-								type="text"
-								name="factura"
-								value={formData.factura}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Factura</label>
+						<input
+							type="text"
+							name="factura"
+							value={formData.factura}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Cuenta Egreso</label>
-							<input
-								type="text"
-								name="cuentaEgreso"
-								value={formData.cuentaEgreso}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Cuenta Egreso</label>
+						<input
+							type="text"
+							name="cuentaEgreso"
+							value={formData.cuentaEgreso}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Operación</label>
-							<select
-								name="operacion"
-								value={formData.operacion}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary">
-								<option value="">Seleccione operación</option>
-								{tiposOperaciones.map((tipo, index) => (
-									<option key={index} value={tipo}>
-										{tipo}
-									</option>
-								))}
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Operación</label>
+						<select
+							name="operacion"
+							value={formData.operacion}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary">
+							<option value="">Seleccione operación</option>
+							{tiposOperaciones.map((tipo, index) => (
+								<option key={index} value={tipo}>
+									{tipo}
+								</option>
+							))}
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Destino</label>
-							<input
-								type="text"
-								name="destino"
-								value={formData.destino}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Destino</label>
+						<input
+							type="text"
+							name="destino"
+							value={formData.destino}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Cuenta Abonada</label>
-							<input
-								type="text"
-								name="cuentaAbonada"
-								value={formData.cuentaAbonada}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Cuenta Abonada</label>
+						<input
+							type="text"
+							name="cuentaAbonada"
+							value={formData.cuentaAbonada}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
-							<select
-								name="tipoEgreso"
-								value={formData.tipoEgreso}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required>
-								<option value="">Seleccione tipo de egreso</option>
-								{tiposEgresos.map((tipo, index) => (
-									<option key={index} value={tipo}>
-										{tipo}
-									</option>
-								))}
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
+						<select
+							name="tipoEgreso"
+							value={formData.tipoEgreso}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required>
+							<option value="">Seleccione tipo</option>
+							{tiposEgresos.map((tipo, index) => (
+								<option key={index} value={tipo}>
+									{tipo}
+								</option>
+							))}
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Moneda</label>
-							<select
-								name="moneda"
-								value={formData.moneda}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required>
-								<option value="PEN">Soles (PEN)</option>
-								<option value="USD">Dólares (USD)</option>
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Moneda</label>
+						<select
+							name="moneda"
+							value={formData.moneda}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required>
+							<option value="PEN">Soles (PEN)</option>
+							<option value="USD">Dólares (USD)</option>
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Monto</label>
-							<input
-								type="number"
-								step="0.01"
-								name="monto"
-								value={formData.monto}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-								required
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Monto</label>
+						<input
+							type="number"
+							name="monto"
+							value={formData.monto}
+							onChange={handleInputChange}
+							step="0.01"
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+							required
+						/>
+					</div>
 
-						<div className="flex items-center mt-6">
-							<input
-								type="checkbox"
-								id="aprobado"
-								name="aprobado"
-								checked={formData.aprobado}
-								onChange={handleInputChange}
-								className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-							/>
-							<label htmlFor="aprobado" className="ml-2 block text-sm font-medium text-gray-700">
-								Aprobado
-							</label>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
+					<div className="md:col-span-3 flex justify-end space-x-2">
+						<button type="submit" className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
 
 			{loading ? (
 				<div className="flex justify-center items-center h-64">

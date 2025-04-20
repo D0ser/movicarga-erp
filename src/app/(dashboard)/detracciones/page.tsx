@@ -7,6 +7,7 @@ import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup, ActionButt
 import { detraccionService, Detraccion as DetraccionType } from "@/lib/supabaseServices";
 import supabase, { testSupabaseConnection as testConnection } from "@/lib/supabase";
 import { clienteService } from "@/lib/supabaseServices";
+import Modal from "@/components/Modal";
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -1131,7 +1132,7 @@ export default function DetraccionesPage() {
 							setShowImportForm(!showImportForm);
 						}}
 						className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
-						{showImportForm ? "Cancelar" : "Importar CSV"}
+						Importar CSV
 					</button>
 
 					<button onClick={() => setShowDeleteModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
@@ -1164,170 +1165,151 @@ export default function DetraccionesPage() {
 				</div>
 			)}
 
-			{/* Formulario de importación CSV */}
-			{showImportForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">Importar Detracciones desde CSV</h2>
+			{/* Modal para importación CSV */}
+			<Modal
+				isOpen={showImportForm}
+				onClose={() => {
+					setShowImportForm(false);
+					setCsvData("");
+					setImportError("");
+					setNombreArchivoCsv("");
+					if (fileInputRef.current) {
+						fileInputRef.current.value = "";
+					}
+				}}
+				title="Importar Detracciones desde CSV"
+				size="lg">
+				{importError && (
+					<div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
+						<p>{importError}</p>
+					</div>
+				)}
 
-					{importError && (
-						<div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
-							<p>{importError}</p>
-						</div>
-					)}
-
-					<div className="mb-4">
-						<p className="text-sm text-gray-600 mb-2">El archivo CSV debe incluir los siguientes campos con este orden específico (delimitados por comas):</p>
-						<div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
-							Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento Adquiriente,Nombre/Razon Social del
-							Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago de Detracciones
-						</div>
-
-						<div className="text-sm text-gray-600 mb-2">
-							<p className="mb-1">
-								<span className="font-semibold">Importante:</span>
-							</p>
-							<ul className="list-disc pl-5 space-y-1">
-								<li>El delimitador debe ser la coma (,)</li>
-								<li>La codificación del archivo debe ser "1252: Europeo occidental Windows"</li>
-								<li>La primera línea debe contener los nombres de los campos exactamente como se muestra arriba</li>
-								<li>El orden de los campos debe respetarse estrictamente</li>
-							</ul>
-						</div>
-
-						<p className="text-sm text-gray-600 mt-4 mb-2">Ejemplo:</p>
-						<div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
-							Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento Adquiriente,Nombre/Razon Social del
-							Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago de Detracciones
-							<br />
-							D,00-741-171268,15-00005467,202401,20123456789,TRANSPORTES ABC S.A.C.,6,20987654321,IMPORTADORA XYZ S.A.C.,2025-01-15,1500.00,037,01,01,F001,000123,987654321
-							<br />
-							D,00-741-171269,15-00005468,202401,20123456789,TRANSPORTES ABC S.A.C.,6,20987654321,IMPORTADORA XYZ S.A.C.,2025-01-16,2300.50,037,01,01,F001,000124,987654322
-						</div>
+				<div className="mb-4">
+					<p className="text-sm text-gray-600 mb-2">El archivo CSV debe incluir los siguientes campos con este orden específico (delimitados por comas):</p>
+					<div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
+						Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento Adquiriente,Nombre/Razon Social del
+						Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago de Detracciones
 					</div>
 
-					<div className="mb-4">
-						<label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar archivo CSV (Codificación Windows-1252)</label>
-						<input
-							type="file"
-							accept=".csv"
-							onChange={handleFileChange}
-							ref={fileInputRef}
-							className="block w-full text-sm text-gray-500
+					<div className="text-sm text-gray-600 mb-2">
+						<p className="mb-1">
+							<span className="font-semibold">Importante:</span>
+						</p>
+						<ul className="list-disc pl-5 space-y-1">
+							<li>El delimitador debe ser la coma (,)</li>
+							<li>La codificación del archivo debe ser "1252: Europeo occidental Windows"</li>
+							<li>La primera línea debe contener los nombres de los campos exactamente como se muestra arriba</li>
+							<li>El orden de los campos debe respetarse estrictamente</li>
+						</ul>
+					</div>
+
+					<p className="text-sm text-gray-600 mt-4 mb-2">Ejemplo:</p>
+					<div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
+						Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento Adquiriente,Nombre/Razon Social del
+						Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago de Detracciones
+						<br />
+						D,00-741-171268,15-00005467,202401,20123456789,TRANSPORTES ABC S.A.C.,6,20987654321,IMPORTADORA XYZ S.A.C.,2025-01-15,1500.00,037,01,01,F001,000123,987654321
+						<br />
+						D,00-741-171269,15-00005468,202401,20123456789,TRANSPORTES ABC S.A.C.,6,20987654321,IMPORTADORA XYZ S.A.C.,2025-01-16,2300.50,037,01,01,F001,000124,987654322
+					</div>
+				</div>
+
+				<div className="mb-4">
+					<label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar archivo CSV (Codificación Windows-1252)</label>
+					<input
+						type="file"
+						accept=".csv"
+						onChange={handleFileChange}
+						ref={fileInputRef}
+						className="block w-full text-sm text-gray-500
                 file:mr-4 file:py-2 file:px-4
                 file:rounded file:border-0
                 file:text-sm file:font-semibold
                 file:bg-blue-50 file:text-blue-700
                 hover:file:bg-blue-100"
-						/>
-					</div>
-
-					{csvData && (
-						<div className="mb-4">
-							<h3 className="text-md font-medium mb-2">Vista previa:</h3>
-							<div className="bg-gray-50 p-3 rounded border max-h-40 overflow-y-auto">
-								<pre className="text-xs">{csvData}</pre>
-							</div>
-						</div>
-					)}
-
-					<div className="flex justify-end">
-						<button
-							type="button"
-							onClick={() => {
-								setShowImportForm(false);
-								setCsvData("");
-								setImportError("");
-								setNombreArchivoCsv("");
-								if (fileInputRef.current) {
-									fileInputRef.current.value = "";
-								}
-							}}
-							className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-							Cancelar
-						</button>
-						<button
-							type="button"
-							onClick={processCSV}
-							disabled={!csvData}
-							className={`px-4 py-2 rounded-md ${csvData ? "bg-green-600 text-white hover:bg-green-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
-							Importar
-						</button>
-					</div>
+					/>
 				</div>
-			)}
+
+				{csvData && (
+					<div className="mb-4">
+						<h3 className="text-md font-medium mb-2">Vista previa:</h3>
+						<div className="bg-gray-50 p-3 rounded border max-h-40 overflow-y-auto">
+							<pre className="text-xs">{csvData}</pre>
+						</div>
+					</div>
+				)}
+
+				<div className="flex justify-end">
+					<button
+						type="button"
+						onClick={processCSV}
+						disabled={!csvData}
+						className={`px-4 py-2 rounded-md ${csvData ? "bg-green-600 text-white hover:bg-green-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
+						Importar
+					</button>
+				</div>
+			</Modal>
 
 			{/* Modal para eliminar por CSV */}
-			{showDeleteModal && (
-				<div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-					<div className="bg-white p-6 rounded-lg shadow-md w-full max-w-md">
-						<h3 className="text-xl font-bold mb-4">Eliminar Detracciones por CSV</h3>
+			<Modal
+				isOpen={showDeleteModal}
+				onClose={() => {
+					setShowDeleteModal(false);
+					setSelectedCsvOrigen("");
+				}}
+				title="Eliminar Detracciones por CSV"
+				size="md">
+				{csvOrigenes.length > 0 ? (
+					<>
+						<p className="text-sm text-gray-600 mb-4">Seleccione el archivo CSV del que desea eliminar todas las detracciones:</p>
 
-						{csvOrigenes.length > 0 ? (
-							<>
-								<p className="text-sm text-gray-600 mb-4">Seleccione el archivo CSV del que desea eliminar todas las detracciones:</p>
+						<div className="mb-4">
+							<div className="flex space-x-2">
+								<select
+									value={selectedCsvOrigen}
+									onChange={(e) => setSelectedCsvOrigen(e.target.value)}
+									className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+									<option value="">Seleccione un archivo</option>
+									{csvOrigenes.map((origen) => (
+										<option key={origen} value={origen}>
+											{origen}
+										</option>
+									))}
+								</select>
 
-								<div className="mb-4">
-									<div className="flex space-x-2">
-										<select
-											value={selectedCsvOrigen}
-											onChange={(e) => setSelectedCsvOrigen(e.target.value)}
-											className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-											<option value="">Seleccione un archivo</option>
-											{csvOrigenes.map((origen) => (
-												<option key={origen} value={origen}>
-													{origen}
-												</option>
-											))}
-										</select>
+								<button
+									type="button"
+									onClick={actualizarOrigenesCsvDesdeDB}
+									className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
+									title="Actualizar lista de orígenes CSV desde la base de datos">
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+										<path
+											fillRule="evenodd"
+											d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+											clipRule="evenodd"
+										/>
+									</svg>
+								</button>
+							</div>
+						</div>
 
-										<button
-											type="button"
-											onClick={actualizarOrigenesCsvDesdeDB}
-											className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
-											title="Actualizar lista de orígenes CSV desde la base de datos">
-											<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path
-													fillRule="evenodd"
-													d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-													clipRule="evenodd"
-												/>
-											</svg>
-										</button>
-									</div>
-								</div>
-
-								<div className="flex justify-end">
-									<button
-										type="button"
-										onClick={() => {
-											setShowDeleteModal(false);
-											setSelectedCsvOrigen("");
-										}}
-										className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-										Cancelar
-									</button>
-									<button
-										type="button"
-										onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
-										disabled={!selectedCsvOrigen}
-										className={`px-4 py-2 rounded-md ${selectedCsvOrigen ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
-										Eliminar
-									</button>
-								</div>
-							</>
-						) : (
-							<>
-								<p className="text-sm text-gray-600 mb-4">No hay archivos CSV registrados en el sistema.</p>
-								<div className="flex justify-end">
-									<button type="button" onClick={() => setShowDeleteModal(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400">
-										Cerrar
-									</button>
-								</div>
-							</>
-						)}
-					</div>
-				</div>
-			)}
+						<div className="flex justify-end">
+							<button
+								type="button"
+								onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
+								disabled={!selectedCsvOrigen}
+								className={`px-4 py-2 rounded-md ${selectedCsvOrigen ? "bg-red-600 text-white hover:bg-red-700" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
+								Eliminar
+							</button>
+						</div>
+					</>
+				) : (
+					<>
+						<p className="text-sm text-gray-600 mb-4">No hay archivos CSV registrados en el sistema.</p>
+					</>
+				)}
+			</Modal>
 
 			<DataTable
 				columns={columns}

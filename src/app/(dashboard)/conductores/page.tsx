@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { conductorService, Conductor } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import { EditButton, DeleteButton, ActivateButton, DeactivateButton, ActionButtonGroup } from "@/components/ActionIcons";
+import Modal from "@/components/Modal";
 
 // Componente para la página de conductores
 export default function ConductoresPage() {
@@ -303,10 +304,173 @@ export default function ConductoresPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Conductores</h1>
-				<button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					{showForm ? "Cancelar" : "Nuevo Conductor"}
+				<button
+					onClick={() => {
+						setFormData({
+							nombres: "",
+							apellidos: "",
+							dni: "",
+							licencia: "",
+							categoria_licencia: "",
+							fecha_vencimiento_licencia: new Date().toISOString().split("T")[0],
+							fecha_nacimiento: "",
+							fecha_ingreso: new Date().toISOString().split("T")[0],
+							estado: true,
+						});
+						setShowForm(true);
+					}}
+					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+					Nuevo Conductor
 				</button>
 			</div>
+
+			{/* Usar el componente Modal para el formulario */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Conductor" : "Nuevo Conductor"} size="lg">
+				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Nombres</label>
+						<input
+							type="text"
+							name="nombres"
+							value={formData.nombres || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Apellidos</label>
+						<input
+							type="text"
+							name="apellidos"
+							value={formData.apellidos || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">DNI</label>
+						<input
+							type="text"
+							name="dni"
+							value={formData.dni || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+							pattern="[0-9]{8}"
+							title="El DNI debe contener 8 dígitos"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Licencia</label>
+						<input
+							type="text"
+							name="licencia"
+							value={formData.licencia || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Categoría de Licencia</label>
+						<select
+							name="categoria_licencia"
+							value={formData.categoria_licencia || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione categoría</option>
+							<option value="A-I">A-I</option>
+							<option value="A-IIa">A-IIa</option>
+							<option value="A-IIb">A-IIb</option>
+							<option value="A-IIIa">A-IIIa</option>
+							<option value="A-IIIb">A-IIIb</option>
+							<option value="A-IIIc">A-IIIc</option>
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha de Vencimiento de Licencia</label>
+						<input
+							type="date"
+							name="fecha_vencimiento_licencia"
+							value={formData.fecha_vencimiento_licencia || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha de Nacimiento</label>
+						<input
+							type="date"
+							name="fecha_nacimiento"
+							value={formData.fecha_nacimiento || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha de Ingreso</label>
+						<input
+							type="date"
+							name="fecha_ingreso"
+							value={formData.fecha_ingreso || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Estado</label>
+						<div className="mt-2">
+							<div className="flex items-center">
+								<input
+									id="estado-activo"
+									name="estado"
+									type="radio"
+									checked={formData.estado === true}
+									onChange={() => setFormData({ ...formData, estado: true })}
+									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+								/>
+								<label htmlFor="estado-activo" className="ml-2 block text-sm text-gray-700">
+									Activo
+								</label>
+							</div>
+							<div className="flex items-center mt-2">
+								<input
+									id="estado-inactivo"
+									name="estado"
+									type="radio"
+									checked={formData.estado === false}
+									onChange={() => setFormData({ ...formData, estado: false })}
+									className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
+								/>
+								<label htmlFor="estado-inactivo" className="ml-2 block text-sm text-gray-700">
+									Inactivo
+								</label>
+							</div>
+						</div>
+					</div>
+
+					<div className="col-span-full mt-4 flex justify-end">
+						<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
+							Cancelar
+						</button>
+						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
 
 			{/* Estadísticas rápidas */}
 			<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -358,144 +522,12 @@ export default function ConductoresPage() {
 				</div>
 			</div>
 
-			{/* Formulario de conductor */}
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Conductor" : "Nuevo Conductor"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Nombres</label>
-							<input
-								type="text"
-								name="nombres"
-								value={formData.nombres || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Apellidos</label>
-							<input
-								type="text"
-								name="apellidos"
-								value={formData.apellidos || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">DNI</label>
-							<input
-								type="text"
-								name="dni"
-								value={formData.dni || ""}
-								onChange={handleInputChange}
-								maxLength={8}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Licencia</label>
-							<input
-								type="text"
-								name="licencia"
-								value={formData.licencia || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Categoría de Licencia</label>
-							<select
-								name="categoria_licencia"
-								value={formData.categoria_licencia || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione una categoría</option>
-								<option value="A-I">A-I</option>
-								<option value="A-II">A-II</option>
-								<option value="A-III">A-III</option>
-								<option value="A-IIIA">A-IIIA</option>
-								<option value="A-IIIB">A-IIIB</option>
-								<option value="A-IIIC">A-IIIC</option>
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha Vencimiento Licencia</label>
-							<input
-								type="date"
-								name="fecha_vencimiento_licencia"
-								value={formData.fecha_vencimiento_licencia ? formData.fecha_vencimiento_licencia.toString().split("T")[0] : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Nacimiento</label>
-							<input
-								type="date"
-								name="fecha_nacimiento"
-								value={formData.fecha_nacimiento ? formData.fecha_nacimiento.toString().split("T")[0] : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha de Ingreso</label>
-							<input
-								type="date"
-								name="fecha_ingreso"
-								value={formData.fecha_ingreso ? formData.fecha_ingreso.toString().split("T")[0] : ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Estado</label>
-							<select
-								name="estado"
-								value={formData.estado?.toString() || "true"}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="true">Activo</option>
-								<option value="false">Inactivo</option>
-							</select>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
-
 			{/* Tabla de conductores */}
 			<DataTable
 				columns={columns}
 				data={conductores}
 				title="Registro de Conductores"
-				defaultSort="apellidos"
+				defaultSort="nombres"
 				filters={{
 					searchField: "apellidos",
 				}}

@@ -7,6 +7,7 @@ import { clienteService, Cliente } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import supabase from "@/lib/supabase";
 import { EditButton, DeleteButton, ActivateButton, DeactivateButton, ActionButtonGroup } from "@/components/ActionIcons";
+import Modal from "@/components/Modal";
 
 // Interfaz para tipo de cliente
 interface TipoCliente {
@@ -309,130 +310,145 @@ export default function ClientesPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Clientes</h1>
-				<button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					{showForm ? "Cancelar" : "Nuevo Cliente"}
+				<button
+					onClick={() => {
+						setFormData({
+							razon_social: "",
+							ruc: "",
+							tipo_cliente_id: "",
+							estado: true,
+						});
+						setShowForm(true);
+					}}
+					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+					Nuevo Cliente
 				</button>
 			</div>
 
-			{/* Estadísticas rápidas */}
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Resumen de Clientes</h3>
-					<div className="space-y-1">
-						<div className="flex justify-between">
-							<span>Total de clientes:</span>
-							<span className="font-medium">{clientes.length}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Clientes activos:</span>
-							<span className="font-medium text-green-600">{clientesActivos}</span>
-						</div>
-						<div className="flex justify-between">
-							<span>Clientes inactivos:</span>
-							<span className="font-medium text-red-600">{clientesInactivos}</span>
-						</div>
+			{/* Usar el componente Modal para el formulario */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Cliente" : "Nuevo Cliente"} size="md">
+				<form onSubmit={handleSubmit} className="space-y-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Razón Social</label>
+						<input
+							type="text"
+							name="razon_social"
+							value={formData.razon_social || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
 					</div>
-				</div>
 
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h3 className="font-bold text-lg mb-2">Distribución</h3>
-					<div className="space-y-1">
-						{tiposCliente.map((tipo) => (
-							<div key={tipo.id} className="flex justify-between">
-								<span>{tipo.nombre}:</span>
-								<span className="font-medium">{clientes.filter((c) => c.tipo_cliente_id === tipo.id).length}</span>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">RUC</label>
+						<input
+							type="text"
+							name="ruc"
+							value={formData.ruc || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							pattern="[0-9]{11}"
+							title="El RUC debe contener 11 dígitos"
+							required
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Tipo de Cliente</label>
+						<select
+							name="tipo_cliente_id"
+							value={formData.tipo_cliente_id || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione tipo</option>
+							{tiposCliente.map((tipo) => (
+								<option key={tipo.id} value={tipo.id}>
+									{tipo.nombre} {tipo.descripcion ? `- ${tipo.descripcion}` : ""}
+								</option>
+							))}
+						</select>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Dirección</label>
+						<input
+							type="text"
+							name="direccion"
+							value={formData.direccion || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Teléfono</label>
+						<input
+							type="text"
+							name="telefono"
+							value={formData.telefono || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Email</label>
+						<input
+							type="email"
+							name="email"
+							value={formData.email || ""}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
+
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Estado</label>
+						<div className="mt-2">
+							<div className="flex items-center">
+								<input
+									id="estado-activo"
+									name="estado"
+									type="radio"
+									checked={formData.estado === true}
+									onChange={() => setFormData({ ...formData, estado: true })}
+									className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+								/>
+								<label htmlFor="estado-activo" className="ml-2 block text-sm text-gray-700">
+									Activo
+								</label>
 							</div>
-						))}
-						<div className="flex justify-between">
-							<span>Sin asignar:</span>
-							<span className="font-medium">{clientes.filter((c) => !c.tipo_cliente_id).length}</span>
+							<div className="flex items-center mt-2">
+								<input
+									id="estado-inactivo"
+									name="estado"
+									type="radio"
+									checked={formData.estado === false}
+									onChange={() => setFormData({ ...formData, estado: false })}
+									className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300"
+								/>
+								<label htmlFor="estado-inactivo" className="ml-2 block text-sm text-gray-700">
+									Inactivo
+								</label>
+							</div>
 						</div>
 					</div>
-				</div>
-			</div>
 
-			{/* Formulario de cliente */}
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Cliente" : "Nuevo Cliente"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Razón Social / Nombre</label>
-							<input
-								type="text"
-								name="razon_social"
-								value={formData.razon_social || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">RUC / DNI</label>
-							<input
-								type="text"
-								name="ruc"
-								value={formData.ruc || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Tipo de Cliente</label>
-							<select
-								name="tipo_cliente_id"
-								value={formData.tipo_cliente_id || ""}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un tipo</option>
-								{tiposCliente.map((tipo) => (
-									<option key={tipo.id} value={tipo.id}>
-										{tipo.nombre}
-									</option>
-								))}
-							</select>
-						</div>
-
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Estado</label>
-							<select
-								name="estado"
-								value={formData.estado?.toString() || "true"}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="true">Activo</option>
-								<option value="false">Inactivo</option>
-							</select>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
+					<div className="mt-4 flex justify-end">
+						<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
+							Cancelar
+						</button>
+						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
 
 			{/* Tabla de clientes */}
-			<DataTable
-				columns={columns}
-				data={clientes}
-				title="Registro de Clientes"
-				defaultSort="razon_social"
-				filters={{
-					searchField: "razon_social",
-				}}
-				isLoading={loading}
-			/>
+			<DataTable columns={columns} data={clientes} title="Registro de Clientes" defaultSort="razon_social" isLoading={loading} />
 		</div>
 	);
 }

@@ -8,6 +8,7 @@ import { serieService, Serie, clienteService, Cliente, conductorService, Conduct
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
 import showToast from "@/utils/toast";
+import Modal from "@/components/Modal";
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -557,8 +558,8 @@ export default function IngresosPage() {
 		},
 	];
 
-	// Funciones para manejo de formulario
-	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+	// Manejar cambios en los inputs del formulario
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
 		const { name, value } = e.target;
 
 		// Actualizar el valor del campo
@@ -760,277 +761,262 @@ export default function IngresosPage() {
 						setShowForm(!showForm);
 					}}
 					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					{showForm ? "Cancelar" : "Nuevo Ingreso"}
+					Nuevo Ingreso
 				</button>
 			</div>
 
-			{showForm && (
-				<div className="bg-white p-6 rounded-lg shadow-md">
-					<h2 className="text-xl font-bold mb-4">{formData.id ? "Editar Ingreso" : "Nuevo Ingreso"}</h2>
-					<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha</label>
-							<input
-								type="date"
-								name="fecha"
-								value={formData.fecha}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
+			{/* Modal para formulario de ingreso */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Ingreso" : "Nuevo Ingreso"} size="lg">
+				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Fecha</label>
+						<input
+							type="date"
+							name="fecha"
+							value={formData.fecha}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Serie</label>
-							<select
-								name="serie"
-								value={formData.serie}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione una serie</option>
-								{seriesDisponibles.map((serie) => (
-									<option key={serie.id} value={serie.serie}>
-										{serie.serie}
-									</option>
-								))}
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Serie</label>
+						<select
+							name="serie"
+							value={formData.serie}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione una serie</option>
+							{seriesDisponibles.map((serie) => (
+								<option key={serie.id} value={serie.serie}>
+									{serie.serie}
+								</option>
+							))}
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">N° Factura</label>
-							<input
-								type="text"
-								name="numeroFactura"
-								value={formData.numeroFactura}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">N° Factura</label>
+						<input
+							type="text"
+							name="numeroFactura"
+							value={formData.numeroFactura}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">1era Cuota</label>
-							<input
-								type="number"
-								step="0.01"
-								name="primeraCuota"
-								value={formData.primeraCuota}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">1era Cuota</label>
+						<input
+							type="number"
+							step="0.01"
+							name="primeraCuota"
+							value={formData.primeraCuota}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">2da Cuota</label>
-							<input
-								type="number"
-								step="0.01"
-								name="segundaCuota"
-								value={formData.segundaCuota}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">2da Cuota</label>
+						<input
+							type="number"
+							step="0.01"
+							name="segundaCuota"
+							value={formData.segundaCuota}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Monto de Flete</label>
-							<input type="number" step="0.01" name="montoFlete" value={formData.montoFlete} className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" readOnly />
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Monto de Flete</label>
+						<input type="number" step="0.01" name="montoFlete" value={formData.montoFlete} className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" readOnly />
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Detracción</label>
-							<input
-								type="number"
-								step="0.01"
-								name="detraccion"
-								value={formData.detraccion}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Detracción</label>
+						<input
+							type="number"
+							step="0.01"
+							name="detraccion"
+							value={formData.detraccion}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Total a Deber</label>
-							<input
-								type="number"
-								step="0.01"
-								name="totalDeber"
-								value={formData.totalDeber}
-								className={`mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3 ${
-									formData.totalDeber && formData.totalDeber < 0 ? "text-red-600" : formData.totalDeber && formData.totalDeber > 0 ? "text-green-600" : ""
-								}`}
-								readOnly
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Total a Deber</label>
+						<input
+							type="number"
+							step="0.01"
+							name="totalDeber"
+							value={formData.totalDeber}
+							className={`mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3 ${
+								formData.totalDeber && formData.totalDeber < 0 ? "text-red-600" : formData.totalDeber && formData.totalDeber > 0 ? "text-green-600" : ""
+							}`}
+							readOnly
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Total Monto</label>
-							<input
-								type="number"
-								step="0.01"
-								name="totalMonto"
-								value={formData.totalMonto}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Total Monto</label>
+						<input
+							type="number"
+							step="0.01"
+							name="totalMonto"
+							value={formData.totalMonto}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Empresa</label>
-							<select
-								name="empresa"
-								value={formData.empresa}
-								onChange={(e) => {
-									const clienteSeleccionado = clientes.find((c) => c.razon_social === e.target.value);
-									setFormData((prev) => ({
-										...prev,
-										empresa: e.target.value,
-										ruc: clienteSeleccionado?.ruc || "",
-										diasCredito: clienteSeleccionado?.dias_credito || 0,
-									}));
-								}}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione una empresa</option>
-								{clientes.map((cliente) => (
-									<option key={cliente.id} value={cliente.razon_social}>
-										{cliente.razon_social}
-									</option>
-								))}
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Empresa</label>
+						<select
+							name="empresa"
+							value={formData.empresa}
+							onChange={(e) => {
+								const clienteSeleccionado = clientes.find((c) => c.razon_social === e.target.value);
+								setFormData((prev) => ({
+									...prev,
+									empresa: e.target.value,
+									ruc: clienteSeleccionado?.ruc || "",
+									diasCredito: clienteSeleccionado?.dias_credito || 0,
+								}));
+							}}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione una empresa</option>
+							{clientes.map((cliente) => (
+								<option key={cliente.id} value={cliente.razon_social}>
+									{cliente.razon_social}
+								</option>
+							))}
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">RUC</label>
-							<input
-								type="text"
-								name="ruc"
-								value={formData.ruc}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-gray-50"
-								readOnly
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">RUC</label>
+						<input type="text" name="ruc" value={formData.ruc} className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" readOnly />
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Conductor</label>
-							<select
-								name="conductor"
-								value={formData.conductor}
-								onChange={(e) => {
-									const conductorSeleccionado = conductores.find((c) => `${c.nombres} ${c.apellidos}` === e.target.value);
-									setFormData((prev) => ({
-										...prev,
-										conductor: e.target.value,
-										placaTracto: conductorSeleccionado?.vehiculo?.placa || "",
-									}));
-								}}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-								required>
-								<option value="">Seleccione un conductor</option>
-								{conductores.map((conductor) => (
-									<option key={conductor.id} value={`${conductor.nombres} ${conductor.apellidos}`}>
-										{conductor.nombres} {conductor.apellidos}
-									</option>
-								))}
-							</select>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Conductor</label>
+						<select
+							name="conductor"
+							value={formData.conductor}
+							onChange={(e) => {
+								const conductorSeleccionado = conductores.find((c) => `${c.nombres} ${c.apellidos}` === e.target.value);
+								setFormData((prev) => ({
+									...prev,
+									conductor: e.target.value,
+									placaTracto: conductorSeleccionado?.vehiculo?.placa || "",
+								}));
+							}}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="">Seleccione un conductor</option>
+							{conductores.map((conductor) => (
+								<option key={conductor.id} value={`${conductor.nombres} ${conductor.apellidos}`}>
+									{conductor.nombres} {conductor.apellidos}
+								</option>
+							))}
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Placa Tracto</label>
-							<input
-								type="text"
-								name="placaTracto"
-								value={formData.placaTracto}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Placa Tracto</label>
+						<input
+							type="text"
+							name="placaTracto"
+							value={formData.placaTracto}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Placa Carreta</label>
-							<input
-								type="text"
-								name="placaCarreta"
-								value={formData.placaCarreta}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Placa Carreta</label>
+						<input
+							type="text"
+							name="placaCarreta"
+							value={formData.placaCarreta}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Observación</label>
-							<input
-								type="text"
-								name="observacion"
-								value={formData.observacion}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Días Crédito</label>
+						<input
+							type="number"
+							name="diasCredito"
+							value={formData.diasCredito}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Guía Remitente</label>
-							<input
-								type="text"
-								name="documentoGuiaRemit"
-								value={formData.documentoGuiaRemit}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Estado</label>
+						<select
+							name="estado"
+							value={formData.estado}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							required>
+							<option value="Pendiente">Pendiente</option>
+							<option value="Pagado">Pagado</option>
+							<option value="Anulado">Anulado</option>
+						</select>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Guía Transportista</label>
-							<input
-								type="text"
-								name="guiaTransp"
-								value={formData.guiaTransp}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Guía Remitente</label>
+						<input
+							type="text"
+							name="documentoGuiaRemit"
+							value={formData.documentoGuiaRemit}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Días Crédito</label>
-							<input
-								type="number"
-								name="diasCredito"
-								value={formData.diasCredito}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							/>
-						</div>
+					<div>
+						<label className="block text-sm font-medium text-gray-700">Guía Transportista</label>
+						<input
+							type="text"
+							name="guiaTransp"
+							value={formData.guiaTransp}
+							onChange={handleInputChange}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Fecha Vencimiento</label>
-							<input type="date" name="fechaVencimiento" value={formData.fechaVencimiento} className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" readOnly />
-						</div>
+					<div className="md:col-span-3">
+						<label className="block text-sm font-medium text-gray-700">Observación</label>
+						<textarea
+							name="observacion"
+							value={formData.observacion}
+							onChange={handleInputChange}
+							rows={2}
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						/>
+					</div>
 
-						<div>
-							<label className="block text-sm font-medium text-gray-700">Estado</label>
-							<select
-								name="estado"
-								value={formData.estado}
-								onChange={handleInputChange}
-								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
-								<option value="Pendiente">Pendiente</option>
-								<option value="Pagado">Pagado</option>
-								<option value="Anulado">Anulado</option>
-							</select>
-						</div>
-
-						<div className="col-span-full mt-4 flex justify-end">
-							<button type="button" onClick={() => setShowForm(false)} className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400">
-								Cancelar
-							</button>
-							<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-								{formData.id ? "Actualizar" : "Guardar"}
-							</button>
-						</div>
-					</form>
-				</div>
-			)}
+					<div className="md:col-span-3 flex justify-end space-x-2">
+						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							{formData.id ? "Actualizar" : "Guardar"}
+						</button>
+					</div>
+				</form>
+			</Modal>
 
 			<DataTable
 				columns={columns}

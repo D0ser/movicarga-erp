@@ -34,7 +34,7 @@ function DashboardCard({ title, value, icon, linkTo }: { title: string; value: s
 	);
 }
 
-export default async function DashboardPage() {
+export default function DashboardPage() {
 	const [stats, setStats] = useState<EstadisticasDashboard>({
 		clientesTotal: 0,
 		vehiculosTotal: 0,

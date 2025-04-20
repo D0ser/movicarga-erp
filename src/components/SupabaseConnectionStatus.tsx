@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { testSupabaseConnection } from "@/lib/supabase";
+import supabase from "@/lib/supabase";
 
 export default function SupabaseConnectionStatus() {
 	const [status, setStatus] = useState<{
@@ -15,24 +15,39 @@ export default function SupabaseConnectionStatus() {
 	});
 
 	useEffect(() => {
-		async function checkConnection() {
+		// Función para probar la conexión
+		const testConnection = () => {
 			try {
-				const result = await testSupabaseConnection();
-				setStatus({
-					success: result.success,
-					message: result.message,
-					checked: true,
-				});
-			} catch (error) {
+				// No usamos async/await, usamos promesas con then
+				supabase
+					.from("detracciones")
+					.select("id")
+					.limit(1)
+					.then(({ data, error }) => {
+						if (error) {
+							setStatus({
+								success: false,
+								message: `Error de conexión: ${error.message || "Error desconocido"}`,
+								checked: true,
+							});
+						} else {
+							setStatus({
+								success: true,
+								message: "Conexión exitosa a Supabase",
+								checked: true,
+							});
+						}
+					});
+			} catch (err) {
 				setStatus({
 					success: false,
-					message: error instanceof Error ? error.message : "Error desconocido",
+					message: err instanceof Error ? err.message : "Error desconocido",
 					checked: true,
 				});
 			}
-		}
+		};
 
-		checkConnection();
+		testConnection();
 	}, []);
 
 	if (!status.checked) {
