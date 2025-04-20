@@ -7,6 +7,7 @@ import type { Column } from "@/components/DataTable";
 import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType } from "@/lib/supabaseServices";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
+import showToast from "@/utils/toast";
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -115,9 +116,6 @@ export default function IngresosPage() {
 	const [ingresos, setIngresos] = useState<Ingreso[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [showForm, setShowForm] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [success, setSuccess] = useState<string | null>(null);
-
 	const [formData, setFormData] = useState<Partial<Ingreso>>({
 		fecha: new Date().toISOString().split("T")[0],
 		serie: "",
@@ -174,7 +172,7 @@ export default function IngresosPage() {
 				setIngresosFiltrados(ingresosFromSupabase);
 			} catch (error) {
 				console.error("Error al cargar datos:", error);
-				setError("Error al cargar los datos. Por favor, intente de nuevo.");
+				showToast.error("Error al cargar los datos. Por favor, intente de nuevo.");
 			} finally {
 				setLoading(false);
 			}
@@ -234,13 +232,11 @@ export default function IngresosPage() {
 	}, [ingresos]);
 
 	const handleError = (message: string) => {
-		setError(message);
-		setTimeout(() => setError(null), 5000);
+		showToast.error(message);
 	};
 
 	const handleSuccess = (message: string) => {
-		setSuccess(message);
-		setTimeout(() => setSuccess(null), 5000);
+		showToast.success(message);
 	};
 
 	// Columnas para la tabla de ingresos
@@ -767,18 +763,6 @@ export default function IngresosPage() {
 					{showForm ? "Cancelar" : "Nuevo Ingreso"}
 				</button>
 			</div>
-
-			{error && (
-				<div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
-					<p>{error}</p>
-				</div>
-			)}
-
-			{success && (
-				<div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4">
-					<p>{success}</p>
-				</div>
-			)}
 
 			{showForm && (
 				<div className="bg-white p-6 rounded-lg shadow-md">

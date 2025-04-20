@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Flujo de Desarrollo
+
+## Configuración del Entorno
+- Usa [fix-env.js](mdc:fix-env.js) para configurar variables de entorno
+- Ejecuta `npm install` para instalar dependencias (ver [package.json](mdc:package.json))
+
+## Scripts y Comandos
+Los principales scripts disponibles en [package.json](mdc:package.json) son:
+- `npm run dev` - Inicia el servidor de desarrollo
+- `npm run build` - Construye la aplicación para producción
+- `npm run start` - Inicia la aplicación en modo producción
+
+## Pruebas de Base de Datos
+- [test-supabase.js](mdc:test-supabase.js) - Pruebas de conexión con Supabase
+- [test-insert-detraccion.js](mdc:test-insert-detraccion.js) - Pruebas de inserción
+
+## Gestión de Código
+- Sigue las convenciones de TypeScript definidas en [tsconfig.json](mdc:tsconfig.json)
+- Utiliza las reglas de ESLint en [eslint.config.mjs](mdc:eslint.config.mjs)
+- Respeta la configuración de Tailwind en [tailwind.config.js](mdc:tailwind.config.js)
+
+## Actualización de Base de Datos
+Cuando modifiques esquemas de base de datos, asegúrate de actualizar [create-all-tables.sql](mdc:create-all-tables.sql) y ejecutar la verificación con [verify-db-update.js](mdc:verify-db-update.js).
+

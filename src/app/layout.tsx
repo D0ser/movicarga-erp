@@ -1,17 +1,13 @@
+import "./globals.css";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import "./globals.css";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import { Toaster } from "react-hot-toast";
 
-const inter = Inter({
-	subsets: ["latin"],
-	variable: "--font-sans",
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-	title: "Movicarga ERP",
-	description: "Sistema de gestión para empresas de transporte de carga",
+	title: "MoviCarga ERP",
+	description: "Sistema de gestión para MoviCarga",
 };
 
 export default function RootLayout({
@@ -21,9 +17,9 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="es">
-			<body className={`${inter.variable} antialiased`}>
+			<body className={inter.className}>
 				{children}
-				<ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover theme="light" />
+				<Toaster position="top-right" />
 			</body>
 		</html>
 	);

@@ -32,6 +32,7 @@ export default function EgresosSinFacturaPage() {
 	const [showForm, setShowForm] = useState(false);
 	const [formData, setFormData] = useState<Partial<EgresoSinFactura>>({
 		fecha: new Date().toISOString().split("T")[0],
+		beneficiario: "",
 		concepto: "",
 		monto: 0,
 		metodo_pago: "Efectivo",
@@ -40,6 +41,7 @@ export default function EgresosSinFacturaPage() {
 		numeroCheque: "",
 		numeroLiquidacion: "",
 		tipoEgreso: "",
+		comprobante: "",
 	});
 
 	// Columnas para la tabla de egresos sin factura
@@ -233,14 +235,17 @@ export default function EgresosSinFacturaPage() {
 				// Actualizar egreso existente
 				const egresoActualizado = await egresoSinFacturaService.updateEgresoSinFactura(formData.id.toString(), {
 					fecha: formData.fecha || new Date().toISOString().split("T")[0],
+					beneficiario: formData.beneficiario || "",
 					concepto: formData.concepto || "",
 					monto: formData.monto || 0,
 					metodo_pago: formData.metodo_pago || "Efectivo",
 					observaciones: formData.observaciones || "",
 					moneda: formData.moneda || "PEN",
-					numeroCheque: formData.numeroCheque,
-					numeroLiquidacion: formData.numeroLiquidacion,
-					tipoEgreso: formData.tipoEgreso,
+					numeroCheque: formData.numeroCheque || "",
+					numeroLiquidacion: formData.numeroLiquidacion || "",
+					tipoEgreso: formData.tipoEgreso || "",
+					categoria: formData.tipoEgreso || "Operativo",
+					comprobante: formData.comprobante || "",
 				});
 
 				setEgresosSinFactura(egresosSinFactura.map((egreso) => (egreso.id === egresoActualizado.id ? egresoActualizado : egreso)));
@@ -249,14 +254,17 @@ export default function EgresosSinFacturaPage() {
 				// Crear nuevo egreso
 				const nuevoEgreso = await egresoSinFacturaService.createEgresoSinFactura({
 					fecha: formData.fecha || new Date().toISOString().split("T")[0],
+					beneficiario: formData.beneficiario || "",
 					concepto: formData.concepto || "",
 					monto: formData.monto || 0,
 					metodo_pago: formData.metodo_pago || "Efectivo",
 					observaciones: formData.observaciones || "",
 					moneda: formData.moneda || "PEN",
-					numeroCheque: formData.numeroCheque,
-					numeroLiquidacion: formData.numeroLiquidacion,
-					tipoEgreso: formData.tipoEgreso,
+					numeroCheque: formData.numeroCheque || "",
+					numeroLiquidacion: formData.numeroLiquidacion || "",
+					tipoEgreso: formData.tipoEgreso || "",
+					categoria: formData.tipoEgreso || "Operativo",
+					comprobante: formData.comprobante || "",
 				});
 
 				setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);
@@ -266,6 +274,7 @@ export default function EgresosSinFacturaPage() {
 			// Limpiar formulario
 			setFormData({
 				fecha: new Date().toISOString().split("T")[0],
+				beneficiario: "",
 				concepto: "",
 				monto: 0,
 				metodo_pago: "Efectivo",
@@ -274,6 +283,7 @@ export default function EgresosSinFacturaPage() {
 				numeroCheque: "",
 				numeroLiquidacion: "",
 				tipoEgreso: "",
+				comprobante: "",
 			});
 
 			setShowForm(false);
@@ -414,6 +424,18 @@ export default function EgresosSinFacturaPage() {
 								onChange={handleInputChange}
 								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
 								required
+							/>
+						</div>
+
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Beneficiario</label>
+							<input
+								type="text"
+								name="beneficiario"
+								value={formData.beneficiario}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								placeholder="Nombre del beneficiario"
 							/>
 						</div>
 

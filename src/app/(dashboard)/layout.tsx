@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import SupabaseConnectionStatus from "@/components/SupabaseConnectionStatus";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // Componente de menú lateral deslizable
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -111,7 +113,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 						/>
 
 						<NavItem
-							href="/dashboard/ingresos"
+							href="/ingresos"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -124,11 +126,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Ingresos"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/ingresos")}
+							active={pathname.includes("/ingresos")}
 						/>
 
 						<NavItem
-							href="/dashboard/egresos"
+							href="/egresos"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -136,11 +138,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Egresos"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/egresos")}
+							active={pathname.includes("/egresos") && !pathname.includes("/egresos-sin-factura")}
 						/>
 
 						<NavItem
-							href="/dashboard/egresos-sin-factura"
+							href="/egresos-sin-factura"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
@@ -148,11 +150,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Egresos Sin Factura"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/egresos-sin-factura")}
+							active={pathname.includes("/egresos-sin-factura")}
 						/>
 
 						<NavItem
-							href="/dashboard/detracciones"
+							href="/detracciones"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -165,11 +167,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Detracciones"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/detracciones")}
+							active={pathname.includes("/detracciones")}
 						/>
 
 						<NavItem
-							href="/dashboard/vehiculos"
+							href="/vehiculos"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
@@ -177,11 +179,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Vehículos"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/vehiculos")}
+							active={pathname.includes("/vehiculos")}
 						/>
 
 						<NavItem
-							href="/dashboard/clientes"
+							href="/clientes"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -194,11 +196,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Clientes"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/clientes")}
+							active={pathname.includes("/clientes")}
 						/>
 
 						<NavItem
-							href="/dashboard/viajes"
+							href="/viajes"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -211,11 +213,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Viajes"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/viajes")}
+							active={pathname.includes("/viajes")}
 						/>
 
 						<NavItem
-							href="/dashboard/conductores"
+							href="/conductores"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -223,11 +225,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Conductores"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/conductores")}
+							active={pathname.includes("/conductores")}
 						/>
 
 						<NavItem
-							href="/dashboard/reportes-financieros"
+							href="/reportes-financieros"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -240,11 +242,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Reportes Financieros"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/reportes-financieros")}
+							active={pathname.includes("/reportes-financieros")}
 						/>
 
 						<NavItem
-							href="/dashboard/otras-listas"
+							href="/otras-listas"
 							icon={
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 									<path
@@ -257,25 +259,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							}
 							label="Otras Listas"
 							isOpen={isSidebarOpen}
-							active={pathname.includes("/dashboard/otras-listas")}
+							active={pathname.includes("/otras-listas")}
 						/>
 
 						{userRole === "admin" && (
 							<NavItem
-								href="/dashboard/usuarios"
+								href="/facturacion-electronica"
 								icon={
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 										<path
 											strokeLinecap="round"
 											strokeLinejoin="round"
 											strokeWidth={2}
-											d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
 										/>
 									</svg>
 								}
-								label="Usuarios"
+								label="Facturación Electrónica"
 								isOpen={isSidebarOpen}
-								active={pathname.includes("/dashboard/usuarios")}
+								active={pathname.includes("/facturacion-electronica")}
 							/>
 						)}
 
@@ -335,10 +337,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 								? "Vehículos"
 								: pathname.includes("/clientes")
 								? "Clientes"
+								: pathname.includes("/viajes")
+								? "Viajes"
 								: pathname.includes("/conductores")
 								? "Conductores"
-								: pathname.includes("/usuarios")
-								? "Usuarios"
+								: pathname.includes("/facturacion-electronica")
+								? "Facturación Electrónica"
 								: pathname.includes("/reportes-financieros")
 								? "Reportes Financieros"
 								: pathname.includes("/otras-listas")
@@ -367,6 +371,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 				{/* Footer mejorado */}
 				<footer className="bg-white p-2 md:p-3 text-center text-[#2d2e83] text-xs border-t">&copy; {new Date().getFullYear()} MoviCarga - Sistema de Gestión de Transporte</footer>
 			</div>
+
+			{/* Contenedor de notificaciones Toast */}
+			<ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} newestOnTop closeOnClick rtl={false} pauseOnFocusLoss draggable pauseOnHover />
 		</div>
 	);
 }

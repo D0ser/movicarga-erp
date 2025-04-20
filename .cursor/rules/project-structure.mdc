@@ -1,0 +1,24 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Estructura del Proyecto MoviCarga ERP
+
+Este proyecto es una aplicación Next.js para gestión ERP.
+
+## Archivos Principales
+- Punto de entrada: [src/app/layout.tsx](mdc:src/app/layout.tsx) y [src/app/page.tsx](mdc:src/app/page.tsx)
+- Configuración de base de datos: [src/lib/supabase.ts](mdc:src/lib/supabase.ts)
+- Configuración Next.js: [next.config.mjs](mdc:next.config.mjs)
+- Definición de tablas SQL: [create-all-tables.sql](mdc:create-all-tables.sql)
+
+## Estructura de Directorios
+- `/src/app` - Páginas y rutas de la aplicación
+- `/src/components` - Componentes reutilizables
+- `/src/lib` - Utilidades y configuraciones
+- `/src/services` - Servicios de negocio
+- `/src/hooks` - Hooks personalizados de React
+
+Consulta el [README.md](mdc:README.md) para instrucciones de instalación y ejecución.
+

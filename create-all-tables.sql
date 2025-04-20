@@ -175,6 +175,7 @@ CREATE TABLE IF NOT EXISTS egresos (
 CREATE TABLE IF NOT EXISTS egresos_sin_factura (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   fecha DATE NOT NULL,
+  beneficiario TEXT,
   concepto TEXT NOT NULL,
   viaje_id UUID REFERENCES viajes(id),
   vehiculo_id UUID REFERENCES vehiculos(id),
@@ -184,6 +185,11 @@ CREATE TABLE IF NOT EXISTS egresos_sin_factura (
   comprobante TEXT,
   categoria_id UUID REFERENCES categorias(id),
   categoria VARCHAR(30) DEFAULT 'Operativo',
+  observaciones TEXT,
+  moneda VARCHAR(3) DEFAULT 'PEN',
+  numeroCheque VARCHAR(20),
+  numeroLiquidacion VARCHAR(20),
+  tipoEgreso VARCHAR(30),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
