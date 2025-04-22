@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from "react";
 import supabase from "@/lib/supabase";
+import { CustomAlert } from "@/components/ui/custom-alert";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function SupabaseConnectionStatus() {
+	const { toast } = useToast();
 	const [status, setStatus] = useState<{
 		success: boolean;
 		message: string;
@@ -30,6 +34,12 @@ export default function SupabaseConnectionStatus() {
 								message: `Error de conexión: ${error.message || "Error desconocido"}`,
 								checked: true,
 							});
+
+							toast({
+								title: "Error de conexión",
+								description: error.message || "Error desconocido",
+								variant: "destructive",
+							});
 						} else {
 							setStatus({
 								success: true,
@@ -44,25 +54,22 @@ export default function SupabaseConnectionStatus() {
 					message: err instanceof Error ? err.message : "Error desconocido",
 					checked: true,
 				});
+
+				toast({
+					title: "Error de conexión",
+					description: err instanceof Error ? err.message : "Error desconocido",
+					variant: "destructive",
+				});
 			}
 		};
 
 		testConnection();
-	}, []);
-
-	if (!status.checked) {
-		return (
-			<div className="flex items-center ml-4">
-				<span className="inline-block w-3 h-3 rounded-full bg-yellow-400 animate-pulse mr-2"></span>
-				<span className="text-sm text-gray-500">Verificando conexión...</span>
-			</div>
-		);
-	}
+	}, [toast]);
 
 	return (
 		<div className="flex items-center ml-4">
-			<span className={`inline-block w-3 h-3 rounded-full ${status.success ? "bg-green-500" : "bg-red-500"} mr-2`}></span>
-			<span className="text-sm text-gray-500">{status.success ? "BD Conectada" : "Error de conexión"}</span>
+			<span className={cn("inline-block w-3 h-3 rounded-full mr-2", status.checked ? (status.success ? "bg-green-500" : "bg-red-500") : "bg-yellow-400 animate-pulse")}></span>
+			<span className="text-sm text-gray-700">{status.checked ? (status.success ? "BD Conectada" : "Error de conexión") : "Verificando conexión..."}</span>
 		</div>
 	);
 }

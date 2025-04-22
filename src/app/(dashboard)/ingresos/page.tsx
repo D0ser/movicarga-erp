@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import DataTable from "@/components/DataTable";
 import { format } from "date-fns";
 import type { Column } from "@/components/DataTable";
-import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType } from "@/lib/supabaseServices";
+import { serieService, Serie, clienteService, Cliente, conductorService, Conductor, ingresoService, Ingreso as IngresoType, vehiculoService, Vehiculo, viajeService } from "@/lib/supabaseServices";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
 import showToast from "@/utils/toast";
@@ -144,6 +144,10 @@ export default function IngresosPage() {
 	const [serieColors, setSerieColors] = useState<Record<string, string>>({});
 	const [clientes, setClientes] = useState<Cliente[]>([]);
 	const [conductores, setConductores] = useState<Conductor[]>([]);
+	// Nuevo estado para vehículos
+	const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
+	const [tractos, setTractos] = useState<Vehiculo[]>([]);
+	const [carretas, setCarretas] = useState<Vehiculo[]>([]);
 
 	// Estado para los ingresos filtrados
 	const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
@@ -153,11 +157,22 @@ export default function IngresosPage() {
 		const cargarDatos = async () => {
 			try {
 				setLoading(true);
-				// Cargar clientes, conductores y series
-				const [clientesData, conductoresData, seriesData] = await Promise.all([clienteService.getClientes(), conductorService.getConductores(), serieService.getSeries()]);
+				// Cargar clientes, conductores, vehículos y series
+				const [clientesData, conductoresData, vehiculosData, seriesData] = await Promise.all([
+					clienteService.getClientes(),
+					conductorService.getConductores(),
+					vehiculoService.getVehiculos(),
+					serieService.getSeries(),
+				]);
 
 				setClientes(clientesData);
 				setConductores(conductoresData);
+				setVehiculos(vehiculosData);
+
+				// Filtrar vehículos según su tipo
+				setTractos(vehiculosData.filter((v) => v.tipo_vehiculo === "Tracto"));
+				setCarretas(vehiculosData.filter((v) => v.tipo_vehiculo === "Carreta"));
+
 				setSeriesDisponibles(seriesData);
 
 				// Crear un mapa de colores para las series
@@ -188,34 +203,65 @@ export default function IngresosPage() {
 			const ingresosSupabase = await ingresoService.getIngresos();
 
 			// Transformar los datos al formato esperado por la interfaz
-			const ingresosFormateados = ingresosSupabase.map((ing) => {
-				// Buscar el cliente relacionado para obtener la razón social y RUC
-				const cliente = ing.cliente || { razon_social: "", ruc: "" };
+			const ingresosFormateados = await Promise.all(
+				ingresosSupabase.map(async (ing) => {
+					// Buscar el cliente relacionado para obtener la razón social y RUC
+					const cliente = ing.cliente || { razon_social: "", ruc: "" };
 
-				return {
-					id: ing.id,
-					fecha: ing.fecha,
-					serie: ing.numero_factura ? ing.numero_factura.split("-")[0] : "",
-					numeroFactura: ing.numero_factura || "",
-					montoFlete: ing.monto || 0,
-					primeraCuota: ing.monto / 2, // Dividimos el monto en dos cuotas por defecto
-					segundaCuota: ing.monto / 2,
-					detraccion: ing.monto * 0.04, // 4% de detracción por defecto
-					totalDeber: ing.monto,
-					totalMonto: ing.monto,
-					empresa: cliente.razon_social || "",
-					ruc: cliente.ruc || "",
-					conductor: "",
-					placaTracto: "",
-					placaCarreta: "",
-					observacion: ing.observaciones || "",
-					documentoGuiaRemit: "",
-					guiaTransp: "",
-					diasCredito: 0,
-					fechaVencimiento: ing.fecha,
-					estado: ing.estado_factura || "Pendiente",
-				};
-			});
+					// Información sobre vehículos y conductor
+					let conductor = "";
+					let placaTracto = "";
+					let placaCarreta = "";
+
+					// Si hay viaje asociado, obtener datos de conductor y vehículos
+					if (ing.viaje_id) {
+						try {
+							const viajeData = await viajeService.getViajeById(ing.viaje_id);
+							if (viajeData) {
+								// Datos del conductor
+								if (viajeData.conductor) {
+									conductor = `${viajeData.conductor.nombres} ${viajeData.conductor.apellidos}`;
+								}
+
+								// Datos del vehículo
+								if (viajeData.vehiculo) {
+									if (viajeData.vehiculo.tipo_vehiculo === "Tracto") {
+										placaTracto = viajeData.vehiculo.placa;
+									} else if (viajeData.vehiculo.tipo_vehiculo === "Carreta") {
+										placaCarreta = viajeData.vehiculo.placa;
+									}
+								}
+							}
+						} catch (error) {
+							console.error("Error al obtener datos del viaje:", error);
+						}
+					}
+
+					return {
+						id: ing.id,
+						fecha: ing.fecha,
+						serie: ing.numero_factura ? ing.numero_factura.split("-")[0] : "",
+						numeroFactura: ing.numero_factura || "",
+						montoFlete: ing.monto || 0,
+						primeraCuota: ing.monto / 2, // Dividimos el monto en dos cuotas por defecto
+						segundaCuota: ing.monto / 2,
+						detraccion: ing.monto * 0.04, // 4% de detracción por defecto
+						totalDeber: ing.monto,
+						totalMonto: ing.monto,
+						empresa: cliente.razon_social || "",
+						ruc: cliente.ruc || "",
+						conductor: conductor,
+						placaTracto: placaTracto,
+						placaCarreta: placaCarreta,
+						observacion: ing.observaciones || "",
+						documentoGuiaRemit: "",
+						guiaTransp: "",
+						diasCredito: 0,
+						fechaVencimiento: ing.fecha,
+						estado: ing.estado_factura || "Pendiente",
+					};
+				})
+			);
 
 			return ingresosFormateados;
 		} catch (error) {
@@ -599,6 +645,21 @@ export default function IngresosPage() {
 				}
 			}
 
+			// Validar que la placa seleccionada corresponda al tipo de vehículo correcto
+			if (name === "placaTracto" && value) {
+				const tractoSeleccionado = vehiculos.find((v) => v.placa === value);
+				if (tractoSeleccionado && tractoSeleccionado.tipo_vehiculo !== "Tracto") {
+					showToast.error("La placa seleccionada no corresponde a un tracto");
+				}
+			}
+
+			if (name === "placaCarreta" && value) {
+				const carretaSeleccionada = vehiculos.find((v) => v.placa === value);
+				if (carretaSeleccionada && carretaSeleccionada.tipo_vehiculo !== "Carreta") {
+					showToast.error("La placa seleccionada no corresponde a una carreta");
+				}
+			}
+
 			return newData;
 		});
 	};
@@ -610,6 +671,31 @@ export default function IngresosPage() {
 		if (!formData.serie || !formData.numeroFactura || !formData.empresa || !formData.ruc) {
 			handleError("Por favor complete todos los campos requeridos");
 			return;
+		}
+
+		// Validar que las placas seleccionadas existan y sean del tipo correcto
+		if (formData.placaTracto) {
+			const tractoSeleccionado = vehiculos.find((v) => v.placa === formData.placaTracto);
+			if (!tractoSeleccionado) {
+				handleError("La placa de tracto seleccionada no existe");
+				return;
+			}
+			if (tractoSeleccionado.tipo_vehiculo !== "Tracto") {
+				handleError("La placa seleccionada no corresponde a un tracto");
+				return;
+			}
+		}
+
+		if (formData.placaCarreta) {
+			const carretaSeleccionada = vehiculos.find((v) => v.placa === formData.placaCarreta);
+			if (!carretaSeleccionada) {
+				handleError("La placa de carreta seleccionada no existe");
+				return;
+			}
+			if (carretaSeleccionada.tipo_vehiculo !== "Carreta") {
+				handleError("La placa seleccionada no corresponde a una carreta");
+				return;
+			}
 		}
 
 		try {
@@ -626,6 +712,26 @@ export default function IngresosPage() {
 			// Buscar cliente_id basado en RUC
 			const cliente = clientes.find((c) => c.ruc === formData.ruc);
 
+			// Buscar conductor_id basado en nombre completo
+			const conductor = conductores.find((c) => `${c.nombres} ${c.apellidos}` === formData.conductor);
+
+			// Buscar ids de vehículos
+			const tracto = formData.placaTracto ? vehiculos.find((v) => v.placa === formData.placaTracto) : null;
+			const carreta = formData.placaCarreta ? vehiculos.find((v) => v.placa === formData.placaCarreta) : null;
+
+			// Generar observación adicional para vehículos
+			let observacionVehiculos = "";
+			if (tracto && carreta) {
+				observacionVehiculos = `Tracto: ${tracto.placa}, Carreta: ${carreta.placa}`;
+			} else if (tracto) {
+				observacionVehiculos = `Tracto: ${tracto.placa}`;
+			} else if (carreta) {
+				observacionVehiculos = `Carreta: ${carreta.placa}`;
+			}
+
+			// Combinar observaciones
+			const observacionFinal = formData.observacion ? `${formData.observacion}${observacionVehiculos ? ". " + observacionVehiculos : ""}` : observacionVehiculos;
+
 			// Datos para Supabase
 			const ingresoData: Partial<IngresoType> = {
 				fecha: formData.fecha || new Date().toISOString().split("T")[0],
@@ -636,8 +742,13 @@ export default function IngresosPage() {
 				numero_factura: formData.numeroFactura,
 				fecha_factura: formData.fecha || new Date().toISOString().split("T")[0],
 				estado_factura: formData.estado || "Pendiente",
-				observaciones: formData.observacion,
+				observaciones: observacionFinal,
 			};
+
+			// Agregar datos adicionales en las observaciones para mantener referencia
+			if (conductor) {
+				ingresoData.observaciones = `${ingresoData.observaciones || ""}${ingresoData.observaciones ? ". " : ""}Conductor: ${conductor.nombres} ${conductor.apellidos}`;
+			}
 
 			if (formData.id && typeof formData.id === "string") {
 				// Actualizar ingreso existente
@@ -913,10 +1024,20 @@ export default function IngresosPage() {
 							value={formData.conductor}
 							onChange={(e) => {
 								const conductorSeleccionado = conductores.find((c) => `${c.nombres} ${c.apellidos}` === e.target.value);
+
+								// Buscar el vehículo tracto asociado al conductor (si existe)
+								let placaTractoAsociada = "";
+								if (conductorSeleccionado && conductorSeleccionado.vehiculo_id) {
+									const vehiculoAsociado = vehiculos.find((v) => v.id === conductorSeleccionado.vehiculo_id);
+									if (vehiculoAsociado && vehiculoAsociado.tipo_vehiculo === "Tracto") {
+										placaTractoAsociada = vehiculoAsociado.placa;
+									}
+								}
+
 								setFormData((prev) => ({
 									...prev,
 									conductor: e.target.value,
-									placaTracto: conductorSeleccionado?.vehiculo?.placa || "",
+									placaTracto: placaTractoAsociada || prev.placaTracto,
 								}));
 							}}
 							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -932,24 +1053,34 @@ export default function IngresosPage() {
 
 					<div>
 						<label className="block text-sm font-medium text-gray-700">Placa Tracto</label>
-						<input
-							type="text"
+						<select
 							name="placaTracto"
-							value={formData.placaTracto}
+							value={formData.placaTracto || ""}
 							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+							<option value="">Seleccione un tracto</option>
+							{tractos.map((tracto) => (
+								<option key={tracto.id} value={tracto.placa}>
+									{tracto.placa}
+								</option>
+							))}
+						</select>
 					</div>
 
 					<div>
 						<label className="block text-sm font-medium text-gray-700">Placa Carreta</label>
-						<input
-							type="text"
+						<select
 							name="placaCarreta"
-							value={formData.placaCarreta}
+							value={formData.placaCarreta || ""}
 							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
+							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+							<option value="">Seleccione una carreta</option>
+							{carretas.map((carreta) => (
+								<option key={carreta.id} value={carreta.placa}>
+									{carreta.placa}
+								</option>
+							))}
+						</select>
 					</div>
 
 					<div>

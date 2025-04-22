@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { vehiculoService, Vehiculo } from "@/lib/supabaseServices";
 import notificationService from "@/components/notifications/NotificationService";
 import Modal from "@/components/Modal";
+import { EditButton, DeleteButton, ActionButtonGroup, ActionButton } from "@/components/ActionIcons";
 
 // Componente para la página de vehículos
 export default function VehiculosPage() {
@@ -393,17 +394,20 @@ export default function VehiculosPage() {
 			header: "Acciones",
 			accessor: "id",
 			cell: (value: unknown, row: VehiculoDataItem) => (
-				<div className="flex space-x-2">
-					<button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-800">
-						Editar
-					</button>
-					<button onClick={() => handleDelete(row.id)} className="text-red-600 hover:text-red-800">
-						Eliminar
-					</button>
-					<button onClick={() => handleChangeStatus(row.id)} className="text-purple-600 hover:text-purple-800">
-						Cambiar Estado
-					</button>
-				</div>
+				<ActionButtonGroup>
+					<EditButton onClick={() => handleEdit(row)} />
+					<DeleteButton onClick={() => handleDelete(row.id)} />
+					<ActionButton onClick={() => handleChangeStatus(row.id)} title="Cambiar Estado" bgColor="bg-purple-100" textColor="text-purple-700" hoverColor="bg-purple-200">
+						<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path
+								strokeLinecap="round"
+								strokeLinejoin="round"
+								strokeWidth={2}
+								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37.327-.536.362-1.248.153-1.828"
+							/>
+						</svg>
+					</ActionButton>
+				</ActionButtonGroup>
 			),
 		},
 	];
@@ -794,12 +798,6 @@ export default function VehiculosPage() {
 							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500">
 							<option value="Tracto">Tracto</option>
 							<option value="Carreta">Carreta</option>
-							<option value="Furgón">Furgón</option>
-							<option value="Semirremolque">Semirremolque</option>
-							<option value="Camión">Camión</option>
-							<option value="Cisterna">Cisterna</option>
-							<option value="Plataforma">Plataforma</option>
-							<option value="Otro">Otro</option>
 						</select>
 					</div>
 

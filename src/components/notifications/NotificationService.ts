@@ -1,16 +1,17 @@
-import { toast, ToastOptions } from "react-toastify";
+import { toast as shadcnToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+interface ToastOptions {
+	duration?: number;
+	className?: string;
+}
 
 // Configuración predeterminada de las notificaciones
 const defaultOptions: ToastOptions = {
-	position: "top-right",
-	autoClose: 3000,
-	hideProgressBar: false,
-	closeOnClick: true,
-	pauseOnHover: true,
-	draggable: true,
+	duration: 3000,
 };
 
-// Servicio de notificaciones
+// Servicio de notificaciones usando shadcn/ui
 const notificationService = {
 	/**
 	 * Muestra una notificación de éxito
@@ -18,7 +19,13 @@ const notificationService = {
 	 * @param options Opciones adicionales
 	 */
 	success: (message: string, options: ToastOptions = {}) => {
-		toast.success(message, { ...defaultOptions, ...options });
+		shadcnToast({
+			title: "Éxito",
+			description: message,
+			variant: "default",
+			className: cn("bg-secondary text-white", options.className),
+			duration: options.duration || defaultOptions.duration,
+		});
 	},
 
 	/**
@@ -27,7 +34,12 @@ const notificationService = {
 	 * @param options Opciones adicionales
 	 */
 	error: (message: string, options: ToastOptions = {}) => {
-		toast.error(message, { ...defaultOptions, ...options });
+		shadcnToast({
+			title: "Error",
+			description: message,
+			variant: "destructive",
+			duration: options.duration || defaultOptions.duration,
+		});
 	},
 
 	/**
@@ -36,7 +48,13 @@ const notificationService = {
 	 * @param options Opciones adicionales
 	 */
 	warning: (message: string, options: ToastOptions = {}) => {
-		toast.warning(message, { ...defaultOptions, ...options });
+		shadcnToast({
+			title: "Advertencia",
+			description: message,
+			variant: "default",
+			className: cn("bg-accent text-white", options.className),
+			duration: options.duration || defaultOptions.duration,
+		});
 	},
 
 	/**
@@ -45,7 +63,13 @@ const notificationService = {
 	 * @param options Opciones adicionales
 	 */
 	info: (message: string, options: ToastOptions = {}) => {
-		toast.info(message, { ...defaultOptions, ...options });
+		shadcnToast({
+			title: "Información",
+			description: message,
+			variant: "default",
+			className: cn("bg-primary text-white", options.className),
+			duration: options.duration || defaultOptions.duration,
+		});
 	},
 
 	/**
@@ -54,14 +78,19 @@ const notificationService = {
 	 * @param options Opciones adicionales
 	 */
 	custom: (message: string, options: ToastOptions = {}) => {
-		toast(message, { ...defaultOptions, ...options });
+		shadcnToast({
+			description: message,
+			className: options.className,
+			duration: options.duration || defaultOptions.duration,
+		});
 	},
 
 	/**
 	 * Cierra todas las notificaciones
 	 */
 	closeAll: () => {
-		toast.dismiss();
+		// En shadcn/ui no hay una manera directa de cerrar todas las notificaciones
+		// pero como por diseño solo se muestra una a la vez, esto no debería ser problema
 	},
 };
 

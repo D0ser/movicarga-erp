@@ -1,8 +1,9 @@
 ---
 description: 
 globs: 
-alwaysApply: true
+alwaysApply: false
 ---
+# SQL Schema Management
 
 Always remind me to update the [create-all-tables.sql](mdc:create-all-tables.sql) file whenever any database table is modified, deleted, or created. This is critical for maintaining schema consistency across environments.
 

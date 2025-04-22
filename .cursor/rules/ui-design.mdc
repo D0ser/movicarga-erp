@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# UI Design Guidelines
+
+Mantener consistencia en el diseño de la interfaz de usuario del sistema ERP:
+
+1. Principios de diseño:
+   - Simplicidad y claridad en todas las interfaces
+   - Jerarquía visual que priorice la información importante
+   - Consistencia en colores, tipografía y componentes
+   - Diseño responsive para diversas resoluciones y dispositivos
+
+2. Componentes UI:
+   - Utilizar DataTable para presentación de datos tabulares
+   - Implementar modales para formularios y confirmaciones
+   - Usar notificaciones toast para mensajes al usuario
+   - Mantener una barra de navegación consistente en toda la aplicación
+
+3. Accesibilidad:
+   - Asegurar contraste adecuado entre texto y fondo
+   - Proporcionar textos alternativos para elementos visuales
+   - Implementar navegación por teclado
+   - Mantener estructura semántica HTML apropiada
+
+4. Estados de UI:
+   - Mostrar estados de carga durante peticiones asíncronas
+   - Proporcionar mensajes de error claros y accionables
+   - Implementar validación de formularios con feedback inmediato
+   - Usar animaciones sutiles para transiciones de estado 

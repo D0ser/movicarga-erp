@@ -1,0 +1,21 @@
+# Code Style Guidelines
+
+Mantener consistencia en el estilo de código en todo el proyecto. Seguir estos principios:
+
+1. Para componentes React:
+   - Usar componentes funcionales con hooks
+   - Utilizar TypeScript para tipos explícitos
+   - Implementar estilos con TailwindCSS
+   - Mantener componentes pequeños y reutilizables
+
+2. Para servicios y utilitarios:
+   - Utilizar funciones asíncronas para operaciones de base de datos
+   - Mantener una estructura clara de importaciones
+   - Documentar funciones complejas
+   - Capturar y manejar errores adecuadamente
+
+3. Convenciones de nomenclatura:
+   - camelCase para variables y funciones
+   - PascalCase para componentes y tipos
+   - snake_case para campos de base de datos
+   - Nombres descriptivos que indiquen propósito o funcionalidad 

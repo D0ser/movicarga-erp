@@ -1,0 +1,21 @@
+# Supabase Integration Best Practices
+
+Asegurar el uso correcto y consistente de Supabase en el proyecto. Seguir estas directrices:
+
+1. Seguridad de los datos:
+   - Validar datos antes de insertar en la base de datos
+   - Usar políticas RLS (Row Level Security) para proteger datos
+   - Limitar el acceso a tablas sensibles
+   - No exponer credenciales en el código
+
+2. Consultas a la base de datos:
+   - Usar consultas parametrizadas para evitar inyección SQL
+   - Optimizar consultas para mejorar rendimiento
+   - Implementar paginación para grandes conjuntos de datos
+   - Utilizar índices apropiados para tablas frecuentemente consultadas
+
+3. Manejo de cambios en la base de datos:
+   - Realizar migraciones controladas
+   - Documentar cambios en el esquema
+   - Probar cambios en entorno de desarrollo antes de aplicar a producción
+   - Actualizar el archivo create-all-tables.sql después de cualquier cambio estructural 

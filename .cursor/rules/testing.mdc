@@ -1,0 +1,27 @@
+# Testing Strategy
+
+Mantener un enfoque sistemático para pruebas en el proyecto para garantizar calidad y estabilidad:
+
+1. Pruebas unitarias:
+   - Implementar pruebas para componentes individuales
+   - Utilizar Jest y React Testing Library
+   - Simular servicios externos y bases de datos
+   - Mantener cobertura mínima del 70% para código crítico
+
+2. Pruebas de integración:
+   - Probar flujos completos de la aplicación
+   - Verificar interacción entre componentes
+   - Validar llamadas a API y manejo de respuestas
+   - Comprobar actualizaciones de UI basadas en cambios de estado
+
+3. Pruebas de base de datos:
+   - Validar integridad de datos después de operaciones CRUD
+   - Probar migraciones y actualizaciones de esquema
+   - Verificar que los índices funcionen correctamente
+   - Comprobar rendimiento de consultas complejas
+
+4. Proceso de pruebas:
+   - Ejecutar pruebas antes de cada commit importante
+   - Automatizar pruebas en el pipeline de CI/CD
+   - Documentar casos de prueba para funcionalidades críticas
+   - Revisar y actualizar pruebas cuando se modifique la funcionalidad 
