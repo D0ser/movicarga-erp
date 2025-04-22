@@ -51,87 +51,77 @@ export default function Dashboard() {
 	});
 
 	const [rutasPopulares, setRutasPopulares] = useState([
-		{ ruta: "Lima - Arequipa", viajes: 0 },
-		{ ruta: "Lima - Trujillo", viajes: 0 },
-		{ ruta: "Lima - Chiclayo", viajes: 0 },
-		{ ruta: "Lima - Cusco", viajes: 0 },
-		{ ruta: "Lima - Piura", viajes: 0 },
+		{ ruta: "Ruta 1", viajes: 0 },
+		{ ruta: "Ruta 2", viajes: 0 },
+		{ ruta: "Ruta 3", viajes: 0 },
+		{ ruta: "Ruta 4", viajes: 0 },
+		{ ruta: "Ruta 5", viajes: 0 },
 	]);
 
 	useEffect(() => {
-		// Simulación de carga de datos
+		// Iniciar con datos vacíos sin ejemplos
 		// En una aplicación real, aquí cargarías los datos desde Supabase
-		setTimeout(() => {
-			// Datos principales
-			setStats({
-				ingresos: 125000,
-				egresos: 85400,
-				vehiculos: 12,
-				clientes: 28,
-				conductores: 15,
-				viajesCompletados: 42,
-				viajeProgramados: 8,
-				viajesEnRuta: 5,
-				facturasPendientes: 3,
-				proximosMantenimientos: 2,
-				detracciones: {
-					pendientes: 5,
-					completadas: 18,
-				},
-				viajes: {
-					totalMes: 55,
-					cancelados: 3,
-				},
-			});
+		// Datos principales
+		setStats({
+			ingresos: 0,
+			egresos: 0,
+			vehiculos: 0,
+			clientes: 0,
+			conductores: 0,
+			viajesCompletados: 0,
+			viajeProgramados: 0,
+			viajesEnRuta: 0,
+			facturasPendientes: 0,
+			proximosMantenimientos: 0,
+			detracciones: {
+				pendientes: 0,
+				completadas: 0,
+			},
+			viajes: {
+				totalMes: 0,
+				cancelados: 0,
+			},
+		});
 
-			// Datos para el gráfico de finanzas (últimos 6 meses)
-			const months = [];
-			const ingresos = [];
-			const egresos = [];
+		// Preparar etiquetas para los últimos 6 meses
+		const months = [];
+		const emptyData = [0, 0, 0, 0, 0, 0]; // Datos vacíos para 6 meses
 
-			// Generar datos de los últimos 6 meses
-			for (let i = 5; i >= 0; i--) {
-				const date = subMonths(new Date(), i);
-				months.push(format(date, "MMM yyyy"));
+		// Generar etiquetas de los últimos 6 meses
+		for (let i = 5; i >= 0; i--) {
+			const date = subMonths(new Date(), i);
+			months.push(format(date, "MMM yyyy"));
+		}
 
-				// Datos ficticios con tendencia al crecimiento
-				const baseIngreso = 80000 + (5 - i) * 10000 + Math.random() * 20000;
-				const baseEgreso = 60000 + (5 - i) * 5000 + Math.random() * 15000;
+		setFinancialData({
+			labels: months,
+			ingresos: emptyData,
+			egresos: emptyData,
+		});
 
-				ingresos.push(Math.round(baseIngreso));
-				egresos.push(Math.round(baseEgreso));
-			}
+		// Datos para el gráfico de viajes
+		setViajesData({
+			labels: months,
+			completados: emptyData,
+			programados: emptyData,
+			cancelados: emptyData,
+		});
 
-			setFinancialData({
-				labels: months,
-				ingresos: ingresos,
-				egresos: egresos,
-			});
+		// Datos de estado de vehículos
+		setVehiculosData({
+			activos: 0,
+			mantenimiento: 0,
+			inactivos: 0,
+		});
 
-			// Datos para el gráfico de viajes
-			setViajesData({
-				labels: months,
-				completados: [12, 15, 18, 16, 19, 22],
-				programados: [2, 3, 2, 4, 3, 8],
-				cancelados: [1, 0, 2, 1, 0, 3],
-			});
-
-			// Datos de estado de vehículos
-			setVehiculosData({
-				activos: 8,
-				mantenimiento: 3,
-				inactivos: 1,
-			});
-
-			// Rutas populares
-			setRutasPopulares([
-				{ ruta: "Lima - Arequipa", viajes: 18 },
-				{ ruta: "Lima - Trujillo", viajes: 12 },
-				{ ruta: "Lima - Chiclayo", viajes: 8 },
-				{ ruta: "Lima - Cusco", viajes: 7 },
-				{ ruta: "Lima - Piura", viajes: 5 },
-			]);
-		}, 500);
+		// Rutas populares vacías
+		setRutasPopulares([
+			{ ruta: "Ruta 1", viajes: 0 },
+			{ ruta: "Ruta 2", viajes: 0 },
+			{ ruta: "Ruta 3", viajes: 0 },
+			{ ruta: "Ruta 4", viajes: 0 },
+			{ ruta: "Ruta 5", viajes: 0 },
+		]);
 	}, []);
 
 	// Configuraciones para los gráficos
@@ -375,10 +365,7 @@ export default function Dashboard() {
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-xl font-bold mb-4">Actividad Reciente</h2>
 					<div className="space-y-4">
-						<ActivityItem title="Nueva factura registrada" description="Factura #F001-2536 por S/. 4,500" time="Hace 2 horas" />
-						<ActivityItem title="Nuevo conductor registrado" description="Juan Pérez ha sido añadido" time="Hace 5 horas" />
-						<ActivityItem title="Pago registrado" description="Pago de combustible por S/. 780" time="Hace 1 día" />
-						<ActivityItem title="Cliente actualizado" description="Datos de Transportes S.A. actualizados" time="Hace 2 días" />
+						<p className="text-gray-500 text-sm italic">No hay actividad reciente que mostrar</p>
 					</div>
 				</div>
 			</div>
@@ -390,19 +377,19 @@ export default function Dashboard() {
 					<div className="divide-y">
 						<div className="py-2 flex justify-between">
 							<span>Ratio de viajes completados:</span>
-							<span className="font-medium text-primary">{Math.round((stats.viajesCompletados / stats.viajes.totalMes) * 100)}%</span>
+							<span className="font-medium text-primary">0%</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Ratio de viajes cancelados:</span>
-							<span className="font-medium text-red-600">{Math.round((stats.viajes.cancelados / stats.viajes.totalMes) * 100)}%</span>
+							<span className="font-medium text-red-600">0%</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Eficiencia de flota:</span>
-							<span className="font-medium text-secondary">{Math.round((vehiculosData.activos / stats.vehiculos) * 100)}%</span>
+							<span className="font-medium text-secondary">0%</span>
 						</div>
 						<div className="py-2 flex justify-between">
 							<span>Detracciones completadas:</span>
-							<span className="font-medium text-primary">{Math.round((stats.detracciones.completadas / (stats.detracciones.completadas + stats.detracciones.pendientes)) * 100)}%</span>
+							<span className="font-medium text-primary">0%</span>
 						</div>
 					</div>
 				</div>
@@ -410,21 +397,14 @@ export default function Dashboard() {
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-xl font-bold mb-4">Próximos Vencimientos</h2>
 					<div className="space-y-3">
-						<VencimientoItem tipo="SOAT" vehiculo="ABC-123" fecha="2025-05-10" />
-						<VencimientoItem tipo="Revisión Técnica" vehiculo="DEF-456" fecha="2025-04-28" />
-						<VencimientoItem tipo="Mantenimiento" vehiculo="GHI-789" fecha="2025-04-20" />
-						<VencimientoItem tipo="SOAT" vehiculo="JKL-012" fecha="2025-05-15" />
+						<p className="text-gray-500 text-sm italic">No hay vencimientos próximos</p>
 					</div>
 				</div>
 
 				<div className="bg-white p-6 rounded-lg shadow-md">
 					<h2 className="text-xl font-bold mb-4">Acciones Pendientes</h2>
 					<div className="space-y-2">
-						<ActionItem text="Revisar facturas pendientes (3)" priority="high" />
-						<ActionItem text="Actualizar permisos de vehículos" priority="medium" />
-						<ActionItem text="Programar mantenimiento de flota" priority="medium" />
-						<ActionItem text="Revisar detracciones pendientes" priority="high" />
-						<ActionItem text="Confirmar viajes de la próxima semana" priority="low" />
+						<p className="text-gray-500 text-sm italic">No hay acciones pendientes</p>
 					</div>
 				</div>
 			</div>

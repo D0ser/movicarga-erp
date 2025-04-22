@@ -8,13 +8,15 @@ const nextConfig = {
     // Advertir sobre problemas de ESLint pero no fallar el build
     ignoreDuringBuilds: true,
   },
-  // Configuración para turbopack si es necesario
+  // Solución para el error en Vercel deployment
+  output: "standalone",
+  // Deshabilitar turbopack experimental
   experimental: {
-    turbo: {
-      rules: {
-        // Configuraciones específicas para turbopack si son necesarias
-      },
-    },
+    // turbo: {
+    //   rules: {
+    //     // Configuraciones específicas para turbopack si son necesarias
+    //   },
+    // },
   },
 };
 

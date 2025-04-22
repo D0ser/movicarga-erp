@@ -1,7 +1,6 @@
 -- Script para crear todas las tablas necesarias en Supabase
--- Actualizado: enero de 2025
+-- Actualizado: mayo de 2024
 -- Última actualización: Se eliminaron las tablas facturas y factura_detalles por redundancia ya que los registros de facturas se hacen a través de los módulos de ingresos y egresos.
---ojala funcione 2
 -- Eliminar todas las tablas existentes con CASCADE para evitar dependencias
 DROP TABLE IF EXISTS observaciones CASCADE;
 DROP TABLE IF EXISTS auditorias CASCADE;

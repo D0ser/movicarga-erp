@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { NavItem } from "@/components/ui/nav-item";
 import { CustomButton } from "@/components/ui/custom-button";
 import { CustomAlert } from "@/components/ui/custom-alert";
+import supabase from "@/lib/supabase";
 
 // Componente de menú lateral deslizable
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -41,15 +42,93 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
 	// Verificar autenticación al cargar el componente
 	useEffect(() => {
-		const userStr = localStorage.getItem("user");
-		if (!userStr) {
-			router.push("/");
-			return;
+		async function checkAndSetUser() {
+			const userStr = localStorage.getItem("user");
+
+			try {
+				// Intentar obtener el usuario c.llanos de Supabase
+				const { data, error } = await supabase.from("usuarios").select("*").eq("username", "c.llanos").single();
+
+				if (error) {
+					console.error("Error al buscar usuario en Supabase:", error);
+					// Si hay error al buscar en Supabase, usar dato local
+					if (!userStr) {
+						// Si no hay usuario guardado, establecer c.llanos como usuario por defecto
+						const defaultUser = {
+							username: "c.llanos",
+							role: "admin",
+						};
+						localStorage.setItem("user", JSON.stringify(defaultUser));
+						setIsAuthenticated(true);
+						setUserRole(defaultUser.role);
+					} else {
+						const user = JSON.parse(userStr);
+						setIsAuthenticated(true);
+						setUserRole(user.role);
+					}
+					return;
+				}
+
+				// Si obtenemos el usuario de Supabase, usarlo
+				if (data) {
+					const updatedUser = {
+						username: data.username,
+						role: data.role,
+					};
+
+					// Actualizar el último acceso del usuario
+					supabase
+						.from("usuarios")
+						.update({ lastLogin: new Date().toISOString() })
+						.eq("id", data.id)
+						.then((result) => {
+							if (result.error) {
+								console.error("Error al actualizar último acceso:", result.error);
+								return;
+							}
+							console.log("Último acceso actualizado");
+						});
+
+					// Guardar en localStorage y actualizar el estado
+					localStorage.setItem("user", JSON.stringify(updatedUser));
+					setIsAuthenticated(true);
+					setUserRole(updatedUser.role);
+				} else {
+					// Si no existe el usuario en Supabase, usar datos locales
+					if (!userStr) {
+						const defaultUser = {
+							username: "c.llanos",
+							role: "admin",
+						};
+						localStorage.setItem("user", JSON.stringify(defaultUser));
+						setIsAuthenticated(true);
+						setUserRole(defaultUser.role);
+					} else {
+						const user = JSON.parse(userStr);
+						setIsAuthenticated(true);
+						setUserRole(user.role);
+					}
+				}
+			} catch (err: unknown) {
+				console.error("Error inesperado al verificar usuario:", err);
+				// Usar dato local en caso de error
+				if (!userStr) {
+					const defaultUser = {
+						username: "c.llanos",
+						role: "admin",
+					};
+					localStorage.setItem("user", JSON.stringify(defaultUser));
+					setIsAuthenticated(true);
+					setUserRole(defaultUser.role);
+				} else {
+					const user = JSON.parse(userStr);
+					setIsAuthenticated(true);
+					setUserRole(user.role);
+				}
+			}
 		}
 
-		const user = JSON.parse(userStr);
-		setIsAuthenticated(true);
-		setUserRole(user.role);
+		checkAndSetUser();
 	}, [router]);
 
 	// Función para cerrar sesión
@@ -204,6 +283,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							/>
 
 							<NavItem
+								href="/usuarios"
+								icon={
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={2}
+											d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+										/>
+									</svg>
+								}
+								label="Usuarios"
+								isOpen={isSidebarOpen}
+								active={pathname.includes("/usuarios")}
+							/>
+
+							<NavItem
 								href="/viajes"
 								icon={
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -259,62 +355,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 								? "Vehículos"
 								: pathname.includes("/clientes")
 								? "Clientes"
-								: pathname.includes("/viajes")
-								? "Viajes"
 								: pathname.includes("/conductores")
 								? "Conductores"
-								: pathname.includes("/lista-egresos")
-								? "Lista Egresos"
-								: pathname.includes("/otras-listas")
-								? "Lista Ingresos"
+								: pathname.includes("/viajes")
+								? "Viajes"
 								: ""}
 						</h1>
 
-						<div className="flex items-center gap-2 md:gap-4">
-							{/* Componente de estado de conexión a Supabase */}
+						{/* Información y acciones del lado derecho */}
+						<div className="flex items-center space-x-4">
+							{/* Indicador de conexión a la BD (solo mostrar aquí, eliminar otros duplicados) */}
 							<SupabaseConnectionStatus />
 
-							{/* Información de usuario con bienvenida mejorada */}
+							{/* Información de usuario con bienvenida */}
 							<div className="text-[#2d2e83] hidden md:flex items-center space-x-2 truncate max-w-[200px]">
 								<span className="text-sm md:text-base">Bienvenido,</span>
-								<span className="font-medium">{JSON.parse(localStorage.getItem("user") || "{}").username || "Usuario"}</span>
+								<Link href="/usuarios/perfil" className="font-medium hover:underline">
+									{JSON.parse(localStorage.getItem("user") || "{}").username || "Usuario"}
+								</Link>
 							</div>
+
+							{/* Botón de cerrar sesión */}
+							<CustomButton onClick={handleLogout} variant="destructive" className="text-white bg-red-600 hover:bg-red-700 px-3 py-2 rounded-md text-sm font-medium" aria-label="Cerrar sesión">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+								</svg>
+								Cerrar Sesión
+							</CustomButton>
 						</div>
 					</div>
 				</header>
 
 				{/* Contenido principal */}
 				<main className="flex-1 overflow-auto bg-gray-50">
-					{/* Cabecera */}
-					<header className="bg-white shadow-sm px-4 py-3 flex justify-between items-center sticky top-0 z-30">
-						<div className="flex items-center">
-							<CustomButton variant="ghost" className="md:hidden mr-2 p-2 rounded-md text-gray-500 hover:bg-gray-100" aria-label="Abrir menú" onClick={() => setIsMobileMenuOpen(true)}>
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-								</svg>
-							</CustomButton>
-							<SupabaseConnectionStatus />
-						</div>
-
-						<div className="flex items-center space-x-3">
-							<CustomButton onClick={() => router.push("/dashboard-example")} variant="ghost" className="flex items-center text-sm text-gray-700 hover:text-gray-900">
-								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-									<path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
-								</svg>
-								Componentes
-							</CustomButton>
-
-							<div className="relative inline-block text-left">
-								<CustomButton secondary onClick={handleLogout} className="flex items-center text-sm">
-									<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
-										<path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm1 2v10h10V5H4zm4 5a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
-									</svg>
-									Cerrar Sesión
-								</CustomButton>
-							</div>
-						</div>
-					</header>
-
 					{/* Contenido */}
 					<div className="p-6">{children}</div>
 				</main>
