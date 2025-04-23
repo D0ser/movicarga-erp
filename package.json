@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"dev": "next dev",
+		"prebuild": "node scripts/check-build.js",
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
@@ -16,7 +17,8 @@
 		"supabase:stop": "node scripts/supabase-local.js stop",
 		"supabase:import": "node scripts/supabase-local.js import",
 		"supabase:reset": "node scripts/supabase-local.js reset",
-		"dev:local": "npm run supabase:start && next dev"
+		"dev:local": "npm run supabase:start && next dev",
+		"migrate-dashboard": "node scripts/migrate-dashboard.js"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.0.1",

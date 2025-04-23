@@ -1,0 +1,8 @@
+{
+	"version": 2,
+	"buildCommand": "npm run build",
+	"outputDirectory": ".next",
+	"framework": "nextjs",
+	"rewrites": [{ "source": "/(.*)", "destination": "/" }],
+	"routes": [{ "handle": "filesystem" }, { "src": "/dashboard", "dest": "/dashboard/" }, { "src": "/(.*)", "dest": "/" }]
+}
