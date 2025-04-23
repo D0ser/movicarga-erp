@@ -515,7 +515,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trigger_actualizar_saldo_viaje
+-- Crear trigger solo si no existe
+CREATE TRIGGER IF NOT EXISTS trigger_actualizar_saldo_viaje
 BEFORE INSERT OR UPDATE ON viajes
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_saldo_viaje();
