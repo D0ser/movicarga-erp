@@ -6,6 +6,7 @@ on:
       - main # O reemplaza con tu rama principal: master, development, etc.
     paths:
       - "create-all-tables.sql" # Solo se ejecuta cuando este archivo cambia
+  workflow_dispatch: # Permite ejecutar el workflow manualmente desde la interfaz de GitHub
 
 jobs:
   update-database:
