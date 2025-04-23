@@ -1,0 +1,46 @@
+---
+description: 
+globs: src/app/**/*.tsx,next.config.mjs,src/app/page.tsx,src/app/layout.tsx,src/app/**/page.tsx,src/app/**/layout.tsx
+alwaysApply: false
+---
+# Estructura de App Router en Next.js
+
+Este proyecto utiliza Next.js con App Router. A continuación se detalla la estructura de carpetas y archivos.
+
+## Estructura principal
+
+- [src/app](mdc:src/app): Directorio principal de App Router
+  - `layout.tsx`: Layout principal de toda la aplicación
+  - `page.tsx`: Página principal/login
+  - `globals.css`: Estilos globales de la aplicación
+
+## Grupo (dashboard)
+
+- [src/app/(dashboard)](mdc:src/app/(dashboard)): Grupo de rutas para el dashboard
+  - `layout.tsx`: Layout del dashboard con menú lateral, header, etc.
+  - `page.tsx`: Página principal del dashboard
+  - Subdirectorios para cada módulo del sistema:
+    - `usuarios/`: Gestión de usuarios
+    - `vehiculos/`: Gestión de vehículos
+    - `viajes/`: Gestión de viajes 
+    - `clientes/`: Gestión de clientes
+    - `conductores/`: Gestión de conductores
+    - etc.
+
+## Convenciones de App Router
+
+- `page.tsx`: Define una ruta accesible
+- `layout.tsx`: Define un layout compartido
+- `loading.tsx`: Componente de carga durante navegación
+- `error.tsx`: Componente para manejar errores
+- `not-found.tsx`: Página 404 personalizada
+
+## Creación de nuevas rutas
+
+Para crear una nueva sección o módulo:
+
+1. Crea un nuevo directorio dentro de `src/app/(dashboard)/`
+2. Añade un archivo `page.tsx` con el componente principal
+3. Opcionalmente, añade `layout.tsx` si necesitas un layout específico
+4. Organiza los componentes específicos de la ruta dentro del mismo directorio
+

@@ -1,0 +1,54 @@
+---
+description: 
+globs: src/lib/supabase*.ts,src/lib/supabaseServices.ts,*supabase*.ts,supabase/**/*,src/lib/supabase.ts,src/lib/supabaseClient.ts,src/lib/supabase-client.ts
+alwaysApply: false
+---
+# Integración con Supabase
+
+Este proyecto utiliza Supabase como backend principal para base de datos, autenticación y almacenamiento.
+
+## Archivos clave
+
+- [src/lib/supabase.ts](mdc:src/lib/supabase.ts): Configuración principal del cliente Supabase
+- [src/lib/supabase-client.ts](mdc:src/lib/supabase-client.ts): Cliente Supabase para el navegador
+- [src/lib/supabase-node.ts](mdc:src/lib/supabase-node.ts): Cliente Supabase para uso en el servidor
+- [src/lib/supabaseServices.ts](mdc:src/lib/supabaseServices.ts): Servicios y funciones para interactuar con Supabase
+
+## Uso de Supabase
+
+### Consultas a la base de datos
+
+Para realizar consultas a Supabase, utiliza los servicios definidos en `supabaseServices.ts`. 
+Ejemplo:
+
+```typescript
+import { getViajes } from 'src/lib/supabaseServices';
+
+// En un componente...
+const viajes = await getViajes();
+```
+
+### Autenticación
+
+La autenticación se gestiona a través de Supabase Auth. Ejemplos de uso:
+
+```typescript
+import { supabase } from 'src/lib/supabase';
+
+// Login
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: 'usuario@ejemplo.com',
+  password: 'contraseña'
+});
+
+// Logout
+await supabase.auth.signOut();
+```
+
+## Scripts de utilidad
+
+- `npm run test-connection`: Verifica la conexión a Supabase
+- `npm run verify-supabase`: Verifica la configuración de Supabase
+- `npm run test-database`: Prueba las funciones de base de datos
+
+

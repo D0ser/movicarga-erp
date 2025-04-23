@@ -1,0 +1,31 @@
+---
+description: 
+globs: package.json,*.tsx,*.ts,*.js,tailwind.config.js,next.config.mjs
+alwaysApply: false
+---
+# Tecnologías Utilizadas
+
+Este proyecto utiliza las siguientes tecnologías principales:
+
+## Frontend
+- [Next.js](mdc:https:/nextjs.org) (v14): Framework de React con App Router
+- [React](mdc:https:/reactjs.org) (v18): Biblioteca para interfaces de usuario
+- [Tailwind CSS](mdc:https:/tailwindcss.com): Framework CSS para estilos
+- [shadcn/ui](mdc:https:/ui.shadcn.com): Componentes UI basados en Radix UI
+- [React Hook Form](mdc:https:/react-hook-form.com): Manejo de formularios
+- [Zod](mdc:https:/zod.dev): Validación de esquemas y datos
+- [TanStack Table](mdc:https:/tanstack.com/table): Para tablas y datos tabulares
+- [Chart.js](mdc:https:/www.chartjs.org): Para visualizaciones y gráficos
+
+## Backend
+- [Supabase](mdc:https:/supabase.io): Base de datos PostgreSQL y autenticación
+  - API REST y servicios de backend
+  - Almacenamiento de archivos
+  - Autenticación y gestión de usuarios
+
+## Archivos clave
+- [src/lib/supabase.ts](mdc:src/lib/supabase.ts): Cliente Supabase y configuración
+- [src/lib/supabaseServices.ts](mdc:src/lib/supabaseServices.ts): Servicios para interactuar con Supabase
+- [src/components/ui](mdc:src/components/ui): Componentes UI reutilizables
+- [src/components/DataTable.tsx](mdc:src/components/DataTable.tsx): Componente de tabla reutilizable
+

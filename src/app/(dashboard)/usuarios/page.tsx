@@ -8,25 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabase";
-
-// Enumeraciones
-export enum UserRole {
-	ADMIN = "admin",
-	MANAGER = "manager",
-	OPERATOR = "operator",
-	VIEWER = "viewer",
-}
-
-// Interfaces
-interface User {
-	id: string;
-	username: string;
-	email: string;
-	role: UserRole;
-	lastLogin?: string;
-	active: boolean;
-	createdAt: string;
-}
+import { UserRole, User } from "@/types/users";
 
 export default function UsuariosPage() {
 	// Estados

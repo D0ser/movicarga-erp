@@ -1,0 +1,32 @@
+---
+description: 
+globs: *.tsx,*.ts,*.js,src/app/**/*,src/components/**/*,src/lib/**/*,src/hooks/**/*,src/utils/**/*,src/services/**/*
+alwaysApply: false
+---
+# Estructura del Proyecto Movicarga ERP
+
+Este proyecto es una aplicación ERP desarrollada con Next.js para gestionar operaciones de transporte y logística.
+
+## Estructura principal
+
+- [src/app](mdc:src/app): Contiene las rutas y páginas de la aplicación (Next.js App Router)
+- [src/components](mdc:src/components): Componentes reutilizables de React
+- [src/lib](mdc:src/lib): Servicios, utilidades y conexión a Supabase
+- [src/hooks](mdc:src/hooks): Custom hooks de React
+- [src/utils](mdc:src/utils): Funciones utilitarias 
+- [src/services](mdc:src/services): Servicios para la lógica de negocio
+
+## Rutas principales
+
+- `/`: Página principal/login
+- `/dashboard`: Panel principal de la aplicación
+- Módulos funcionales:
+  - `/usuarios`: Gestión de usuarios
+  - `/vehiculos`: Gestión de vehículos
+  - `/viajes`: Gestión de viajes
+  - `/clientes`: Gestión de clientes
+  - `/conductores`: Gestión de conductores
+  - `/ingresos`, `/egresos`: Gestión financiera
+
+
+

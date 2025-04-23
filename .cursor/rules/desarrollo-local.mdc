@@ -1,0 +1,69 @@
+---
+description: 
+globs: package.json,*.config.*,env.example,next.config.mjs,tsconfig.json,scripts/**/*
+alwaysApply: false
+---
+# Desarrollo Local
+
+Instrucciones para configurar y ejecutar el proyecto en un entorno de desarrollo local.
+
+## Requisitos previos
+
+- Node.js (versión recomendada en package.json)
+- npm o yarn
+- Base de datos Supabase (local o remota)
+
+## Configuración inicial
+
+1. Clona el repositorio
+2. Instala las dependencias:
+   ```bash
+   npm install
+   ```
+3. Copia el archivo `.env.example` a `.env.local` y configura las variables de entorno:
+   ```bash
+   cp env.example .env.local
+   ```
+4. Configura las variables de entorno de Supabase en `.env.local`:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=tu-url-de-supabase
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=tu-clave-anon-de-supabase
+   ```
+
+## Ejecutar el proyecto
+
+### Desarrollo con Supabase remoto
+
+```bash
+npm run dev
+```
+
+### Desarrollo con Supabase local
+
+```bash
+npm run dev:local
+```
+
+Este comando inicia Supabase localmente y luego ejecuta la aplicación Next.js.
+
+## Scripts disponibles
+
+- `npm run dev`: Inicia el servidor de desarrollo
+- `npm run build`: Construye la aplicación para producción
+- `npm run start`: Inicia la aplicación construida
+- `npm run lint`: Ejecuta el linter
+- `npm run supabase:start`: Inicia Supabase localmente
+- `npm run supabase:stop`: Detiene Supabase local
+- `npm run supabase:import`: Importa datos a Supabase local
+- `npm run supabase:reset`: Reinicia Supabase local
+
+## Estructura de archivos
+
+Los archivos principales para el desarrollo son:
+
+- [package.json](mdc:package.json): Dependencias y scripts
+- [next.config.mjs](mdc:next.config.mjs): Configuración de Next.js
+- [tailwind.config.js](mdc:tailwind.config.js): Configuración de Tailwind CSS
+- [tsconfig.json](mdc:tsconfig.json): Configuración de TypeScript
+
+

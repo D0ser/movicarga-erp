@@ -1,0 +1,50 @@
+---
+description: 
+globs: src/components/**/*.tsx,src/components/ui/**/*.tsx,src/app/**/*.tsx
+alwaysApply: false
+---
+# Componentes Principales
+
+Guía y referencia de los componentes más importantes y reutilizables del proyecto, incl modales, componentes UI y patrones recomendados. Este documento es útil  consistencia en el desarrollo de la interfaz y fomentar la reutil
+
+---
+
+## Tablas de Datos
+
+- `@DataTable.tsx`: Componente de tabla reutilizable con filtros, paginciones.
+- `@ViajesTable.tsx`: Tabla especializada para mostrar vionentes UI
+
+- `@src/compoentes UI basados en `shadcn/ui`.
+  - Innputs, modales, dropdowns, etc.
+
+## Modales
+
+- `@Modal.tsx`: Componente de modal reutilizable.
+
+## Ejemplos y Plantillas
+
+- `@FormExample.tsx`: Ejemplo de formulario.
+- `@TableExample.tsx`: Ejemplo de implementación de tabla.
+- `@ModalExample.tsx`: Ejemplo de implementación de modal.
+
+## Patrones de Componentes
+
+Recomendaciones para crear nuevos componentes:
+
+1. Los componentes UI básicos deben ir en `src/components/ui/`.
+2. Los componentes específicos de una característica deben ir en su ruta correspondiente.
+3. Los componentes reutilizables en todo el proyecto van en `src/components/`.
+4. Utiliza los componentes de `shadcn/ui` para mantener consistencia en la UI.
+
+---
+
+## Description
+
+Guía de componentes reutilizables y patrones para la construcción de interfaces consistentes con React y shadcn/ui.
+
+## Auto Attach
+
+`auto-attach
+src/components/**
+
+src/components/ui/**
