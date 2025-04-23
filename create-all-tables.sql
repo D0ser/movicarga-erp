@@ -507,15 +507,14 @@ CREATE POLICY "Permitir delete para usuarios anónimos" ON cuentas_banco FOR DEL
 CREATE OR REPLACE FUNCTION actualizar_saldo_viaje() 
 RETURNS TRIGGER 
 LANGUAGE plpgsql
-AS 
-$$
+AS $$
 BEGIN
+  -- Ensure saldo is calculated correctly
   NEW.saldo := NEW.tarifa - NEW.adelanto;
   RETURN NEW;
 END;
 $$;
 
--- Crear trigger 
 DROP TRIGGER IF EXISTS trigger_actualizar_saldo_viaje ON viajes;
 CREATE TRIGGER trigger_actualizar_saldo_viaje
 BEFORE INSERT OR UPDATE ON viajes
