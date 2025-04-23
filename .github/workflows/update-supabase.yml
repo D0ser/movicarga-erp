@@ -12,7 +12,11 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+      SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT || '5432' }}
+      SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME || 'postgres' }}
 
     steps:
       - name: Checkout repository
@@ -33,19 +37,20 @@ jobs:
           const { Client } = require('pg');
 
           async function main() {
+            let client;
             try {
               console.log('📝 Leyendo el archivo SQL...');
               const sqlScript = fs.readFileSync('create-all-tables.sql', 'utf8');
               
-              // Usar exactamente las credenciales proporcionadas
-              console.log('🔌 Conectando a Supabase usando las credenciales proporcionadas...');
+              // Usar variables de entorno para las credenciales
+              console.log('🔌 Conectando a Supabase...');
               
-              const client = new Client({
-                user: 'postgres.bccxjjgpabepwbqglmrn',
-                password: 'xu5iZMpih4u&35d',
-                host: 'aws-0-sa-east-1.pooler.supabase.com',
-                port: 5432,
-                database: 'postgres',
+              client = new Client({
+                user: process.env.SUPABASE_DB_USER,
+                password: process.env.SUPABASE_DB_PASSWORD,
+                host: process.env.SUPABASE_DB_HOST,
+                port: process.env.SUPABASE_DB_PORT,
+                database: process.env.SUPABASE_DB_NAME,
                 ssl: {
                   rejectUnauthorized: false
                 }
@@ -56,12 +61,16 @@ jobs:
               
               console.log('🚀 Ejecutando el script SQL...');
               
-              // Dividir el script en declaraciones individuales para evitar problemas con scripts grandes
+              // Dividir el script en declaraciones individuales
               const statements = sqlScript.split(';').filter(stmt => stmt.trim().length > 0);
               
               console.log(`Encontradas ${statements.length} declaraciones SQL para ejecutar`);
               
+              // Iniciar una transacción
+              await client.query('BEGIN');
+              
               // Ejecutar cada declaración individualmente
+              let errors = 0;
               for (let i = 0; i < statements.length; i++) {
                 const statement = statements[i].trim() + ';';
                 try {
@@ -70,20 +79,56 @@ jobs:
                     console.log(`Progreso: ${i + 1}/${statements.length} declaraciones ejecutadas`);
                   }
                 } catch (err) {
+                  errors++;
                   console.error(`Error en la declaración #${i + 1}: ${err.message}`);
-                  // Continuamos con la siguiente declaración
+                  console.error(`SQL: ${statement.substring(0, 150)}...`);
+                  
+                  // Si es un error grave, detener la ejecución
+                  if (errors > 5) {
+                    console.error('Demasiados errores, abortando la operación.');
+                    await client.query('ROLLBACK');
+                    process.exit(1);
+                  }
                 }
               }
               
-              console.log('✅ Script SQL ejecutado correctamente');
-              await client.end();
+              if (errors > 0) {
+                console.warn(`⚠️ Se encontraron ${errors} errores durante la ejecución.`);
+                console.warn('Realizando rollback para mantener la consistencia de la base de datos.');
+                await client.query('ROLLBACK');
+                process.exit(1);
+              } else {
+                console.log('✅ Script SQL ejecutado correctamente, confirmando cambios.');
+                await client.query('COMMIT');
+              }
               
             } catch (error) {
               console.error('❌ Error al actualizar la base de datos:', error.message);
               if (error.stack) {
                 console.error('Detalles del error:', error.stack);
               }
+              
+              // Asegurarse de hacer rollback si hay error
+              if (client) {
+                try {
+                  await client.query('ROLLBACK');
+                  console.log('Se ha realizado rollback de los cambios debido al error.');
+                } catch (rollbackError) {
+                  console.error('Error adicional durante el rollback:', rollbackError.message);
+                }
+              }
+              
               process.exit(1);
+            } finally {
+              // Cerrar la conexión en cualquier caso
+              if (client) {
+                try {
+                  await client.end();
+                  console.log('Conexión cerrada.');
+                } catch (closeError) {
+                  console.error('Error al cerrar la conexión:', closeError.message);
+                }
+              }
             }
           }
 
