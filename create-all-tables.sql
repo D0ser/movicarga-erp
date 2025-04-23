@@ -506,17 +506,18 @@ CREATE POLICY "Permitir delete para usuarios anónimos" ON cuentas_banco FOR DEL
 -- Funciones y procedimientos almacenados
 CREATE OR REPLACE FUNCTION actualizar_saldo_viaje() 
 RETURNS TRIGGER 
-SECURITY INVOKER
-SET search_path = public
-AS $$
+LANGUAGE plpgsql
+AS 
+$$
 BEGIN
   NEW.saldo := NEW.tarifa - NEW.adelanto;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
--- Crear trigger solo si no existe
-CREATE TRIGGER IF NOT EXISTS trigger_actualizar_saldo_viaje
+-- Crear trigger 
+DROP TRIGGER IF EXISTS trigger_actualizar_saldo_viaje ON viajes;
+CREATE TRIGGER trigger_actualizar_saldo_viaje
 BEFORE INSERT OR UPDATE ON viajes
 FOR EACH ROW
 EXECUTE FUNCTION actualizar_saldo_viaje();
