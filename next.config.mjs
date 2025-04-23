@@ -20,11 +20,22 @@ const nextConfig = {
     //   },
     // },
     serverComponentsExternalPackages: ['pg'],
+    // Configuración adicional para grupos de rutas
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'movicarga-erp.vercel.app']
+    },
   },
   // Configuración para manejo de errores más indulgente
   typescript: {
     // Ignorar errores de TS durante la construcción
     ignoreBuildErrors: true,
+  },
+  // Ignorar errores durante la construcción para no fallar el despliegue
+  onDemandEntries: {
+    // Periodo antes de que una página inactiva sea descargada
+    maxInactiveAge: 25 * 1000,
+    // Número de páginas que se mantienen en memoria
+    pagesBufferLength: 4,
   },
 };
 
