@@ -9,7 +9,7 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   // Solución para el error en Vercel deployment
-  output: "standalone",
+  output: "standalone", // Reactivado ya que los scripts pre/post-build manejan los archivos necesarios
   // Forzar trailing slash para evitar problemas con grupos de rutas
   trailingSlash: true,
   // Deshabilitar turbopack experimental

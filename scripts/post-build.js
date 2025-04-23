@@ -25,33 +25,41 @@ function ensureFileExists(filePath, content = '') {
   return false;
 }
 
-// Función para copiar un archivo si no existe
-function copyFileIfNotExists(source, destination) {
-  if (fs.existsSync(source)) {
-    // Asegurarse de que el directorio de destino exista
-    const destDir = path.dirname(destination);
-    ensureDirectoryExists(destDir);
-    
-    if (!fs.existsSync(destination)) {
+// Función para copiar un archivo, creándolo si no existe la fuente
+function copyFile(source, destination) {
+  // Asegurarse de que el directorio de destino exista
+  const destDir = path.dirname(destination);
+  ensureDirectoryExists(destDir);
+  
+  try {
+    if (fs.existsSync(source)) {
       console.log(`Copiando archivo: ${source} -> ${destination}`);
       fs.copyFileSync(source, destination);
-      return true;
+    } else {
+      // Si el archivo fuente no existe, crear uno vacío en el destino
+      console.log(`El archivo fuente no existe, creando uno vacío en el destino: ${destination}`);
+      fs.writeFileSync(destination, '// Archivo creado automáticamente por post-build.js');
     }
-    console.log(`El archivo de destino ya existe, no se copia: ${destination}`);
-    return false;
+    return true;
+  } catch (error) {
+    console.error(`Error al copiar el archivo: ${error.message}`);
+    // En caso de error, intentar crear un archivo vacío en el destino
+    console.log(`Intentando crear un archivo vacío en el destino: ${destination}`);
+    try {
+      fs.writeFileSync(destination, '// Archivo creado automáticamente por post-build.js tras un error');
+      return true;
+    } catch (innerError) {
+      console.error(`No se pudo crear el archivo de destino: ${innerError.message}`);
+      return false;
+    }
   }
-  
-  console.log(`El archivo de origen no existe: ${source}`);
-  // Si el archivo de origen no existe, créalo vacío en el destino
-  ensureFileExists(destination, '// Archivo creado automáticamente por post-build.js');
-  return false;
 }
 
 // Obtener la ruta base
 const basePath = process.cwd();
 console.log(`Ruta base: ${basePath}`);
 
-// Rutas a los archivos de manifiesto problemáticos
+// Rutas a los archivos de manifiesto
 const sourceManifestPath = path.join(basePath, '.next', 'server', 'app', 'page_client-reference-manifest.js');
 const destDashboardDir = path.join(basePath, '.next', 'server', 'app', '(dashboard)');
 const destManifestPath = path.join(destDashboardDir, 'page_client-reference-manifest.js');
@@ -62,14 +70,12 @@ const destStandaloneManifestPath = path.join(destStandaloneDir, 'page_client-ref
 ensureDirectoryExists(destDashboardDir);
 ensureDirectoryExists(destStandaloneDir);
 
-// Intentar copiar el archivo de manifiesto
-if (fs.existsSync(sourceManifestPath)) {
-  copyFileIfNotExists(sourceManifestPath, destManifestPath);
-  copyFileIfNotExists(sourceManifestPath, destStandaloneManifestPath);
-} else {
-  console.log(`No se encontró archivo fuente de manifiesto, creando archivos vacíos.`);
-  ensureFileExists(destManifestPath, '// Archivo creado automáticamente por post-build.js');
-  ensureFileExists(destStandaloneManifestPath, '// Archivo creado automáticamente por post-build.js');
-}
+// Crear el archivo fuente si no existe
+const defaultManifestContent = 'module.exports = {}\n';
+ensureFileExists(sourceManifestPath, defaultManifestContent);
+
+// Copiar o crear los archivos de manifiesto
+copyFile(sourceManifestPath, destManifestPath);
+copyFile(sourceManifestPath, destStandaloneManifestPath);
 
 console.log('Script post-build completado.'); 

@@ -12,51 +12,52 @@ function ensureDirectoryExists(dirPath) {
   return false;
 }
 
-// Función para crear un archivo vacío si no existe
-function ensureFileExists(filePath, content = '') {
-  if (!fs.existsSync(filePath)) {
-    console.log(`Creando archivo: ${filePath}`);
-    fs.writeFileSync(filePath, content);
-    return true;
+// Función para borrar y crear un archivo nuevo
+function recreateFile(filePath, content = '') {
+  // Borrar archivo si existe
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+      console.log(`Archivo existente eliminado: ${filePath}`);
+    } catch (error) {
+      console.error(`Error al eliminar archivo: ${filePath}`, error);
+    }
   }
-  console.log(`El archivo ya existe: ${filePath}`);
-  return false;
+  
+  // Crear nuevo archivo
+  try {
+    fs.writeFileSync(filePath, content);
+    console.log(`Archivo creado: ${filePath}`);
+    return true;
+  } catch (error) {
+    console.error(`Error al crear archivo: ${filePath}`, error);
+    return false;
+  }
 }
 
 // Obtener la ruta base
 const basePath = process.cwd();
 console.log(`Ruta base: ${basePath}`);
 
-// Definir rutas relativas y absolutas
-const relativePathsToCheck = [
-  '.next/server/app/(dashboard)',
-  '.next/standalone/.next/server/app/(dashboard)',
-];
+// Definir rutas para los archivos de manifiesto
+const dashboardPath = path.join(basePath, '.next', 'server', 'app', '(dashboard)');
+const dashboardManifestPath = path.join(dashboardPath, 'page_client-reference-manifest.js');
+const standalonePath = path.join(basePath, '.next', 'standalone', '.next', 'server', 'app', '(dashboard)');
+const standaloneManifestPath = path.join(standalonePath, 'page_client-reference-manifest.js');
+const sourceManifestPath = path.join(basePath, '.next', 'server', 'app', 'page_client-reference-manifest.js');
 
-// Para rutas absolutas en Windows
-const absolutePathToCheck = [
-  path.join(basePath, '.next', 'server', 'app', '(dashboard)'),
-  path.join(basePath, '.next', 'standalone', '.next', 'server', 'app', '(dashboard)'),
-];
+// Contenido por defecto para los archivos de manifiesto
+const defaultManifestContent = 'module.exports = {}\n';
 
-// Verificar cada directorio (rutas relativas y absolutas)
-console.log('Verificando directorios con rutas relativas...');
-relativePathsToCheck.forEach(dir => {
-  const fullPath = path.join(basePath, dir);
-  ensureDirectoryExists(fullPath);
-  
-  // Crear archivo de manifiesto si es necesario
-  const manifestFile = path.join(fullPath, 'page_client-reference-manifest.js');
-  ensureFileExists(manifestFile, '// Archivo de manifiesto creado por check-build.js');
-});
+// Verificar y crear los directorios necesarios
+console.log('Verificando y creando directorios necesarios...');
+ensureDirectoryExists(dashboardPath);
+ensureDirectoryExists(standalonePath);
 
-console.log('Verificando directorios con rutas absolutas...');
-absolutePathToCheck.forEach(fullPath => {
-  ensureDirectoryExists(fullPath);
-  
-  // Crear archivo de manifiesto si es necesario
-  const manifestFile = path.join(fullPath, 'page_client-reference-manifest.js');
-  ensureFileExists(manifestFile, '// Archivo de manifiesto creado por check-build.js');
-});
+// Recrear los archivos de manifiesto
+console.log('Recreando archivos de manifiesto...');
+recreateFile(dashboardManifestPath, defaultManifestContent);
+recreateFile(standaloneManifestPath, defaultManifestContent);
+recreateFile(sourceManifestPath, defaultManifestContent);
 
 console.log('Verificación y creación de directorios completada.'); 
