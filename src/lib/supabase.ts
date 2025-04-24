@@ -32,24 +32,16 @@ function getEnvVariable(key: string): string {
 	};
 
 	if (fallbackValues[key]) {
-		console.warn(`Usando valor de respaldo para ${key}. Esto no es recomendable en producción.`);
 		return fallbackValues[key];
 	}
 
 	// Si no se encuentra en ningún lado, devolver cadena vacía
-	console.error(`No se pudo encontrar la variable de entorno ${key}`);
 	return "";
 }
 
 // Configuración de Supabase usando la función segura
 const supabaseUrl = getEnvVariable("NEXT_PUBLIC_SUPABASE_URL");
 const supabaseKey = getEnvVariable("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-if (!supabaseUrl || !supabaseKey) {
-	console.error("Variables de entorno de Supabase no configuradas correctamente");
-	console.error("URL:", supabaseUrl ? "Configurada" : "No configurada");
-	console.error("Key:", supabaseKey ? "Configurada" : "No configurada");
-}
 
 // Crear el cliente de Supabase
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -61,13 +53,11 @@ export async function testSupabaseConnection() {
 		const { data, error } = await supabase.from("detracciones").select("id").limit(1);
 
 		if (error) {
-			console.error("Error en prueba de conexión:", error);
 			return {
 				success: false,
 				message: `Error de conexión: ${error.message || "Error desconocido"}`,
 			};
 		} else {
-			console.log("Conexión exitosa a Supabase:", data);
 			return {
 				success: true,
 				message: "Conexión exitosa a Supabase",
@@ -75,7 +65,6 @@ export async function testSupabaseConnection() {
 			};
 		}
 	} catch (error) {
-		console.error("Excepción en prueba de conexión:", error);
 		return {
 			success: false,
 			message: `Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`,

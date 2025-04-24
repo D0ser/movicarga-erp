@@ -712,7 +712,6 @@ export const egresoSinFacturaService = {
 				conductor: egreso.conductor_id ? conductorMap.get(egreso.conductor_id) : undefined,
 			}));
 		} catch (error) {
-			console.error("Error en getEgresosSinFactura:", error);
 			throw error;
 		}
 	},
@@ -740,7 +739,6 @@ export const egresoSinFacturaService = {
 				conductor: conductorResult.data || undefined,
 			};
 		} catch (error) {
-			console.error("Error en getEgresoSinFacturaById:", error);
 			throw error;
 		}
 	},
@@ -771,30 +769,29 @@ export const egresoSinFacturaService = {
 export const detraccionService = {
 	async getDetracciones(): Promise<Detraccion[]> {
 		try {
-			// Primero, obtener todas las detracciones
-			const { data: detracciones, error: detraccionesError } = await supabase.from("detracciones").select("*").order("fecha_deposito", { ascending: false });
+			const { data: detracciones, error } = await supabase.from("detracciones").select("*").order("fecha_deposito", { ascending: false });
 
-			if (detraccionesError) throw detraccionesError;
+			if (error) throw error;
 			if (!detracciones || detracciones.length === 0) return [];
 
-			// Obtener IDs únicos para las entidades relacionadas
+			// Obtener IDs para consultas relacionadas
 			const clienteIds = [...new Set(detracciones.map((d) => d.cliente_id).filter(Boolean))];
 			const viajeIds = [...new Set(detracciones.map((d) => d.viaje_id).filter(Boolean))];
 			const ingresoIds = [...new Set(detracciones.map((d) => d.ingreso_id).filter(Boolean))];
 
-			// Obtener datos relacionados en consultas separadas
+			// Obtener datos relacionados
 			const [clientesResult, viajesResult, ingresosResult] = await Promise.all([
 				clienteIds.length > 0 ? supabase.from("clientes").select("id, razon_social, ruc").in("id", clienteIds) : { data: [] },
 				viajeIds.length > 0 ? supabase.from("viajes").select("id, origen, destino, fecha_salida").in("id", viajeIds) : { data: [] },
 				ingresoIds.length > 0 ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").in("id", ingresoIds) : { data: [] },
 			]);
 
-			// Crear mapas para búsqueda rápida
+			// Crear mapas para búsqueda eficiente
 			const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
 			const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
 			const ingresoMap = new Map((ingresosResult.data || []).map((i) => [i.id, i]));
 
-			// Combinar datos
+			// Asignar relaciones a las detracciones
 			return detracciones.map((detraccion) => ({
 				...detraccion,
 				cliente: detraccion.cliente_id ? clienteMap.get(detraccion.cliente_id) : undefined,
@@ -802,27 +799,25 @@ export const detraccionService = {
 				ingreso: detraccion.ingreso_id ? ingresoMap.get(detraccion.ingreso_id) : undefined,
 			}));
 		} catch (error) {
-			console.error("Error en getDetracciones:", error);
 			throw error;
 		}
 	},
 
 	async getDetraccionById(id: string): Promise<Detraccion | null> {
 		try {
-			// Obtener la detracción
-			const { data: detraccion, error: detraccionError } = await supabase.from("detracciones").select("*").eq("id", id).single();
+			const { data: detraccion, error } = await supabase.from("detracciones").select("*").eq("id", id).single();
 
-			if (detraccionError) throw detraccionError;
+			if (error) throw error;
 			if (!detraccion) return null;
 
-			// Obtener datos relacionados en consultas separadas
+			// Obtener datos relacionados
 			const [clienteResult, viajeResult, ingresoResult] = await Promise.all([
 				detraccion.cliente_id ? supabase.from("clientes").select("id, razon_social, ruc").eq("id", detraccion.cliente_id).single() : { data: null },
 				detraccion.viaje_id ? supabase.from("viajes").select("id, origen, destino, fecha_salida").eq("id", detraccion.viaje_id).single() : { data: null },
 				detraccion.ingreso_id ? supabase.from("ingresos").select("id, concepto, monto, numero_factura").eq("id", detraccion.ingreso_id).single() : { data: null },
 			]);
 
-			// Combinar datos
+			// Devolver detracción con sus relaciones
 			return {
 				...detraccion,
 				cliente: clienteResult.data || undefined,
@@ -830,24 +825,12 @@ export const detraccionService = {
 				ingreso: ingresoResult.data || undefined,
 			};
 		} catch (error) {
-			console.error("Error en getDetraccionById:", error);
 			throw error;
 		}
 	},
 
 	async createDetraccion(detraccion: Omit<Detraccion, "id" | "cliente" | "viaje" | "ingreso">): Promise<Detraccion> {
 		try {
-			console.log("[Supabase] Intentando crear detracción con datos:", JSON.stringify(detraccion));
-
-			// Validar datos básicos
-			if (!detraccion.numero_constancia) {
-				console.warn("[Supabase] Advertencia: Creando detracción sin número de constancia");
-			}
-
-			if (!detraccion.fecha_deposito) {
-				console.warn("[Supabase] Advertencia: Creando detracción sin fecha de depósito");
-			}
-
 			// Sanitizar datos antes de insertar (eliminar campos undefined o null que podrían causar problemas)
 			const datosSanitizados: any = {};
 
@@ -859,17 +842,10 @@ export const detraccionService = {
 				}
 			});
 
-			console.log("[Supabase] Datos sanitizados para inserción:", JSON.stringify(datosSanitizados));
-
 			// Realizar la inserción con datos sanitizados
 			const { data, error } = await supabase.from("detracciones").insert([datosSanitizados]).select();
 
 			if (error) {
-				console.error("[Supabase] Error al insertar detracción:", error);
-				console.error("[Supabase] Detalles del error:", error.details);
-				console.error("[Supabase] Código de error:", error.code);
-				console.error("[Supabase] Mensaje:", error.message);
-
 				// Manejo específico de errores comunes
 				if (error.code === "23502") {
 					throw new Error("Error: Campo obligatorio faltante. Revise que los campos requeridos no estén vacíos.");
@@ -883,14 +859,11 @@ export const detraccionService = {
 			}
 
 			if (!data || data.length === 0) {
-				console.error("[Supabase] No se recibieron datos de respuesta al crear la detracción");
 				throw new Error("No se recibieron datos de respuesta al crear la detracción");
 			}
 
-			console.log("[Supabase] Detracción creada exitosamente:", data[0]);
 			return data[0];
 		} catch (error) {
-			console.error("[Supabase] Error en createDetraccion:", error);
 			throw error;
 		}
 	},

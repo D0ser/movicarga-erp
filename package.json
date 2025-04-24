@@ -18,7 +18,13 @@
 		"supabase:import": "node scripts/supabase-local.js import",
 		"supabase:reset": "node scripts/supabase-local.js reset",
 		"dev:local": "npm run supabase:start && next dev",
-		"migrate-dashboard": "node scripts/migrate-dashboard.js"
+		"migrate-dashboard": "node scripts/migrate-dashboard.js",
+		"db:new": "supabase migration new",
+		"db:push": "supabase db push",
+		"db:reset": "supabase db reset",
+		"db:diff": "supabase db diff -f pending-changes",
+		"db:start": "supabase start",
+		"db:stop": "supabase stop"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.0.1",

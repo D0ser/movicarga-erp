@@ -1,3 +1,0 @@
-"---" 
-description: Directrices para dise¤o UI, colores y accesibilidad 
-attachments: 

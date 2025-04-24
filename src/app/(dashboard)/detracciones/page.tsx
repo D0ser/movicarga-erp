@@ -77,19 +77,7 @@ export default function DetraccionesPage() {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [importError, setImportError] = useState<string>("");
 	const [nombreArchivoCsv, setNombreArchivoCsv] = useState<string>("");
-	const [debugMode, setDebugMode] = useState<boolean>(false);
-	const [forceImport, setForceImport] = useState<boolean>(false);
 	const [testConnectionResult, setTestConnectionResult] = useState<{ success: boolean; message: string } | null>(null);
-
-	// Comprobar el entorno al cargar el componente
-	useEffect(() => {
-		console.log("Entorno actual:", {
-			NODE_ENV: process.env.NODE_ENV,
-			OFFLINE_MODE: process.env.NEXT_PUBLIC_OFFLINE_MODE,
-			SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? "Configurado" : "No configurado",
-			SUPABASE_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Configurado" : "No configurado",
-		});
-	}, []);
 
 	// Cargar datos de detracciones desde Supabase
 	useEffect(() => {
@@ -100,7 +88,6 @@ export default function DetraccionesPage() {
 				// Verificar primero la conexión a Supabase
 				const connectionResult = await testConnection();
 				if (!connectionResult.success) {
-					console.error("Error de conexión a Supabase:", connectionResult.message);
 					setError(`Error de conexión a Supabase: ${connectionResult.message}. Verifique su conexión a internet o contacte al administrador.`);
 
 					// Cargar datos de respaldo solo en caso de error
@@ -144,7 +131,6 @@ export default function DetraccionesPage() {
 				}
 
 				// Si la conexión es exitosa, cargar datos reales
-				console.log("Conexión a Supabase verificada, cargando datos...");
 				const data = await detraccionService.getDetracciones();
 				setDetracciones(data);
 				setError(null);
@@ -153,7 +139,6 @@ export default function DetraccionesPage() {
 				const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
 				setCsvOrigenes(origenes as string[]);
 			} catch (err) {
-				console.error("Error al cargar detracciones:", err);
 				setError("Error al cargar las detracciones. Por favor, inténtelo de nuevo.");
 				// Datos de respaldo en caso de error
 				setDetracciones([
@@ -495,7 +480,6 @@ export default function DetraccionesPage() {
 			}
 
 			if (confirm(`¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}"?`)) {
-				// MODIFICADO: Usar la misma lógica de modo offline que en el resto del código
 				const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === "true";
 
 				if (isOfflineMode) {
@@ -504,16 +488,14 @@ export default function DetraccionesPage() {
 					actualizarOrigenesCsv(nuevasDetracciones);
 				} else {
 					// En modo online, eliminamos de Supabase
-					console.log(`Eliminando ${detracionesAEliminar.length} detracciones de Supabase...`);
 					let eliminadasCount = 0;
 
 					for (const det of detracionesAEliminar) {
 						try {
 							await detraccionService.deleteDetraccion(det.id);
 							eliminadasCount++;
-							console.log(`Detracción ${det.id} eliminada (${eliminadasCount}/${detracionesAEliminar.length})`);
 						} catch (err) {
-							console.error(`Error al eliminar detracción ${det.id}:`, err);
+							// Manejar error silenciosamente
 						}
 					}
 
@@ -521,8 +503,6 @@ export default function DetraccionesPage() {
 					const nuevasDetracciones = detracciones.filter((d) => d.origen_csv !== origen);
 					setDetracciones(nuevasDetracciones);
 					actualizarOrigenesCsv(nuevasDetracciones);
-
-					console.log(`Eliminación completada: ${eliminadasCount} de ${detracionesAEliminar.length} detracciones eliminadas`);
 				}
 
 				setShowDeleteModal(false);
@@ -530,7 +510,6 @@ export default function DetraccionesPage() {
 				alert(`Se eliminaron las detracciones del archivo "${origen}" con éxito.`);
 			}
 		} catch (error) {
-			console.error("Error al eliminar detracciones por CSV:", error);
 			alert("Error al eliminar las detracciones");
 		}
 	};
@@ -547,7 +526,6 @@ export default function DetraccionesPage() {
 				// Actualizar orígenes CSV
 				actualizarOrigenesCsv(nuevasDetracciones);
 			} catch (error) {
-				console.error("Error al eliminar detracción:", error);
 				alert("Error al eliminar la detracción");
 			}
 		}
@@ -560,7 +538,6 @@ export default function DetraccionesPage() {
 			// Actualizar estado local
 			setDetracciones(detracciones.map((det) => (det.id === id ? { ...det, estado: "Pagado" } : det)));
 		} catch (error) {
-			console.error("Error al actualizar estado de detracción:", error);
 			alert("Error al actualizar el estado de la detracción");
 		}
 	};
@@ -580,7 +557,6 @@ export default function DetraccionesPage() {
 			setCsvData(csvContent);
 		};
 		reader.onerror = (error) => {
-			console.error("Error al leer el archivo CSV:", error);
 			setImportError("Error al leer el archivo CSV. Por favor, inténtelo de nuevo.");
 		};
 
@@ -596,14 +572,7 @@ export default function DetraccionesPage() {
 			// Usar la función mejorada para probar la conexión
 			const result = await testConnection();
 			setTestConnectionResult(result);
-
-			if (result.success) {
-				console.log("Conexión exitosa a Supabase:", result);
-			} else {
-				console.error("Error de conexión a Supabase:", result);
-			}
 		} catch (error) {
-			console.error("Excepción en prueba de conexión:", error);
 			setTestConnectionResult({
 				success: false,
 				message: `Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`,
@@ -617,13 +586,11 @@ export default function DetraccionesPage() {
 			setImportError("");
 
 			// Primero verificar la conexión a Supabase
-			console.log("Verificando conexión a Supabase antes de procesar CSV...");
 			const connectionResult = await testConnection();
 			if (!connectionResult.success) {
 				setImportError(`Error de conexión a Supabase: ${connectionResult.message}`);
 				return;
 			}
-			console.log("Conexión a Supabase verificada, continuando con el procesamiento CSV");
 
 			// Procesar CSV - Usando delimitador adaptativo
 			const lines = csvData.split("\n");
@@ -643,12 +610,8 @@ export default function DetraccionesPage() {
 
 			if (countSemicolons > countCommas && countSemicolons > countTabs) {
 				delimiter = ";";
-				console.log("Delimitador detectado: punto y coma (;)");
 			} else if (countTabs > countCommas && countTabs > countSemicolons) {
 				delimiter = "\t";
-				console.log("Delimitador detectado: tabulador (\\t)");
-			} else {
-				console.log("Delimitador detectado: coma (,)");
 			}
 
 			// Orden obligatorio de campos con nombres completos
@@ -697,10 +660,7 @@ export default function DetraccionesPage() {
 			let headers: string[] = [];
 			try {
 				headers = firstLine.split(delimiter).map((header) => header.trim());
-				console.log("Encabezados encontrados en el CSV:", headers);
-				console.log("Delimitador utilizado:", delimiter);
 			} catch (e) {
-				console.error("Error al procesar encabezados:", e);
 				setImportError("Error al procesar los encabezados del CSV. Verifique el formato.");
 				return;
 			}
@@ -719,29 +679,9 @@ export default function DetraccionesPage() {
 				return isValid;
 			});
 
-			// Si hay diferencias, mostrarlas en la consola para depuración
-			if (headersMismatches.length > 0) {
-				console.error("Discrepancias en encabezados:", headersMismatches);
-				console.log(
-					"Encabezados esperados:",
-					nombresCamposEsperados.map((h) => h.toLowerCase())
-				);
-				console.log(
-					"Encabezados encontrados:",
-					headers.map((h) => h.toLowerCase())
-				);
-			}
-
 			if (!headersValidos) {
-				// Si está activado el modo forzar importación, continuamos aunque los encabezados no coincidan
-				if (forceImport && debugMode) {
-					console.warn("IMPORTANTE: Forzando importación a pesar de discrepancias en encabezados.");
-					console.log("Usando los encabezados encontrados como están, ignorando validación.");
-				} else {
-					// Comportamiento normal: mostrar error y detener importación
-					setImportError("El orden de los campos en el CSV no coincide con el orden requerido. Por favor, verifique la estructura del archivo.");
-					return;
-				}
+				setImportError("El orden de los campos en el CSV no coincide con el orden requerido. Por favor, verifique la estructura del archivo.");
+				return;
 			}
 
 			const importedDetracciones: Detraccion[] = [];
@@ -754,13 +694,11 @@ export default function DetraccionesPage() {
 				try {
 					values = lines[i].split(delimiter).map((val) => val.trim());
 				} catch (e) {
-					console.error(`Error al procesar la línea ${i + 1}:`, e);
 					setImportError(`Error al procesar la línea ${i + 1}. Verifique el formato.`);
 					continue; // Continuar con la siguiente línea en lugar de detener todo el proceso
 				}
 
 				if (values.length !== headers.length) {
-					console.warn(`Advertencia: La línea ${i + 1} tiene ${values.length} valores pero se esperaban ${headers.length}`);
 					// Ajustar el tamaño de values para que coincida con headers
 					while (values.length < headers.length) values.push("");
 					if (values.length > headers.length) values = values.slice(0, headers.length);
@@ -769,52 +707,11 @@ export default function DetraccionesPage() {
 				// Crear un objeto con los valores en el orden correcto
 				const detraccionData: Record<string, any> = {};
 
-				// Mapear valores según el orden correcto, convirtiendo los nombres completos a nombres de campo interno
-				if (forceImport && debugMode && !headersValidos) {
-					// Si estamos forzando la importación, mapeamos directamente por posición
-					// Asumimos que las posiciones más importantes son las primeras y las mapeamos a los campos correspondientes
-					console.log("Mapeo de emergencia usado con encabezados encontrados");
-
-					// Mapeo básico (asumiendo que al menos algunas columnas están en posiciones cercanas a las esperadas)
-					headers.forEach((header, index) => {
-						// Buscar el nombre de campo más similar
-						const normalizedHeader = header.toLowerCase().replace(/\s+/g, "");
-						let bestMatch = "";
-
-						// Intentamos encontrar la mejor coincidencia entre los campos esperados
-						for (const nombreCampo of Object.keys(mapeoNombresCampos)) {
-							const normalizedNombreCampo = nombreCampo.toLowerCase().replace(/\s+/g, "");
-
-							if (normalizedHeader.includes(normalizedNombreCampo) || normalizedNombreCampo.includes(normalizedHeader)) {
-								bestMatch = mapeoNombresCampos[nombreCampo];
-								break;
-							}
-						}
-
-						// Si no encontramos coincidencia, usamos un mapeo por posición para los campos más críticos
-						if (!bestMatch) {
-							// Mapeo de emergencia por posición para los campos más importantes
-							const camposEnOrden = ["tipo_cuenta", "numero_cuenta", "numero_constancia", "periodo_tributario", "ruc_proveedor", "nombre_proveedor", "monto", "fecha_pago"];
-
-							if (index < camposEnOrden.length) {
-								bestMatch = camposEnOrden[index];
-							} else {
-								// Si todo falla, usamos el encabezado tal cual
-								bestMatch = header.toLowerCase().replace(/\s+/g, "_");
-							}
-						}
-
-						// Asignar el valor
-						detraccionData[bestMatch] = values[index] || "";
-						console.log(`Mapeado: ${header} -> ${bestMatch} = ${values[index]}`);
-					});
-				} else {
-					// Mapeo normal usando el orden esperado
-					nombresCamposEsperados.forEach((nombreCampo, index) => {
-						const nombreCampoInterno = mapeoNombresCampos[nombreCampo];
-						detraccionData[nombreCampoInterno] = values[index] || "";
-					});
-				}
+				// Mapeo normal usando el orden esperado
+				nombresCamposEsperados.forEach((nombreCampo, index) => {
+					const nombreCampoInterno = mapeoNombresCampos[nombreCampo];
+					detraccionData[nombreCampoInterno] = values[index] || "";
+				});
 
 				// Generar ID único temporal (será reemplazado por Supabase en producción)
 				const uniqueId = `temp_${new Date().getTime()}_${i}`;
@@ -865,11 +762,9 @@ export default function DetraccionesPage() {
 							detraccion.fecha_pago = fechaPago.toISOString().split("T")[0];
 						} else {
 							// Si no se puede parsear, dejar vacío para evitar errores en Supabase
-							console.warn(`Fecha de pago inválida en línea ${i}: ${detraccion.fecha_pago}`);
 							detraccion.fecha_pago = null as any; // Usar null en lugar de string vacío
 						}
 					} catch (e) {
-						console.warn(`Error al parsear fecha_pago en línea ${i}: ${e}`);
 						detraccion.fecha_pago = null as any;
 					}
 				} else if (detraccion.fecha_pago === "") {
@@ -886,27 +781,15 @@ export default function DetraccionesPage() {
 							detraccion.fecha_deposito = new Date().toISOString().split("T")[0];
 						}
 					} catch (e) {
-						console.warn(`Error al parsear fecha_deposito en línea ${i}: ${e}`);
 						detraccion.fecha_deposito = new Date().toISOString().split("T")[0];
 					}
 				}
 
-				// Verificar que los datos obligatorios estén presentes
-				if (!detraccion.numero_constancia) {
-					console.warn("Advertencia: Falta número de constancia en la línea", i);
-				}
-				if (!detraccion.monto || detraccion.monto <= 0) {
-					console.warn("Advertencia: Monto inválido en la línea", i);
-					detraccion.monto = 0; // Asignar 0 para evitar errores de tipo
-				}
-
 				try {
 					// Para modo offline o pruebas, agregar sin llamar a Supabase
-					// MODIFICADO: Ahora solo usa modo offline si NEXT_PUBLIC_OFFLINE_MODE está específicamente configurado como true
 					const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === "true";
 
 					if (isOfflineMode) {
-						console.log("Modo offline/desarrollo: guardando datos localmente");
 						// Modo offline: solo guardar en estado local con ID temporal
 						importedDetracciones.push({
 							...detraccion,
@@ -918,35 +801,19 @@ export default function DetraccionesPage() {
 						} as Detraccion);
 					} else {
 						// Modo online: guardar en Supabase
-						console.log("Modo online: intentando guardar en Supabase", JSON.stringify(detraccion));
-
 						try {
-							// Verificar que los datos obligatorios estén presentes
-							if (!detraccion.numero_constancia) {
-								console.warn("Advertencia: Falta número de constancia en la línea", i);
-							}
-							if (!detraccion.monto || detraccion.monto <= 0) {
-								console.warn("Advertencia: Monto inválido en la línea", i);
-								detraccion.monto = 0; // Asignar 0 para evitar errores de tipo
-							}
-
 							// NUEVO: Buscar cliente por RUC del adquiriente antes de insertar
 							// Ahora usamos los datos del adquiriente en lugar del proveedor
 							if (detraccion.numero_documento_adquiriente) {
 								try {
-									console.log(`Buscando cliente con RUC/Documento: ${detraccion.numero_documento_adquiriente}`);
 									const clienteExistente = await clienteService.getClienteByRuc(detraccion.numero_documento_adquiriente);
 
 									if (clienteExistente) {
-										console.log(`Cliente encontrado con ID: ${clienteExistente.id}`);
 										detraccion.cliente_id = clienteExistente.id;
 									} else {
-										console.log(`No se encontró cliente con RUC/Documento: ${detraccion.numero_documento_adquiriente}`);
-
 										// Opcionalmente, crear un nuevo cliente si no existe
 										if (detraccion.nombre_razon_social_adquiriente && detraccion.numero_documento_adquiriente) {
 											try {
-												console.log(`Creando nuevo cliente: ${detraccion.nombre_razon_social_adquiriente}`);
 												const nuevoCliente = await clienteService.createCliente({
 													razon_social: detraccion.nombre_razon_social_adquiriente,
 													ruc: detraccion.numero_documento_adquiriente,
@@ -956,40 +823,31 @@ export default function DetraccionesPage() {
 												});
 
 												detraccion.cliente_id = nuevoCliente.id;
-												console.log(`Nuevo cliente creado con ID: ${nuevoCliente.id}`);
 											} catch (errorCreacion) {
-												console.error("Error al crear nuevo cliente:", errorCreacion);
+												// Manejar error silenciosamente
 											}
 										}
 									}
 								} catch (errorBusqueda) {
-									console.error("Error al buscar cliente por RUC/Documento:", errorBusqueda);
+									// Manejar error silenciosamente
 								}
 							}
 
 							// Si después de todo esto el cliente_id sigue sin asignarse, dejarlo como null
 							if (!detraccion.cliente_id) {
-								console.warn("Advertencia: cliente_id vacío en la línea", i);
 								detraccion.cliente_id = null as any;
 							}
 
 							// Añadir fecha_deposito si está ausente
 							if (!detraccion.fecha_deposito) {
 								detraccion.fecha_deposito = new Date().toISOString().split("T")[0];
-								console.log("Fecha depósito asignada automáticamente:", detraccion.fecha_deposito);
 							}
 
 							// Remover propiedades que podrían causar problemas en Supabase
 							const detraccionLimpia = { ...detraccion };
 
-							// Solo intentamos insertar si tenemos los datos mínimos necesarios
-							if (debugMode) {
-								console.log("Objeto final a insertar:", JSON.stringify(detraccionLimpia, null, 2));
-							}
-
 							// Crear en Supabase (omitiendo campos cliente y otros relacionados)
 							const createdDetraccion = await detraccionService.createDetraccion(detraccionLimpia as Omit<DetraccionType, "id" | "cliente" | "viaje" | "ingreso">);
-							console.log("Detracción creada exitosamente en Supabase:", createdDetraccion);
 
 							// Agregar el registro creado en Supabase con su ID real
 							importedDetracciones.push({
@@ -998,107 +856,57 @@ export default function DetraccionesPage() {
 									razon_social: detraccionData.nombre_proveedor || "Sin especificar",
 									ruc: detraccionData.ruc_proveedor || "",
 								},
-							} as Detraccion);
-						} catch (supabaseError) {
-							console.error("Error específico de Supabase:", supabaseError);
-							console.error("Detalles del objeto que falló:", JSON.stringify(detraccion));
-
-							// Analizar tipo de error para dar mensaje más claro
-							let errorMessage = "Error desconocido";
-
-							if (supabaseError instanceof Error) {
-								errorMessage = supabaseError.message;
-
-								// Detectar errores comunes
-								if (errorMessage.includes("foreign key constraint")) {
-									errorMessage = "Error de clave foránea - Asegúrese de que los IDs referenciados existan en la base de datos";
-								} else if (errorMessage.includes("duplicate key")) {
-									errorMessage = "Error de clave duplicada - Ya existe una detracción con ese ID o número de constancia";
-								} else if (errorMessage.includes("not-null constraint")) {
-									errorMessage = "Error de campo requerido - Hay campos obligatorios que están vacíos";
-								}
-							}
-
-							setImportError(`Error al guardar detracción en la línea ${i + 1}: ${errorMessage}`);
-
-							// Dependiendo del error, podríamos intentar continuar o detener todo el proceso
-							if (forceImport && debugMode) {
-								console.warn("Continuando importación a pesar del error (modo forzado)");
-								continue;
-							} else {
-								return; // Detener todo el proceso en caso de error grave
-							}
+							});
+						} catch (innerError) {
+							setImportError(`Error al insertar detracción en Supabase en la línea ${i + 1}`);
 						}
 					}
 				} catch (error) {
-					console.error("Error al guardar detracción:", error);
-					console.error("Objeto que causó el error:", JSON.stringify(detraccion));
-					setImportError(`Error al guardar detracción en la línea ${i + 1}: ${error instanceof Error ? error.message : "Error desconocido"}`);
-					// Continuar con el siguiente registro si hay error
+					setImportError(`Error al procesar la línea ${i + 1}: ${error instanceof Error ? error.message : "Error desconocido"}`);
 				}
 			}
 
-			if (importedDetracciones.length === 0) {
-				setImportError("No se pudieron importar detracciones. Verifique el formato del archivo CSV y los datos.");
-				return;
-			}
+			if (importedDetracciones.length > 0) {
+				// Actualizar el estado con las nuevas detracciones
+				setDetracciones([...detracciones, ...importedDetracciones]);
 
-			// Agregar detracciones importadas al estado local
-			setDetracciones((prev) => [...prev, ...importedDetracciones]);
-
-			// Actualizar la lista de orígenes CSV
-			if (nombreArchivoCsv) {
-				console.log(`Actualizando orígenes CSV, agregando: "${nombreArchivoCsv}"`);
-				const nuevosOrigenes = [...csvOrigenes];
-				if (!nuevosOrigenes.includes(nombreArchivoCsv)) {
-					nuevosOrigenes.push(nombreArchivoCsv);
+				// Actualizar la lista de orígenes CSV
+				// Actualizar orígenes CSV desde la base de datos en modo online
+				const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === "true";
+				if (!isOfflineMode) {
+					await actualizarOrigenesCsvDesdeDB();
+				} else {
+					// En modo offline, actualizamos los orígenes basados en los datos locales
+					const nuevosOrigenes = [...new Set([...csvOrigenes, nombreArchivoCsv])];
+					setCsvOrigenes(nuevosOrigenes);
 				}
-				setCsvOrigenes(nuevosOrigenes);
-				console.log("Lista actualizada de orígenes CSV:", nuevosOrigenes);
-			}
 
-			// Limpiar
-			setCsvData("");
-			setNombreArchivoCsv("");
-			if (fileInputRef.current) {
-				fileInputRef.current.value = "";
-			}
-			setShowImportForm(false);
+				// Cerrar el formulario de importación y limpiar
+				setShowImportForm(false);
+				setCsvData("");
+				setNombreArchivoCsv("");
+				fileInputRef.current && (fileInputRef.current.value = "");
 
-			// Mostrar mensaje de éxito
-			alert(`Se importaron ${importedDetracciones.length} detracciones con éxito`);
+				// Mensaje de éxito
+				alert(`Se importaron ${importedDetracciones.length} detracciones con éxito.`);
+			} else {
+				setImportError("No se pudo importar ninguna detracción. Verifique el formato del archivo CSV.");
+			}
 		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : "Error desconocido";
-			setImportError(`Error al procesar el archivo CSV: ${errorMessage}`);
-			console.error("Error al procesar CSV:", error);
+			setImportError(`Error al procesar el archivo CSV: ${error instanceof Error ? error.message : "Error desconocido"}`);
 		}
 	};
 
-	// Función para actualizar manualmente los orígenes CSV desde la base de datos
+	// Función para actualizar la lista de orígenes CSV desde la base de datos
 	const actualizarOrigenesCsvDesdeDB = async () => {
 		try {
-			console.log("Actualizando orígenes CSV desde la base de datos...");
-
-			// Verificar conexión
-			const connectionResult = await testConnection();
-			if (!connectionResult.success) {
-				console.error("Error de conexión a Supabase:", connectionResult.message);
-				alert("Error de conexión con la base de datos. No se pueden actualizar los orígenes CSV.");
-				return;
-			}
-
-			// Obtener todas las detracciones de la base de datos
 			const data = await detraccionService.getDetracciones();
-
-			// Extraer y actualizar los orígenes CSV
-			const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
-			setCsvOrigenes(origenes as string[]);
-
-			console.log("Orígenes CSV actualizados desde la base de datos:", origenes);
-			alert("Lista de orígenes CSV actualizada correctamente desde la base de datos.");
+			if (data && data.length > 0) {
+				const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
+				setCsvOrigenes(origenes as string[]);
+			}
 		} catch (error) {
-			console.error("Error al actualizar orígenes CSV desde la base de datos:", error);
-			alert("Error al actualizar la lista de orígenes CSV.");
+			// Manejar silenciosamente, no interrumpir la UI por esto
 		}
 	};
 
@@ -1113,25 +921,7 @@ export default function DetraccionesPage() {
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Detracciones</h1>
 				<div className="flex space-x-2">
-					<button
-						onClick={() => setDebugMode(!debugMode)}
-						className={`px-4 py-2 rounded-md ${debugMode ? "bg-orange-600 text-white" : "bg-gray-300 text-gray-700"}`}
-						title="Activar/desactivar modo depuración">
-						{debugMode ? "Debug ON" : "Debug OFF"}
-					</button>
-
-					{/* Indicador del modo de almacenamiento */}
-					<div
-						className={`px-4 py-2 rounded-md ${process.env.NEXT_PUBLIC_OFFLINE_MODE === "true" ? "bg-red-600 text-white" : "bg-green-600 text-white"}`}
-						title="Indica si los datos se guardan en Supabase o solo localmente">
-						{process.env.NEXT_PUBLIC_OFFLINE_MODE === "true" ? "Modo Offline" : "Modo Online (Supabase)"}
-					</div>
-
-					<button
-						onClick={() => {
-							setShowImportForm(!showImportForm);
-						}}
-						className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+					<button onClick={() => setShowImportForm(!showImportForm)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
 						Importar CSV
 					</button>
 
@@ -1140,30 +930,6 @@ export default function DetraccionesPage() {
 					</button>
 				</div>
 			</div>
-
-			{debugMode && (
-				<div className="bg-orange-100 border-l-4 border-orange-500 text-orange-700 p-4 mb-4">
-					<div className="font-bold">Modo Depuración</div>
-					<p className="mb-2">Información del entorno:</p>
-					<ul className="list-disc pl-5">
-						<li>NODE_ENV: {process.env.NODE_ENV}</li>
-						<li>OFFLINE_MODE: {process.env.NEXT_PUBLIC_OFFLINE_MODE}</li>
-						<li>SUPABASE_URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "Configurado" : "No configurado"}</li>
-						<li>SUPABASE_KEY: {process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? "Configurado" : "No configurado"}</li>
-					</ul>
-					<div className="mt-3 flex items-center">
-						<input type="checkbox" id="force-import" checked={forceImport} onChange={() => setForceImport(!forceImport)} className="mr-2" />
-						<label htmlFor="force-import">Forzar importación (ignorar validación de encabezados)</label>
-					</div>
-					<div className="mt-3">
-						<button onClick={testSupabaseConnection} className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600 text-sm">
-							Probar conexión a Supabase
-						</button>
-
-						{testConnectionResult && <div className={`mt-2 ${testConnectionResult.success ? "text-green-600" : "text-red-600"}`}>{testConnectionResult.message}</div>}
-					</div>
-				</div>
-			)}
 
 			{/* Modal para importación CSV */}
 			<Modal

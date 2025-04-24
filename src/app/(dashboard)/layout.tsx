@@ -50,7 +50,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 				const { data, error } = await supabase.from("usuarios").select("*").eq("username", "c.llanos").single();
 
 				if (error) {
-					console.error("Error al buscar usuario en Supabase:", error);
 					// Si hay error al buscar en Supabase, usar dato local
 					if (!userStr) {
 						// Si no hay usuario guardado, establecer c.llanos como usuario por defecto
@@ -82,11 +81,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 						.update({ lastLogin: new Date().toISOString() })
 						.eq("id", data.id)
 						.then((result) => {
-							if (result.error) {
-								console.error("Error al actualizar último acceso:", result.error);
-								return;
-							}
-							console.log("Último acceso actualizado");
+							// Silenciar errores
 						});
 
 					// Guardar en localStorage y actualizar el estado
@@ -110,7 +105,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 					}
 				}
 			} catch (err: unknown) {
-				console.error("Error inesperado al verificar usuario:", err);
 				// Usar dato local en caso de error
 				if (!userStr) {
 					const defaultUser = {

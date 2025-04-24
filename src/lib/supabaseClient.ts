@@ -12,9 +12,4 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 	},
 });
 
-// Detectar entorno (local o producción)
-const isLocalEnv = supabaseUrl.includes("localhost") || supabaseUrl.includes("127.0.0.1");
-
-console.log(`🔌 Conexión a Supabase ${isLocalEnv ? "(local)" : "(producción)"}: ${supabaseUrl}`);
-
 export default supabase;
