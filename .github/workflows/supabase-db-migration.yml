@@ -36,7 +36,7 @@ jobs:
       - name: Set up Supabase CLI
         run: |
           echo "Configurando Supabase CLI..."
-          npx supabase login --access-token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          npx supabase login --token ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           npx supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_ID }}
 
       - name: Apply database migrations
