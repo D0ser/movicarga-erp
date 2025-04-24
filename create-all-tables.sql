@@ -511,7 +511,7 @@ BEGIN
   NEW.saldo := NEW.tarifa - NEW.adelanto;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS trigger_actualizar_saldo_viaje ON viajes;
 CREATE TRIGGER trigger_actualizar_saldo_viaje
