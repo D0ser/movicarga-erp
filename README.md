@@ -34,3 +34,58 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Desarrollo con Supabase
+
+### Migraciones de Base de Datos
+
+Este proyecto utiliza Supabase CLI para gestionar las migraciones de la base de datos. En lugar de ejecutar manualmente scripts SQL, se utilizan archivos de migración que se aplican secuencialmente.
+
+#### Instalación de Supabase CLI
+
+```bash
+# Instalar como dependencia de desarrollo
+npm install supabase --save-dev
+
+# Verificar instalación
+npx supabase -v
+```
+
+#### Estructura de migraciones
+
+Las migraciones se encuentran en el directorio `supabase/migrations/` y siguen un formato de nomenclatura que incluye timestamp y descripción:
+
+```
+supabase/migrations/
+  ├── 20240424220500_initial_schema.sql
+  ├── 20240424220600_seguridad.sql
+  └── 20240424220700_fix_function.sql
+```
+
+#### Comandos útiles
+
+```bash
+# Inicializar Supabase (ya realizado en este proyecto)
+npx supabase init
+
+# Iniciar servicios locales de Supabase
+npx supabase start
+
+# Generar una nueva migración
+npx supabase migration new nombre_descriptivo
+
+# Aplicar migraciones pendientes
+npx supabase db push
+
+# Aplicar seed data
+npx supabase db reset
+```
+
+#### Flujo de trabajo recomendado
+
+1. Crear una nueva migración para cada cambio en el esquema
+2. Probar localmente
+3. Hacer commit de los cambios
+4. En producción, aplicar las migraciones con `supabase db push`
+
+Para obtener más información sobre Supabase CLI, consulte la [documentación oficial](https://supabase.com/docs/guides/cli).
