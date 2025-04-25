@@ -9,6 +9,8 @@ import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/Action
 import { createClient } from "@supabase/supabase-js";
 import showToast from "@/utils/toast";
 import Modal from "@/components/Modal";
+import { ViewPermission, CreatePermission, EditPermission, DeletePermission } from "@/components/permission-guard";
+import { usePermissions } from "@/hooks/use-permissions";
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -113,6 +115,7 @@ function TotalDeberCard({ ingresosFiltrados }: { ingresosFiltrados: Ingreso[] })
 }
 
 export default function IngresosPage() {
+	const { hasPermission } = usePermissions();
 	// Estado para almacenar los ingresos
 	const [ingresos, setIngresos] = useState<Ingreso[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -594,11 +597,15 @@ export default function IngresosPage() {
 		},
 		{
 			header: "Acciones",
-			accessor: "id",
-			cell: (value, row) => (
+			accessor: "actions",
+			cell: (_, row) => (
 				<ActionButtonGroup>
-					<EditButton onClick={() => handleEdit(row as Ingreso)} />
-					<DeleteButton onClick={() => handleDelete(value as number | string)} />
+					<EditPermission>
+						<EditButton onClick={() => handleEdit(row)} />
+					</EditPermission>
+					<DeletePermission>
+						<DeleteButton onClick={() => handleDelete(row.id)} />
+					</DeletePermission>
 				</ActionButtonGroup>
 			),
 		},
@@ -843,37 +850,39 @@ export default function IngresosPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Ingresos</h1>
-				<button
-					onClick={() => {
-						// Resetear el formulario para un nuevo ingreso
-						if (!showForm) {
-							setFormData({
-								fecha: new Date().toISOString().split("T")[0],
-								serie: "",
-								numeroFactura: "",
-								montoFlete: 0,
-								primeraCuota: 0,
-								segundaCuota: 0,
-								detraccion: 0,
-								totalDeber: 0,
-								totalMonto: 0,
-								empresa: "",
-								ruc: "",
-								conductor: "",
-								placaTracto: "",
-								placaCarreta: "",
-								observacion: "",
-								documentoGuiaRemit: "",
-								guiaTransp: "",
-								diasCredito: 0,
-								estado: "Pendiente",
-							});
-						}
-						setShowForm(!showForm);
-					}}
-					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					Nuevo Ingreso
-				</button>
+				<CreatePermission>
+					<button
+						onClick={() => {
+							// Resetear el formulario para un nuevo ingreso
+							if (!showForm) {
+								setFormData({
+									fecha: new Date().toISOString().split("T")[0],
+									serie: "",
+									numeroFactura: "",
+									montoFlete: 0,
+									primeraCuota: 0,
+									segundaCuota: 0,
+									detraccion: 0,
+									totalDeber: 0,
+									totalMonto: 0,
+									empresa: "",
+									ruc: "",
+									conductor: "",
+									placaTracto: "",
+									placaCarreta: "",
+									observacion: "",
+									documentoGuiaRemit: "",
+									guiaTransp: "",
+									diasCredito: 0,
+									estado: "Pendiente",
+								});
+							}
+							setShowForm(!showForm);
+						}}
+						className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+						Nuevo Ingreso
+					</button>
+				</CreatePermission>
 			</div>
 
 			{/* Modal para formulario de ingreso */}
@@ -1149,46 +1158,48 @@ export default function IngresosPage() {
 				</form>
 			</Modal>
 
-			<DataTable
-				columns={columns}
-				data={ingresos}
-				title="Registro de Ingresos"
-				defaultSort="fecha"
-				filters={{
-					year: true,
-					month: true,
-					searchFields: [
-						{ accessor: "empresa", label: "Empresa" },
-						{ accessor: "ruc", label: "RUC" },
-						{ accessor: "numeroFactura", label: "N° Factura" },
-						{ accessor: "conductor", label: "Conductor" },
-						{ accessor: "placaTracto", label: "Placa Tracto" },
-						{ accessor: "placaCarreta", label: "Placa Carreta" },
-						{ accessor: "observacion", label: "Observación" },
-						{ accessor: "documentoGuiaRemit", label: "Guía Remitente" },
-						{ accessor: "guiaTransp", label: "Guía Transportista" },
-					],
-				}}
-				onDataFiltered={handleDataFiltered}
-			/>
+			<ViewPermission>
+				<DataTable
+					columns={columns}
+					data={ingresos}
+					title="Registro de Ingresos"
+					defaultSort="fecha"
+					filters={{
+						year: true,
+						month: true,
+						searchFields: [
+							{ accessor: "empresa", label: "Empresa" },
+							{ accessor: "ruc", label: "RUC" },
+							{ accessor: "numeroFactura", label: "N° Factura" },
+							{ accessor: "conductor", label: "Conductor" },
+							{ accessor: "placaTracto", label: "Placa Tracto" },
+							{ accessor: "placaCarreta", label: "Placa Carreta" },
+							{ accessor: "observacion", label: "Observación" },
+							{ accessor: "documentoGuiaRemit", label: "Guía Remitente" },
+							{ accessor: "guiaTransp", label: "Guía Transportista" },
+						],
+					}}
+					onDataFiltered={handleDataFiltered}
+				/>
 
-			{/* Sección de totales */}
-			<div className="bg-white p-4 rounded-lg shadow mt-4">
-				<h3 className="text-lg font-semibold mb-3">
-					Resumen de Totales
-					{ingresosFiltrados.length !== ingresos.length && (
-						<span className="ml-2 text-sm font-normal bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-							{ingresosFiltrados.length} registros filtrados de {ingresos.length}
-						</span>
-					)}
-				</h3>
-				<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-					<TotalFleteCard ingresosFiltrados={ingresosFiltrados} />
-					<TotalDetraccionCard ingresosFiltrados={ingresosFiltrados} />
-					<TotalDeberCard ingresosFiltrados={ingresosFiltrados} />
-					<TotalMontoCard ingresosFiltrados={ingresosFiltrados} />
+				{/* Sección de totales */}
+				<div className="bg-white p-4 rounded-lg shadow mt-4">
+					<h3 className="text-lg font-semibold mb-3">
+						Resumen de Totales
+						{ingresosFiltrados.length !== ingresos.length && (
+							<span className="ml-2 text-sm font-normal bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+								{ingresosFiltrados.length} registros filtrados de {ingresos.length}
+							</span>
+						)}
+					</h3>
+					<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+						<TotalFleteCard ingresosFiltrados={ingresosFiltrados} />
+						<TotalDetraccionCard ingresosFiltrados={ingresosFiltrados} />
+						<TotalDeberCard ingresosFiltrados={ingresosFiltrados} />
+						<TotalMontoCard ingresosFiltrados={ingresosFiltrados} />
+					</div>
 				</div>
-			</div>
+			</ViewPermission>
 		</div>
 	);
 }

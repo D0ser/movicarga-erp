@@ -12,6 +12,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import Image from "next/image";
 import { Calendar } from "@/components/ui/calendar";
+import supabase from "@/lib/supabase";
+import { hashPassword, verifyPassword, validatePasswordComplexity, generateTwoFactorSecret, generateQRCode, verifyTwoFactorToken } from "@/lib/authUtils";
 
 interface UserProfile {
 	id: string;
@@ -39,6 +41,11 @@ export default function PerfilUsuarioPage() {
 		newPassword: "",
 		confirmPassword: "",
 	});
+
+	// Estado para el código QR
+	const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
+	const [twoFactorSecret, setTwoFactorSecret] = useState<string | null>(null);
+	const [verificationCode, setVerificationCode] = useState("");
 
 	// Formulario para información personal
 	const [personalForm, setPersonalForm] = useState({
@@ -162,7 +169,7 @@ export default function PerfilUsuarioPage() {
 	};
 
 	// Cambiar contraseña
-	const handleChangePassword = () => {
+	const handleChangePassword = async () => {
 		// Validaciones
 		if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
 			toast({
@@ -182,39 +189,246 @@ export default function PerfilUsuarioPage() {
 			return;
 		}
 
-		// En una implementación real, verificaríamos la contraseña actual
-		// y haríamos una llamada a la API para actualizar la contraseña
+		// Validar complejidad de la nueva contraseña
+		const passwordValidation = validatePasswordComplexity(passwordForm.newPassword);
+		if (!passwordValidation.isValid) {
+			toast({
+				title: "Error de validación",
+				description: passwordValidation.message,
+				variant: "destructive",
+			});
+			return;
+		}
 
-		toast({
-			title: "Contraseña actualizada",
-			description: "Su contraseña ha sido actualizada correctamente.",
-		});
+		try {
+			// Obtener el nombre de usuario actual del localStorage
+			const userStr = localStorage.getItem("user");
+			if (!userStr) {
+				throw new Error("No se pudo encontrar la información del usuario");
+			}
 
-		setIsPasswordDialogOpen(false);
-		setPasswordForm({
-			currentPassword: "",
-			newPassword: "",
-			confirmPassword: "",
-		});
+			const currentUser = JSON.parse(userStr);
+			const username = currentUser.username;
+
+			// Extraer nombre y apellido del username (formato: nombre.apellido)
+			let nombre = username;
+			let apellido = "";
+
+			if (username.includes(".")) {
+				const parts = username.split(".");
+				nombre = parts[0];
+				apellido = parts[1] || "";
+			}
+
+			// Buscar el usuario en la base de datos
+			const { data, error: findError } = await supabase.from("usuarios").select("*").eq("nombre", nombre).eq("apellido", apellido).single();
+
+			if (findError || !data) {
+				throw new Error("No se pudo encontrar el usuario en la base de datos");
+			}
+
+			// Verificar contraseña actual
+			let passwordCorrect = false;
+
+			if (data.password && data.password.startsWith("$2")) {
+				// La contraseña está hasheada con bcrypt
+				passwordCorrect = await verifyPassword(passwordForm.currentPassword, data.password);
+			} else if (data.password) {
+				// Contraseña en texto plano (temporal durante migración)
+				passwordCorrect = data.password === passwordForm.currentPassword;
+			}
+
+			if (!passwordCorrect) {
+				toast({
+					title: "Error",
+					description: "La contraseña actual es incorrecta",
+					variant: "destructive",
+				});
+				return;
+			}
+
+			// Hashear la nueva contraseña
+			const hashedPassword = await hashPassword(passwordForm.newPassword);
+
+			// Actualizar la contraseña
+			const { error: updateError } = await supabase
+				.from("usuarios")
+				.update({
+					password: hashedPassword,
+					password_last_changed: new Date().toISOString(),
+					updated_at: new Date().toISOString(),
+				})
+				.eq("id", data.id);
+
+			if (updateError) {
+				throw updateError;
+			}
+
+			toast({
+				title: "Contraseña actualizada",
+				description: "Su contraseña ha sido actualizada correctamente.",
+			});
+
+			setIsPasswordDialogOpen(false);
+			setPasswordForm({
+				currentPassword: "",
+				newPassword: "",
+				confirmPassword: "",
+			});
+		} catch (error) {
+			console.error("Error al actualizar la contraseña:", error);
+			toast({
+				title: "Error",
+				description: "No se pudo actualizar la contraseña. Intente nuevamente.",
+				variant: "destructive",
+			});
+		}
+	};
+
+	// Activar 2FA - Paso inicial para mostrar el QR
+	const handleInitTwoFactor = async () => {
+		if (!profile) return;
+
+		try {
+			// Obtener el nombre de usuario actual
+			const userStr = localStorage.getItem("user");
+			if (!userStr) {
+				throw new Error("No se pudo encontrar la información del usuario");
+			}
+
+			const currentUser = JSON.parse(userStr);
+			const username = currentUser.username;
+
+			// Generar secreto para 2FA
+			const secret = generateTwoFactorSecret(username);
+
+			// Generar código QR
+			const qrCode = await generateQRCode(secret.otpauth_url);
+
+			// Guardar temporalmente
+			setQrCodeUrl(qrCode);
+			setTwoFactorSecret(secret.secret);
+
+			// Abrir diálogo
+			setIsTwoFactorDialogOpen(true);
+		} catch (error) {
+			console.error("Error al generar código QR:", error);
+			toast({
+				title: "Error",
+				description: "No se pudo generar el código QR para la autenticación de dos factores.",
+				variant: "destructive",
+			});
+		}
 	};
 
 	// Activar/Desactivar autenticación de dos factores
-	const handleToggleTwoFactor = () => {
-		// En una implementación real, aquí se haría una llamada a la API
-		setProfile((prev) => {
-			if (!prev) return null;
-			return {
-				...prev,
-				twoFactorEnabled: !prev.twoFactorEnabled,
-			};
-		});
+	const handleToggleTwoFactor = async () => {
+		if (!profile) return;
 
-		setIsTwoFactorDialogOpen(false);
+		try {
+			// Obtener el nombre de usuario actual
+			const userStr = localStorage.getItem("user");
+			if (!userStr) {
+				throw new Error("No se pudo encontrar la información del usuario");
+			}
 
-		toast({
-			title: "Autenticación de dos factores",
-			description: profile?.twoFactorEnabled ? "La autenticación de dos factores ha sido desactivada." : "La autenticación de dos factores ha sido activada.",
-		});
+			const currentUser = JSON.parse(userStr);
+			const username = currentUser.username;
+
+			// Extraer nombre y apellido
+			let nombre = username;
+			let apellido = "";
+			if (username.includes(".")) {
+				const parts = username.split(".");
+				nombre = parts[0];
+				apellido = parts[1] || "";
+			}
+
+			if (!profile.twoFactorEnabled) {
+				// Activar 2FA - Verificar código
+				if (!twoFactorSecret || !verificationCode) {
+					toast({
+						title: "Error",
+						description: "El código de verificación es obligatorio",
+						variant: "destructive",
+					});
+					return;
+				}
+
+				// Verificar el código
+				const isCodeValid = verifyTwoFactorToken(verificationCode, twoFactorSecret);
+				if (!isCodeValid) {
+					toast({
+						title: "Error",
+						description: "El código de verificación es incorrecto. Inténtelo de nuevo.",
+						variant: "destructive",
+					});
+					return;
+				}
+
+				// Guardar el secreto en la base de datos
+				const { error } = await supabase
+					.from("usuarios")
+					.update({
+						two_factor_enabled: true,
+						two_factor_secret: twoFactorSecret,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("nombre", nombre)
+					.eq("apellido", apellido);
+
+				if (error) throw error;
+
+				// Actualizar el estado local
+				setProfile({
+					...profile,
+					twoFactorEnabled: true,
+				});
+
+				toast({
+					title: "Autenticación de dos factores activada",
+					description: "La autenticación de dos factores ha sido activada correctamente.",
+				});
+
+				// Limpiar
+				setQrCodeUrl(null);
+				setTwoFactorSecret(null);
+				setVerificationCode("");
+			} else {
+				// Desactivar 2FA
+				const { error } = await supabase
+					.from("usuarios")
+					.update({
+						two_factor_enabled: false,
+						two_factor_secret: null,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("nombre", nombre)
+					.eq("apellido", apellido);
+
+				if (error) throw error;
+
+				// Actualizar el estado local
+				setProfile({
+					...profile,
+					twoFactorEnabled: false,
+				});
+
+				toast({
+					title: "Autenticación de dos factores desactivada",
+					description: "La autenticación de dos factores ha sido desactivada correctamente.",
+				});
+			}
+
+			setIsTwoFactorDialogOpen(false);
+		} catch (error) {
+			console.error("Error al cambiar el estado de 2FA:", error);
+			toast({
+				title: "Error",
+				description: "No se pudo modificar la configuración de autenticación de dos factores.",
+				variant: "destructive",
+			});
+		}
 	};
 
 	if (loading) {
@@ -305,7 +519,7 @@ export default function PerfilUsuarioPage() {
 									<h3 className="text-lg font-medium">Autenticación de Dos Factores</h3>
 									<p className="text-sm text-gray-500">{profile?.twoFactorEnabled ? "La autenticación de dos factores está activada" : "Añade una capa adicional de seguridad a tu cuenta"}</p>
 								</div>
-								<CustomButton onClick={() => setIsTwoFactorDialogOpen(true)} variant={profile?.twoFactorEnabled ? "destructive" : "outline"}>
+								<CustomButton onClick={profile?.twoFactorEnabled ? () => setIsTwoFactorDialogOpen(true) : handleInitTwoFactor} variant={profile?.twoFactorEnabled ? "destructive" : "outline"}>
 									{profile?.twoFactorEnabled ? "Desactivar" : "Activar"}
 								</CustomButton>
 							</div>
@@ -418,24 +632,54 @@ export default function PerfilUsuarioPage() {
 								<p className="text-sm text-gray-500">
 									La autenticación de dos factores añade una capa adicional de seguridad a su cuenta. Después de activarla, deberá ingresar un código de verificación cada vez que inicie sesión.
 								</p>
-								<div className="flex justify-center">
-									<div className="border border-gray-300 rounded-md p-4">
-										<div className="text-center mb-2">Escanee este código QR</div>
-										<div className="w-48 h-48 bg-gray-200 mx-auto mb-4 flex items-center justify-center">
-											{/* Aquí iría la imagen del código QR */}
-											<span className="text-gray-500 text-xs">Código QR de ejemplo</span>
+								{qrCodeUrl ? (
+									<div className="flex flex-col items-center justify-center">
+										<div className="border border-gray-300 rounded-md p-4">
+											<div className="text-center mb-2">Escanee este código QR con su aplicación de autenticación</div>
+											<div className="w-48 h-48 mx-auto mb-4 flex items-center justify-center">
+												<img src={qrCodeUrl} alt="Código QR para 2FA" className="w-full h-full" />
+											</div>
+											{twoFactorSecret && (
+												<div className="text-center text-sm">
+													<p>O ingrese este código manualmente:</p>
+													<p className="font-mono mt-2 bg-gray-100 p-2 rounded text-center tracking-wide">{twoFactorSecret}</p>
+												</div>
+											)}
 										</div>
-										<div className="text-center text-sm">
-											<p>O ingrese este código manualmente:</p>
-											<p className="font-mono mt-2 bg-gray-100 p-2 rounded">ABCD-EFGH-IJKL-MNOP</p>
+
+										<div className="mt-4 w-full">
+											<Label htmlFor="verificationCode" className="text-sm font-medium text-gray-700">
+												Código de verificación
+											</Label>
+											<Input
+												id="verificationCode"
+												type="text"
+												value={verificationCode}
+												onChange={(e) => setVerificationCode(e.target.value)}
+												className="mt-1 text-center tracking-widest"
+												placeholder="Ingrese el código para verificar"
+												maxLength={6}
+											/>
+											<p className="text-xs text-gray-500 mt-1">Ingrese el código generado por su aplicación de autenticación para verificar la configuración.</p>
 										</div>
 									</div>
-								</div>
+								) : (
+									<div className="w-48 h-48 bg-gray-200 mx-auto mb-4 flex items-center justify-center">
+										<span className="text-gray-500 text-xs">Cargando código QR...</span>
+									</div>
+								)}
 							</div>
 						)}
 					</div>
 					<DialogFooter>
-						<CustomButton variant="outline" onClick={() => setIsTwoFactorDialogOpen(false)}>
+						<CustomButton
+							variant="outline"
+							onClick={() => {
+								setIsTwoFactorDialogOpen(false);
+								setQrCodeUrl(null);
+								setTwoFactorSecret(null);
+								setVerificationCode("");
+							}}>
 							Cancelar
 						</CustomButton>
 						<CustomButton onClick={handleToggleTwoFactor} className={profile?.twoFactorEnabled ? "bg-red-600 hover:bg-red-700 text-white" : "bg-[#2d2e83] hover:bg-[#1a1b5f] text-white"}>

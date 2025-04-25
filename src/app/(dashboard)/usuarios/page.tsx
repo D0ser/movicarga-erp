@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "@/hooks/use-toast";
 import supabase from "@/lib/supabase";
 import { UserRole, User } from "@/types/users";
+import { hashPassword, validatePasswordComplexity } from "@/lib/authUtils";
 
 export default function UsuariosPage() {
 	// Estados
@@ -195,13 +196,35 @@ export default function UsuariosPage() {
 			return;
 		}
 
-		if (isNewUser && (!formData.password || formData.password !== formData.confirmPassword)) {
-			toast({
-				title: "Error de validación",
-				description: "Las contraseñas no coinciden o están vacías",
-				variant: "destructive",
-			});
-			return;
+		if (isNewUser) {
+			if (!formData.password) {
+				toast({
+					title: "Error de validación",
+					description: "La contraseña es obligatoria",
+					variant: "destructive",
+				});
+				return;
+			}
+
+			if (formData.password !== formData.confirmPassword) {
+				toast({
+					title: "Error de validación",
+					description: "Las contraseñas no coinciden",
+					variant: "destructive",
+				});
+				return;
+			}
+
+			// Validar complejidad de la contraseña
+			const passwordValidation = validatePasswordComplexity(formData.password);
+			if (!passwordValidation.isValid) {
+				toast({
+					title: "Error de validación",
+					description: passwordValidation.message,
+					variant: "destructive",
+				});
+				return;
+			}
 		}
 
 		try {
@@ -216,6 +239,9 @@ export default function UsuariosPage() {
 					apellido = parts[1] || "";
 				}
 
+				// Hashear la contraseña
+				const hashedPassword = await hashPassword(formData.password);
+
 				// Crear nuevo usuario en Supabase adaptado a la estructura real de la tabla
 				const newUser = {
 					nombre: nombre,
@@ -223,6 +249,8 @@ export default function UsuariosPage() {
 					email: formData.email,
 					rol: formData.role,
 					estado: true,
+					password: hashedPassword,
+					password_last_changed: new Date().toISOString(),
 					ultimo_acceso: new Date().toISOString(),
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
@@ -243,6 +271,7 @@ export default function UsuariosPage() {
 						active: data[0].estado,
 						lastLogin: data[0].ultimo_acceso,
 						createdAt: data[0].created_at,
+						passwordLastChanged: data[0].password_last_changed,
 					};
 					setUsers((prev) => [...prev, adaptedUser]);
 				}
@@ -319,9 +348,34 @@ export default function UsuariosPage() {
 			return;
 		}
 
+		// Validar complejidad de la contraseña
+		const passwordValidation = validatePasswordComplexity(formData.password);
+		if (!passwordValidation.isValid) {
+			toast({
+				title: "Error de validación",
+				description: passwordValidation.message,
+				variant: "destructive",
+			});
+			return;
+		}
+
 		try {
-			// En una implementación real, aquí usaríamos supabase.auth para cambiar la contraseña
-			// Para este prototipo, simulamos éxito ya que no guardamos contraseñas en la tabla
+			// Actualizar la contraseña en la base de datos para el usuario seleccionado
+			if (currentUser) {
+				// Hashear la contraseña
+				const hashedPassword = await hashPassword(formData.password);
+
+				const { error } = await supabase
+					.from("usuarios")
+					.update({
+						password: hashedPassword,
+						password_last_changed: new Date().toISOString(),
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", currentUser.id);
+
+				if (error) throw error;
+			}
 
 			toast({
 				title: "Contraseña actualizada",

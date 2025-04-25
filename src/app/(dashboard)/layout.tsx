@@ -9,12 +9,14 @@ import { NavItem } from "@/components/ui/nav-item";
 import { CustomButton } from "@/components/ui/custom-button";
 import { CustomAlert } from "@/components/ui/custom-alert";
 import supabase from "@/lib/supabase";
+import { UserRole } from "@/types/users";
 
 // Componente de menú lateral deslizable
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
 	const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
-	const [userRole, setUserRole] = useState("");
+	const [userRole, setUserRole] = useState<UserRole | string>("");
+	const [userName, setUserName] = useState("");
 	const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 	const router = useRouter();
 	const pathname = usePathname();
@@ -46,78 +48,77 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 			const userStr = localStorage.getItem("user");
 
 			try {
-				// Intentar obtener el usuario c.llanos de Supabase
-				const { data, error } = await supabase.from("usuarios").select("*").eq("username", "c.llanos").single();
+				if (userStr) {
+					const user = JSON.parse(userStr);
+					const { username, role } = user;
 
-				if (error) {
-					// Si hay error al buscar en Supabase, usar dato local
-					if (!userStr) {
-						// Si no hay usuario guardado, establecer c.llanos como usuario por defecto
-						const defaultUser = {
-							username: "c.llanos",
-							role: "admin",
-						};
-						localStorage.setItem("user", JSON.stringify(defaultUser));
-						setIsAuthenticated(true);
-						setUserRole(defaultUser.role);
-					} else {
-						const user = JSON.parse(userStr);
-						setIsAuthenticated(true);
-						setUserRole(user.role);
+					// Buscar el usuario en Supabase para verificar y actualizar información
+					let nombre = username;
+					let apellido = "";
+
+					if (username && username.includes(".")) {
+						const parts = username.split(".");
+						nombre = parts[0];
+						apellido = parts[1] || "";
 					}
-					return;
-				}
 
-				// Si obtenemos el usuario de Supabase, usarlo
-				if (data) {
-					const updatedUser = {
-						username: data.username,
-						role: data.role,
-					};
-
-					// Actualizar el último acceso del usuario
-					supabase
+					const { data, error } = await supabase
 						.from("usuarios")
-						.update({ lastLogin: new Date().toISOString() })
-						.eq("id", data.id)
-						.then((result) => {
-							// Silenciar errores
-						});
+						.select("*")
+						.eq("nombre", nombre)
+						.eq("apellido", apellido)
+						.eq("estado", true) // Asegurar que el usuario esté activo
+						.single();
 
-					// Guardar en localStorage y actualizar el estado
-					localStorage.setItem("user", JSON.stringify(updatedUser));
-					setIsAuthenticated(true);
-					setUserRole(updatedUser.role);
-				} else {
-					// Si no existe el usuario en Supabase, usar datos locales
-					if (!userStr) {
-						const defaultUser = {
-							username: "c.llanos",
-							role: "admin",
-						};
-						localStorage.setItem("user", JSON.stringify(defaultUser));
+					if (error) {
+						console.error("Error al buscar usuario en Supabase:", error);
 						setIsAuthenticated(true);
-						setUserRole(defaultUser.role);
+						setUserRole(role);
+						setUserName(username);
+					} else if (data) {
+						// Usuario encontrado en Supabase, actualizar información
+						const fullUsername = `${data.nombre}${data.apellido ? "." + data.apellido : ""}`;
+
+						// Actualizar el último acceso del usuario
+						await supabase.from("usuarios").update({ ultimo_acceso: new Date().toISOString() }).eq("id", data.id);
+
+						// Actualizar datos en localStorage si hay cambios
+						if (role !== data.rol || username !== fullUsername) {
+							const updatedUser = {
+								username: fullUsername,
+								role: data.rol,
+							};
+							localStorage.setItem("user", JSON.stringify(updatedUser));
+						}
+
+						setIsAuthenticated(true);
+						setUserRole(data.rol);
+						setUserName(fullUsername);
 					} else {
-						const user = JSON.parse(userStr);
+						// Usuario no encontrado, mantener los datos existentes
 						setIsAuthenticated(true);
-						setUserRole(user.role);
+						setUserRole(role);
+						setUserName(username);
 					}
+				} else {
+					// No hay usuario en localStorage, redirigir al login
+					router.push("/");
 				}
 			} catch (err: unknown) {
-				// Usar dato local en caso de error
-				if (!userStr) {
-					const defaultUser = {
-						username: "c.llanos",
-						role: "admin",
-					};
-					localStorage.setItem("user", JSON.stringify(defaultUser));
-					setIsAuthenticated(true);
-					setUserRole(defaultUser.role);
+				console.error("Error al verificar autenticación:", err);
+				// Si hay un error, intentar usar los datos del localStorage si existen
+				if (userStr) {
+					try {
+						const user = JSON.parse(userStr);
+						setIsAuthenticated(true);
+						setUserRole(user.role);
+						setUserName(user.username);
+					} catch (e) {
+						// Si hay error al parsear, redirigir al login
+						router.push("/");
+					}
 				} else {
-					const user = JSON.parse(userStr);
-					setIsAuthenticated(true);
-					setUserRole(user.role);
+					router.push("/");
 				}
 			}
 		}
@@ -131,9 +132,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 		router.push("/");
 	};
 
+	// Mostrar un indicador de carga mientras se verifica la autenticación
 	if (!isAuthenticated) {
-		return null; // No renderizar nada mientras se verifica la autenticación
+		return (
+			<div className="flex h-screen items-center justify-center">
+				<div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#2d2e83]"></div>
+			</div>
+		);
 	}
+
+	// Verificar si el usuario es visualizador para mostrar mensaje informativo
+	const isViewer = userRole === UserRole.VIEWER;
 
 	return (
 		<div className="flex h-screen bg-white overflow-hidden">
@@ -169,7 +178,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 					</CustomButton>
 				</div>
 
-				<div className="overflow-y-auto h-[calc(100%-4rem)] pb-20">
+				{/* Usuario actual */}
+				{isSidebarOpen && (
+					<div className="px-4 py-3 border-b border-[#1f1f6f]">
+						<div className="flex items-center">
+							<div className="flex-shrink-0">
+								<div className="bg-white w-8 h-8 rounded-full flex items-center justify-center text-[#2d2e83] font-bold">{userName.charAt(0).toUpperCase()}</div>
+							</div>
+							<div className="ml-3">
+								<p className="text-sm font-medium">{userName}</p>
+								<p className="text-xs text-gray-300">
+									{userRole === UserRole.ADMIN ? "Administrador" : userRole === UserRole.MANAGER ? "Gerente" : userRole === UserRole.OPERATOR ? "Operador" : "Visualizador"}
+								</p>
+							</div>
+						</div>
+					</div>
+				)}
+
+				<div className="overflow-y-auto h-[calc(100%-8rem)] pb-20">
 					<nav className="mt-6 px-2" aria-label="Menú principal">
 						<ul className="space-y-1">
 							<NavItem
@@ -248,66 +274,122 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 							/>
 
 							<NavItem
-								href="/vehiculos"
-								icon={
-									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-									</svg>
-								}
-								label="Vehículos"
-								isOpen={isSidebarOpen}
-								active={pathname.includes("/vehiculos")}
-							/>
-
-							<NavItem
-								href="/clientes"
-								icon={
-									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											strokeWidth={2}
-											d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-										/>
-									</svg>
-								}
-								label="Clientes"
-								isOpen={isSidebarOpen}
-								active={pathname.includes("/clientes")}
-							/>
-
-							<NavItem
-								href="/usuarios"
-								icon={
-									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-										<path
-											strokeLinecap="round"
-											strokeLinejoin="round"
-											strokeWidth={2}
-											d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-										/>
-									</svg>
-								}
-								label="Usuarios"
-								isOpen={isSidebarOpen}
-								active={pathname.includes("/usuarios")}
-							/>
-
-							<NavItem
 								href="/viajes"
 								icon={
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
 										<path
 											strokeLinecap="round"
 											strokeLinejoin="round"
 											strokeWidth={2}
-											d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+											d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"
 										/>
 									</svg>
 								}
 								label="Viajes"
 								isOpen={isSidebarOpen}
 								active={pathname.includes("/viajes")}
+							/>
+
+							{/* Solo mostrar estas opciones si el usuario no es visualizador */}
+							{userRole !== UserRole.VIEWER && (
+								<>
+									<NavItem
+										href="/clientes"
+										icon={
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+												/>
+											</svg>
+										}
+										label="Clientes"
+										isOpen={isSidebarOpen}
+										active={pathname.includes("/clientes")}
+									/>
+
+									<NavItem
+										href="/conductores"
+										icon={
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+											</svg>
+										}
+										label="Conductores"
+										isOpen={isSidebarOpen}
+										active={pathname.includes("/conductores")}
+									/>
+
+									<NavItem
+										href="/vehiculos"
+										icon={
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+											</svg>
+										}
+										label="Vehículos"
+										isOpen={isSidebarOpen}
+										active={pathname.includes("/vehiculos")}
+									/>
+
+									<NavItem
+										href="/series"
+										icon={
+											<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"
+												/>
+											</svg>
+										}
+										label="Series"
+										isOpen={isSidebarOpen}
+										active={pathname.includes("/series")}
+									/>
+
+									{/* Solo administradores pueden ver usuarios */}
+									{userRole === UserRole.ADMIN && (
+										<NavItem
+											href="/usuarios"
+											icon={
+												<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+													<path
+														strokeLinecap="round"
+														strokeLinejoin="round"
+														strokeWidth={2}
+														d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+													/>
+												</svg>
+											}
+											label="Usuarios"
+											isOpen={isSidebarOpen}
+											active={pathname.includes("/usuarios")}
+										/>
+									)}
+								</>
+							)}
+
+							{/* Perfil de Usuario, disponible para todos los roles */}
+							<NavItem
+								href="/usuarios/perfil"
+								icon={
+									<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={2}
+											d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+										/>
+									</svg>
+								}
+								label="Mi Perfil"
+								isOpen={isSidebarOpen}
+								active={pathname.includes("/usuarios/perfil")}
 							/>
 						</ul>
 					</nav>
@@ -379,6 +461,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 						</div>
 					</div>
 				</header>
+
+				{/* Mensaje de modo visualizador */}
+				{isViewer && (
+					<div className="bg-blue-50 border-l-4 border-blue-500 p-4 m-4">
+						<div className="flex">
+							<div className="flex-shrink-0">
+								<svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+									<path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+								</svg>
+							</div>
+							<div className="ml-3">
+								<p className="text-sm text-blue-700">Estás en modo visualizador. Solo puedes ver la información, pero no puedes modificarla ni agregar nuevos registros.</p>
+							</div>
+						</div>
+					</div>
+				)}
 
 				{/* Contenido principal */}
 				<main className="flex-1 overflow-auto bg-gray-50">

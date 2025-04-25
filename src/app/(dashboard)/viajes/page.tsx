@@ -7,9 +7,12 @@ import { viajeService, clienteService, conductorService, vehiculoService, Viaje,
 import notificationService from "@/components/notifications/NotificationService";
 import { ActionButtonGroup, EditButton, DeleteButton, ActionButton } from "@/components/ActionIcons";
 import Modal from "@/components/Modal";
+import { ViewPermission, CreatePermission, EditPermission, DeletePermission } from "@/components/permission-guard";
+import { PermissionType, usePermissions } from "@/hooks/use-permissions";
 
 // Componente para la página de viajes
 export default function ViajesPage() {
+	const { hasPermission } = usePermissions();
 	const [loading, setLoading] = useState(true);
 	const [viajes, setViajes] = useState<Viaje[]>([]);
 	const [filteredViajes, setFilteredViajes] = useState<Viaje[]>([]);
@@ -542,41 +545,50 @@ export default function ViajesPage() {
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Viajes</h1>
 				<div className="flex gap-2">
-					<button onClick={() => setShowFilters(!showFilters)} className={`px-4 py-2 rounded-md ${showFilters ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700"}`}>
-						{showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
-					</button>
-					<button
-						onClick={() => {
-							setFormData({
-								cliente_id: "",
-								conductor_id: "",
-								vehiculo_id: "",
-								origen: "",
-								destino: "",
-								fecha_salida: new Date().toISOString(),
-								fecha_llegada: null,
-								carga: "",
-								peso: 0,
-								estado: "Programado",
-								tarifa: 0,
-								adelanto: 0,
-								saldo: 0,
-								detraccion: false,
-								observaciones: "",
-							});
-							setShowForm(true);
-						}}
-						className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-						Nuevo Viaje
-					</button>
+					<ViewPermission>
+						<button onClick={() => setShowFilters(!showFilters)} className={`px-4 py-2 rounded-md ${showFilters ? "bg-indigo-600 text-white" : "bg-gray-200 text-gray-700"}`}>
+							{showFilters ? "Ocultar Filtros" : "Mostrar Filtros"}
+						</button>
+					</ViewPermission>
+					<CreatePermission>
+						<button
+							onClick={() => {
+								setFormData({
+									cliente_id: "",
+									conductor_id: "",
+									vehiculo_id: "",
+									origen: "",
+									destino: "",
+									fecha_salida: new Date().toISOString(),
+									fecha_llegada: null,
+									carga: "",
+									peso: 0,
+									estado: "Programado",
+									tarifa: 0,
+									adelanto: 0,
+									saldo: 0,
+									detraccion: false,
+									observaciones: "",
+								});
+								setShowForm(true);
+							}}
+							className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+							Nuevo Viaje
+						</button>
+					</CreatePermission>
 				</div>
 			</div>
 
 			{/* Filtros avanzados */}
 			{showFilters && (
-				<div className="bg-white p-4 rounded-lg shadow">
-					<h2 className="text-lg font-medium mb-3">Filtros Avanzados</h2>
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center mb-4">
+						<h2 className="text-lg font-semibold">Filtros de búsqueda</h2>
+						<button onClick={resetFilters} className="text-red-600 hover:text-red-800">
+							Limpiar filtros
+						</button>
+					</div>
+					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 						<div>
 							<label className="block text-sm font-medium text-gray-700">Cliente</label>
 							<select
@@ -657,232 +669,436 @@ export default function ViajesPage() {
 							/>
 						</div>
 					</div>
-					<div className="mt-4 flex justify-end">
-						<button onClick={resetFilters} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
-							Limpiar Filtros
-						</button>
-					</div>
 				</div>
 			)}
 
-			{/* Modal de formulario de viaje */}
-			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Viaje" : "Nuevo Viaje"} size="xl">
-				<form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Cliente</label>
-						<select
-							name="cliente_id"
-							value={formData.cliente_id || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required>
-							<option value="">Seleccione un cliente</option>
-							{clientes.map((cliente) => (
-								<option key={cliente.id} value={cliente.id}>
-									{cliente.razon_social}
-								</option>
-							))}
-						</select>
+			{/* Estadísticas */}
+			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Viajes Programados</p>
+							<p className="text-2xl font-bold text-blue-600">{viajesProgramadosFiltrados}</p>
+						</div>
+						<div className="bg-blue-100 p-3 rounded-full">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Conductor</label>
-						<select
-							name="conductor_id"
-							value={formData.conductor_id || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required>
-							<option value="">Seleccione un conductor</option>
-							{conductores.map((conductor) => (
-								<option key={conductor.id} value={conductor.id}>
-									{conductor.nombres} {conductor.apellidos}
-								</option>
-							))}
-						</select>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Viajes en Ruta</p>
+							<p className="text-2xl font-bold text-yellow-600">{viajesEnRutaFiltrados}</p>
+						</div>
+						<div className="bg-yellow-100 p-3 rounded-full">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Vehículo</label>
-						<select
-							name="vehiculo_id"
-							value={formData.vehiculo_id || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required>
-							<option value="">Seleccione un vehículo</option>
-							{vehiculos.map((vehiculo) => (
-								<option key={vehiculo.id} value={vehiculo.id}>
-									{vehiculo.placa} - {vehiculo.marca} {vehiculo.modelo}
-								</option>
-							))}
-						</select>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Viajes Completados</p>
+							<p className="text-2xl font-bold text-green-600">{viajesCompletadosFiltrados}</p>
+						</div>
+						<div className="bg-green-100 p-3 rounded-full">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Origen</label>
-						<input
-							type="text"
-							name="origen"
-							value={formData.origen || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Viajes Cancelados</p>
+							<p className="text-2xl font-bold text-red-600">{viajesCanceladosFiltrados}</p>
+						</div>
+						<div className="bg-red-100 p-3 rounded-full">
+							<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Destino</label>
-						<input
-							type="text"
-							name="destino"
-							value={formData.destino || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Total de Tarifas</p>
+							<p className="text-2xl font-bold text-green-600">{totalTarifasFiltrados.toLocaleString("es-PE")}</p>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Fecha de Salida</label>
-						<input
-							type="date"
-							name="fecha_salida"
-							value={formData.fecha_salida ? formData.fecha_salida.split("T")[0] : ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Total de Adelantos</p>
+							<p className="text-2xl font-bold text-green-600">{totalAdelantosFiltrados.toLocaleString("es-PE")}</p>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Fecha de Llegada</label>
-						<input
-							type="date"
-							name="fecha_llegada"
-							value={formData.fecha_llegada ? formData.fecha_llegada.split("T")[0] : ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
+				</div>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center">
+						<div>
+							<p className="text-sm font-medium text-gray-500">Total de Saldos</p>
+							<p className="text-2xl font-bold text-green-600">{totalSaldosFiltrados.toLocaleString("es-PE")}</p>
+						</div>
 					</div>
+				</div>
+			</div>
 
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Carga</label>
-						<input
-							type="text"
-							name="carga"
-							value={formData.carga || ""}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
+			{/* Tabla de viajes */}
+			<ViewPermission>
+				<div className="bg-white p-6 rounded-md shadow-sm">
+					<div className="flex justify-between items-center mb-4">
+						<h2 className="text-lg font-semibold">Listado de Viajes</h2>
+						<div className="relative w-64">
+							<input
+								type="text"
+								placeholder="Buscar viajes..."
+								value={searchTerm}
+								onChange={(e) => setSearchTerm(e.target.value)}
+								className="w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 pl-10 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+							<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+								</svg>
+							</div>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Peso (kg)</label>
-						<input
-							type="number"
-							name="peso"
-							value={formData.peso || 0}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
+					<div className="overflow-x-auto">
+						<table className="min-w-full divide-y divide-gray-200">
+							<thead className="bg-gray-50">
+								<tr>
+									<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Cliente
+									</th>
+									<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Ruta
+									</th>
+									<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Conductor / Vehículo
+									</th>
+									<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Fecha / Estado
+									</th>
+									<th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Tarifa
+									</th>
+									<th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+										Acciones
+									</th>
+								</tr>
+							</thead>
+							<tbody className="bg-white divide-y divide-gray-200">
+								{filteredViajes.map((viaje) => (
+									<tr key={viaje.id} className="hover:bg-gray-50">
+										<td className="px-6 py-4 whitespace-nowrap">
+											<div className="flex items-center">
+												<div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+													<span className="text-blue-800 font-medium">{viaje.cliente?.razon_social?.charAt(0) || "?"}</span>
+												</div>
+												<div className="ml-4">
+													<div className="text-sm font-medium text-gray-900">{viaje.cliente?.razon_social}</div>
+													<div className="text-sm text-gray-500">{viaje.cliente?.ruc || "Sin RUC"}</div>
+												</div>
+											</div>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<div className="text-sm text-gray-900">
+												<div className="flex items-center">
+													<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+													</svg>
+													{viaje.origen}
+												</div>
+												<div className="flex items-center mt-1">
+													<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+													</svg>
+													{viaje.destino}
+												</div>
+											</div>
+											<div className="text-sm text-gray-500 mt-1">{viaje.carga || "Sin información de carga"}</div>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<div className="text-sm text-gray-900">
+												{viaje.conductor?.nombres} {viaje.conductor?.apellidos}
+											</div>
+											<div className="text-sm text-gray-500">{viaje.vehiculo?.placa || "Sin vehículo asignado"}</div>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<div className="text-sm text-gray-900">
+												{viaje.fecha_salida
+													? new Date(viaje.fecha_salida).toLocaleDateString("es-ES", {
+															day: "2-digit",
+															month: "2-digit",
+															year: "numeric",
+													  })
+													: "Sin fecha"}
+											</div>
+											<span
+												className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${viaje.estado === "Programado" ? "bg-yellow-100 text-yellow-800" : ""} 
+                        ${viaje.estado === "En Ruta" ? "bg-blue-100 text-blue-800" : ""} 
+                        ${viaje.estado === "Completado" ? "bg-green-100 text-green-800" : ""} 
+                        ${viaje.estado === "Cancelado" ? "bg-red-100 text-red-800" : ""}`}>
+												{viaje.estado}
+											</span>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap">
+											<div className="text-sm font-medium text-gray-900">S/ {viaje.tarifa.toFixed(2)}</div>
+											<div className="text-xs text-gray-500">
+												Adelanto: S/ {viaje.adelanto.toFixed(2)}
+												<br />
+												Saldo: S/ {viaje.saldo.toFixed(2)}
+											</div>
+										</td>
+										<td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+											<div className="flex justify-center space-x-2">
+												<EditPermission>
+													<button onClick={() => handleEdit(viaje)} className="text-indigo-600 hover:text-indigo-900">
+														<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																strokeWidth={1.5}
+																d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+															/>
+														</svg>
+													</button>
+												</EditPermission>
+												<EditPermission>
+													<button onClick={() => handleChangeStatus(viaje.id)} className="text-yellow-600 hover:text-yellow-900">
+														<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+														</svg>
+													</button>
+												</EditPermission>
+												<DeletePermission>
+													<button onClick={() => handleDelete(viaje.id)} className="text-red-600 hover:text-red-900">
+														<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																strokeWidth={1.5}
+																d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+															/>
+														</svg>
+													</button>
+												</DeletePermission>
+											</div>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					</div>
+				</div>
+			</ViewPermission>
 
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Estado</label>
-						<select
-							name="estado"
-							value={formData.estado || "Programado"}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required>
-							<option value="Programado">Programado</option>
-							<option value="En ruta">En ruta</option>
-							<option value="Completado">Completado</option>
-							<option value="Cancelado">Cancelado</option>
-						</select>
+			{/* Modal formulario para crear/editar viaje */}
+			<Modal isOpen={showForm} onClose={() => setShowForm(false)} title={formData.id ? "Editar Viaje" : "Nuevo Viaje"}>
+				<form onSubmit={handleSubmit} className="space-y-6">
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Cliente</label>
+							<select
+								name="cliente_id"
+								value={formData.cliente_id || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="">Seleccione un cliente</option>
+								{clientes.map((cliente) => (
+									<option key={cliente.id} value={cliente.id}>
+										{cliente.razon_social}
+									</option>
+								))}
+							</select>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Conductor</label>
+							<select
+								name="conductor_id"
+								value={formData.conductor_id || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="">Seleccione un conductor</option>
+								{conductores.map((conductor) => (
+									<option key={conductor.id} value={conductor.id}>
+										{conductor.nombres} {conductor.apellidos}
+									</option>
+								))}
+							</select>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Vehículo</label>
+							<select
+								name="vehiculo_id"
+								value={formData.vehiculo_id || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="">Seleccione un vehículo</option>
+								{vehiculos.map((vehiculo) => (
+									<option key={vehiculo.id} value={vehiculo.id}>
+										{vehiculo.placa} - {vehiculo.marca} {vehiculo.modelo}
+									</option>
+								))}
+							</select>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Origen</label>
+							<input
+								type="text"
+								name="origen"
+								value={formData.origen || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Destino</label>
+							<input
+								type="text"
+								name="destino"
+								value={formData.destino || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Fecha de Salida</label>
+							<input
+								type="date"
+								name="fecha_salida"
+								value={formData.fecha_salida ? formData.fecha_salida.split("T")[0] : ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Fecha de Llegada</label>
+							<input
+								type="date"
+								name="fecha_llegada"
+								value={formData.fecha_llegada ? formData.fecha_llegada.split("T")[0] : ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Carga</label>
+							<input
+								type="text"
+								name="carga"
+								value={formData.carga || ""}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Peso (kg)</label>
+							<input
+								type="number"
+								name="peso"
+								value={formData.peso || 0}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Estado</label>
+							<select
+								name="estado"
+								value={formData.estado || "Programado"}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required>
+								<option value="Programado">Programado</option>
+								<option value="En ruta">En ruta</option>
+								<option value="Completado">Completado</option>
+								<option value="Cancelado">Cancelado</option>
+							</select>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Tarifa (S/.)</label>
+							<input
+								type="number"
+								name="tarifa"
+								value={formData.tarifa || 0}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+								required
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Adelanto (S/.)</label>
+							<input
+								type="number"
+								name="adelanto"
+								value={formData.adelanto || 0}
+								onChange={handleInputChange}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
+						<div>
+							<label className="block text-sm font-medium text-gray-700">Saldo (S/.)</label>
+							<input type="number" name="saldo" value={formData.saldo || 0} readOnly className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" />
+						</div>
+						<div className="flex items-center mt-5">
+							<input
+								type="checkbox"
+								id="detraccion"
+								name="detraccion"
+								checked={formData.detraccion || false}
+								onChange={(e) => setFormData({ ...formData, detraccion: e.target.checked })}
+								className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+							/>
+							<label htmlFor="detraccion" className="ml-2 block text-sm text-gray-700">
+								Sujeto a detracción
+							</label>
+						</div>
+						<div className="md:col-span-2">
+							<label className="block text-sm font-medium text-gray-700">Observaciones</label>
+							<textarea
+								name="observaciones"
+								value={formData.observaciones || ""}
+								onChange={handleInputChange}
+								rows={2}
+								className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+							/>
+						</div>
 					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Tarifa (S/.)</label>
-						<input
-							type="number"
-							name="tarifa"
-							value={formData.tarifa || 0}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-							required
-						/>
-					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Adelanto (S/.)</label>
-						<input
-							type="number"
-							name="adelanto"
-							value={formData.adelanto || 0}
-							onChange={handleInputChange}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-
-					<div>
-						<label className="block text-sm font-medium text-gray-700">Saldo (S/.)</label>
-						<input type="number" name="saldo" value={formData.saldo || 0} readOnly className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3" />
-					</div>
-
-					<div className="flex items-center mt-5">
-						<input
-							type="checkbox"
-							id="detraccion"
-							name="detraccion"
-							checked={formData.detraccion || false}
-							onChange={(e) => setFormData({ ...formData, detraccion: e.target.checked })}
-							className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-						/>
-						<label htmlFor="detraccion" className="ml-2 block text-sm text-gray-700">
-							Sujeto a detracción
-						</label>
-					</div>
-
-					<div className="md:col-span-3">
-						<label className="block text-sm font-medium text-gray-700">Observaciones</label>
-						<textarea
-							name="observaciones"
-							value={formData.observaciones || ""}
-							onChange={handleInputChange}
-							rows={2}
-							className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-
-					<div className="md:col-span-3 flex justify-end">
-						<button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+					<div className="flex justify-end space-x-3">
+						<button
+							type="button"
+							onClick={() => setShowForm(false)}
+							className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+							Cancelar
+						</button>
+						<button
+							type="submit"
+							className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
 							{formData.id ? "Actualizar" : "Guardar"}
 						</button>
 					</div>
 				</form>
 			</Modal>
-
-			{/* Búsqueda general */}
-			<div className="relative">
-				<input
-					type="text"
-					value={searchTerm}
-					onChange={(e) => setSearchTerm(e.target.value)}
-					placeholder="Buscar viajes..."
-					className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-				/>
-				<div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-					<svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-					</svg>
-				</div>
-			</div>
-
-			{/* Tabla de viajes */}
-			<DataTable columns={columns} data={filteredViajes} title="Registro de Viajes" isLoading={loading} />
 		</div>
 	);
 }
