@@ -197,7 +197,7 @@ CREATE POLICY admin_view_all_tokens ON auth_tokens
   FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM usuarios u
-    WHERE u.id = auth.uid() AND u.role = 'admin'
+    WHERE u.id = auth.uid() AND u.rol = 'admin'
   ));
 
 -- Comentarios para documentación
