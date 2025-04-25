@@ -757,13 +757,33 @@ ADD COLUMN IF NOT EXISTS password_last_changed TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS login_attempts INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 
--- Crear política RLS para login_attempts
-CREATE POLICY "Admins can do everything with login_attempts"
+-- Desactivar RLS temporalmente para login_attempts
+ALTER TABLE login_attempts DISABLE ROW LEVEL SECURITY;
+
+-- Eliminar todas las políticas para login_attempts
+DO $$
+DECLARE
+  pol_record RECORD;
+BEGIN
+  FOR pol_record IN 
+    SELECT policyname
+    FROM pg_policies
+    WHERE tablename = 'login_attempts' AND schemaname = 'public'
+  LOOP
+    EXECUTE FORMAT('DROP POLICY IF EXISTS %I ON login_attempts', pol_record.policyname);
+  END LOOP;
+END $$;
+
+-- Volver a activar RLS
+ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+
+-- Crear política RLS con un nuevo nombre
+CREATE POLICY "login_attempts_admin_policy"
 ON login_attempts
 FOR ALL
 TO authenticated
-USING (auth.jwt() ->> 'role' = 'admin')
-WITH CHECK (auth.jwt() ->> 'role' = 'admin');
+USING (auth.jwt() ->> 'rol' = 'admin')
+WITH CHECK (auth.jwt() ->> 'rol' = 'admin');
 
 -- Función para limpiar intentos de inicio de sesión antiguos (más de 90 días)
 CREATE OR REPLACE FUNCTION clean_old_login_attempts()
@@ -812,6 +832,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Crear el trigger para ejecutar la función después de insertar un intento de inicio de sesión
+DROP TRIGGER IF EXISTS update_user_locks_after_failed_attempt ON login_attempts;
 CREATE TRIGGER update_user_locks_after_failed_attempt
 AFTER INSERT ON login_attempts
 FOR EACH ROW
@@ -898,6 +919,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Crear el trigger para hashear contraseñas automáticamente
+DROP TRIGGER IF EXISTS hash_passwords_before_save ON usuarios;
 CREATE TRIGGER hash_passwords_before_save
 BEFORE INSERT OR UPDATE OF password_hash ON usuarios
 FOR EACH ROW
@@ -1101,6 +1123,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Crear el trigger para limpiar tokens automáticamente
+DROP TRIGGER IF EXISTS clean_tokens_trigger ON auth_tokens;
 CREATE TRIGGER clean_tokens_trigger
 AFTER INSERT ON auth_tokens
 FOR EACH STATEMENT
@@ -1110,11 +1134,13 @@ EXECUTE FUNCTION trigger_clean_expired_tokens();
 ALTER TABLE auth_tokens ENABLE ROW LEVEL SECURITY;
 
 -- Política que permite a los usuarios ver solo sus propios tokens
+DROP POLICY IF EXISTS view_own_tokens ON auth_tokens;
 CREATE POLICY view_own_tokens ON auth_tokens
   FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Política que permite a los administradores ver todos los tokens
+DROP POLICY IF EXISTS admin_view_all_tokens ON auth_tokens;
 CREATE POLICY admin_view_all_tokens ON auth_tokens
   FOR SELECT
   USING (EXISTS (
@@ -1524,6 +1550,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Trigger para limpiar intentos antiguos automáticamente
+DROP TRIGGER IF EXISTS clean_2fa_attempts_trigger ON two_factor_attempts;
 CREATE TRIGGER clean_2fa_attempts_trigger
 AFTER INSERT ON two_factor_attempts
 FOR EACH STATEMENT
@@ -1534,29 +1562,33 @@ ALTER TABLE two_factor_auth ENABLE ROW LEVEL SECURITY;
 ALTER TABLE two_factor_attempts ENABLE ROW LEVEL SECURITY;
 
 -- Política que permite a los usuarios ver solo su propia configuración de 2FA
+DROP POLICY IF EXISTS view_own_2fa_config ON two_factor_auth;
 CREATE POLICY view_own_2fa_config ON two_factor_auth
   FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Política que permite a los administradores ver todas las configuraciones de 2FA
+DROP POLICY IF EXISTS admin_view_all_2fa_config ON two_factor_auth;
 CREATE POLICY admin_view_all_2fa_config ON two_factor_auth
   FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM usuarios u
-    WHERE u.id = auth.uid() AND u.role = 'admin'
+    WHERE u.id = auth.uid() AND u.rol = 'admin'
   ));
 
 -- Política que permite a los usuarios ver solo sus propios intentos de 2FA
+DROP POLICY IF EXISTS view_own_2fa_attempts ON two_factor_attempts;
 CREATE POLICY view_own_2fa_attempts ON two_factor_attempts
   FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Política que permite a los administradores ver todos los intentos de 2FA
+DROP POLICY IF EXISTS admin_view_all_2fa_attempts ON two_factor_attempts;
 CREATE POLICY admin_view_all_2fa_attempts ON two_factor_attempts
   FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM usuarios u
-    WHERE u.id = auth.uid() AND u.role = 'admin'
+    WHERE u.id = auth.uid() AND u.rol = 'admin'
   ));
 
 -- Comentarios para documentación
