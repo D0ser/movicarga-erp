@@ -792,7 +792,7 @@ BEGIN
     DELETE FROM login_attempts
     WHERE timestamp < NOW() - INTERVAL '90 days';
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Programar limpieza automática (se ejecutará una vez al día)
 -- Nota: Requiere la extensión pg_cron habilitada en Supabase
@@ -829,7 +829,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Crear el trigger para ejecutar la función después de insertar un intento de inicio de sesión
 DROP TRIGGER IF EXISTS update_user_locks_after_failed_attempt ON login_attempts;
@@ -852,14 +852,16 @@ EXECUTE FUNCTION check_and_update_user_locks();
 CREATE OR REPLACE FUNCTION hash_password(plain_password TEXT)
 RETURNS TEXT AS $$
     SELECT crypt(plain_password, gen_salt('bf', 10));
-$$ LANGUAGE SQL SECURITY DEFINER;
+$$ LANGUAGE SQL SECURITY DEFINER SET search_path = public;
 
 -- Asegurarse de que la extensión pgcrypto esté habilitada
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Crear una vista temporal para identificar contraseñas que necesitan ser hasheadas
 -- (Las que no comienzan con el prefijo de bcrypt '$2')
-CREATE OR REPLACE VIEW usuarios_por_hashear AS 
+CREATE OR REPLACE VIEW usuarios_por_hashear 
+WITH (security_invoker=true)
+AS 
 SELECT id, password_hash as password 
 FROM usuarios 
 WHERE password_hash IS NOT NULL 
@@ -902,7 +904,7 @@ BEGIN
     
     RETURN contador; -- Retorna el número de contraseñas actualizadas
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Desencadenador para hashear contraseñas automáticamente al insertarlas o actualizarlas
 CREATE OR REPLACE FUNCTION hash_password_trigger()
@@ -916,7 +918,7 @@ BEGIN
     
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Crear el trigger para hashear contraseñas automáticamente
 DROP TRIGGER IF EXISTS hash_passwords_before_save ON usuarios;
@@ -937,7 +939,7 @@ BEGIN
         RETURN plain_password = hashed_password;
     END IF;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER; 
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public; 
 
 
 -- ******************************************************************
@@ -1016,7 +1018,7 @@ BEGIN
   
   RETURN v_token;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para verificar un token JWT
 CREATE OR REPLACE FUNCTION verify_auth_token(p_token TEXT) RETURNS TABLE (
@@ -1069,7 +1071,7 @@ BEGIN
   RETURN NEXT;
   RETURN;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para revocar un token específico
 CREATE OR REPLACE FUNCTION revoke_auth_token(p_token TEXT) RETURNS BOOLEAN AS $$
@@ -1083,7 +1085,7 @@ BEGIN
   GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
   RETURN v_affected_rows > 0;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para revocar todos los tokens de un usuario
 CREATE OR REPLACE FUNCTION revoke_all_user_tokens(p_user_id UUID) RETURNS INTEGER AS $$
@@ -1097,7 +1099,7 @@ BEGIN
   GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
   RETURN v_affected_rows;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para limpiar tokens expirados (puede ejecutarse periódicamente)
 CREATE OR REPLACE FUNCTION clean_expired_tokens() RETURNS INTEGER AS $$
@@ -1110,7 +1112,7 @@ BEGIN
   GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
   RETURN v_affected_rows;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger para limpiar tokens automáticamente
 CREATE OR REPLACE FUNCTION trigger_clean_expired_tokens() RETURNS TRIGGER AS $$
@@ -1121,7 +1123,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Crear el trigger para limpiar tokens automáticamente
 DROP TRIGGER IF EXISTS clean_tokens_trigger ON auth_tokens;
@@ -1167,7 +1169,7 @@ BEGIN
     RAISE NOTICE 'JWT secret generado. Es recomendable guardar este valor y configurarlo manualmente en producción.';
   END IF;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Ejecutar la configuración del secreto JWT
 SELECT setup_jwt_secret(); 
@@ -1217,7 +1219,7 @@ BEGIN
   -- Generar una cadena de caracteres aleatoria de 32 bytes y codificarla en base32
   RETURN upper(encode(gen_random_bytes(20), 'base64'));
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para iniciar la configuración de 2FA para un usuario
 CREATE OR REPLACE FUNCTION initiate_2fa_setup(p_user_id UUID) RETURNS TEXT AS $$
@@ -1244,7 +1246,7 @@ BEGIN
   
   RETURN v_secret;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para verificar un código TOTP
 CREATE OR REPLACE FUNCTION verify_totp_code(
@@ -1322,7 +1324,7 @@ BEGIN
   
   RETURN v_is_valid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para confirmar la configuración de 2FA
 CREATE OR REPLACE FUNCTION confirm_2fa_setup(
@@ -1383,7 +1385,7 @@ BEGIN
     'backup_codes', v_backup_codes
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para verificar un código de respaldo
 CREATE OR REPLACE FUNCTION verify_backup_code(
@@ -1450,7 +1452,7 @@ BEGIN
   
   RETURN v_is_valid;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para desactivar 2FA
 CREATE OR REPLACE FUNCTION disable_2fa(
@@ -1484,7 +1486,7 @@ BEGIN
   
   RETURN TRUE;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para generar nuevos códigos de respaldo
 CREATE OR REPLACE FUNCTION regenerate_backup_codes(
@@ -1524,7 +1526,7 @@ BEGIN
     'backup_codes', v_backup_codes
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Función para limpiar intentos antiguos de 2FA
 CREATE OR REPLACE FUNCTION clean_old_2fa_attempts() RETURNS INTEGER AS $$
@@ -1537,7 +1539,7 @@ BEGIN
   GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
   RETURN v_affected_rows;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger para limpiar intentos antiguos automáticamente
 CREATE OR REPLACE FUNCTION trigger_clean_old_2fa_attempts() RETURNS TRIGGER AS $$
@@ -1548,7 +1550,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger para limpiar intentos antiguos automáticamente
 DROP TRIGGER IF EXISTS clean_2fa_attempts_trigger ON two_factor_attempts;
