@@ -32,10 +32,12 @@ function getEnvVariable(key: string): string {
 	};
 
 	if (fallbackValues[key]) {
+		console.warn(`Usando valor de respaldo para ${key}. Esto no es recomendable en producción.`);
 		return fallbackValues[key];
 	}
 
 	// Si no se encuentra en ningún lado, devolver cadena vacía
+	console.error(`No se pudo encontrar la variable de entorno ${key}`);
 	return "";
 }
 
@@ -43,21 +45,49 @@ function getEnvVariable(key: string): string {
 const supabaseUrl = getEnvVariable("NEXT_PUBLIC_SUPABASE_URL");
 const supabaseKey = getEnvVariable("NEXT_PUBLIC_SUPABASE_ANON_KEY");
 
-// Crear el cliente de Supabase
-const supabase = createClient(supabaseUrl, supabaseKey);
+console.log("Inicializando cliente de Supabase con URL:", supabaseUrl);
+
+// Crear el cliente de Supabase con opciones avanzadas
+const supabase = createClient(supabaseUrl, supabaseKey, {
+	auth: {
+		autoRefreshToken: true,
+		persistSession: true,
+	},
+	global: {
+		fetch: fetch.bind(globalThis),
+		headers: {
+			"X-Client-Info": "movicarga-erp-diagnostic",
+		},
+	},
+	db: {
+		schema: "public",
+	},
+});
 
 // Función para probar la conexión (útil para depuración)
 export async function testSupabaseConnection() {
 	try {
+		console.log("Iniciando prueba de conexión con Supabase...");
+		console.log("URL:", supabaseUrl);
+
+		// Comprobar si estamos en el lado del cliente
+		if (typeof window !== "undefined") {
+			console.log("Ejecutando desde el navegador");
+		} else {
+			console.log("Ejecutando desde el servidor");
+		}
+
 		// Usar la función más simple para probar la conexión
 		const { data, error } = await supabase.from("detracciones").select("id").limit(1);
 
 		if (error) {
+			console.error("Error en prueba de conexión:", error);
 			return {
 				success: false,
 				message: `Error de conexión: ${error.message || "Error desconocido"}`,
 			};
 		} else {
+			console.log("Conexión exitosa a Supabase:", data);
 			return {
 				success: true,
 				message: "Conexión exitosa a Supabase",
@@ -65,6 +95,7 @@ export async function testSupabaseConnection() {
 			};
 		}
 	} catch (error) {
+		console.error("Excepción en prueba de conexión:", error);
 		return {
 			success: false,
 			message: `Error inesperado: ${error instanceof Error ? error.message : "Error desconocido"}`,

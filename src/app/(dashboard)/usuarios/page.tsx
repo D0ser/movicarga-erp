@@ -33,7 +33,7 @@ export default function UsuariosPage() {
 
 			try {
 				// Verificar si existe el usuario c.llanos
-				const { data: existingUsers, error: checkError } = await supabase.from("usuarios").select("*").eq("username", "c.llanos");
+				const { data: existingUsers, error: checkError } = await supabase.from("usuarios").select("*").eq("nombre", "c").eq("apellido", "llanos");
 
 				if (checkError) {
 					throw checkError;
@@ -43,12 +43,13 @@ export default function UsuariosPage() {
 				if (!existingUsers || existingUsers.length === 0) {
 					const { error: createError } = await supabase.from("usuarios").insert([
 						{
-							username: "c.llanos",
+							nombre: "c",
+							apellido: "llanos",
 							email: "c.llanos@movicarga.com",
-							role: UserRole.ADMIN,
-							active: true,
-							lastLogin: new Date().toISOString(),
-							createdAt: new Date().toISOString(),
+							rol: UserRole.ADMIN,
+							estado: true,
+							ultimo_acceso: new Date().toISOString(),
+							created_at: new Date().toISOString(),
 						},
 					]);
 
@@ -58,13 +59,24 @@ export default function UsuariosPage() {
 				}
 
 				// Cargar todos los usuarios
-				const { data, error } = await supabase.from("usuarios").select("*").order("username");
+				const { data, error } = await supabase.from("usuarios").select("*").order("nombre");
 
 				if (error) {
 					throw error;
 				}
 
-				setUsers(data || []);
+				// Adaptar la estructura de la base de datos al modelo User
+				const adaptedUsers = (data || []).map((dbUser) => ({
+					id: dbUser.id,
+					username: `${dbUser.nombre}${dbUser.apellido ? "." + dbUser.apellido : ""}`,
+					email: dbUser.email,
+					role: dbUser.rol || UserRole.OPERATOR,
+					lastLogin: dbUser.ultimo_acceso,
+					active: dbUser.estado,
+					createdAt: dbUser.created_at,
+				}));
+
+				setUsers(adaptedUsers);
 			} catch (error) {
 				console.error("Error al cargar usuarios:", error);
 				// Fallback para desarrollo - asegurar que c.llanos existe incluso si falla Supabase
@@ -151,7 +163,7 @@ export default function UsuariosPage() {
 			if (!userToUpdate) return;
 
 			// Actualizar en Supabase
-			const { error } = await supabase.from("usuarios").update({ active: !userToUpdate.active }).eq("id", userId);
+			const { error } = await supabase.from("usuarios").update({ estado: !userToUpdate.active }).eq("id", userId);
 
 			if (error) throw error;
 
@@ -250,7 +262,7 @@ export default function UsuariosPage() {
 					apellido = parts[1] || "";
 				}
 
-				// Actualizar usuario existente adaptado a la estructura real
+				// Actualizar usuario existente
 				const { error } = await supabase
 					.from("usuarios")
 					.update({
@@ -272,7 +284,7 @@ export default function UsuariosPage() {
 									...user,
 									username: formData.username,
 									email: formData.email,
-									role: formData.role,
+									role: formData.role as UserRole,
 							  }
 							: user
 					)
@@ -284,6 +296,7 @@ export default function UsuariosPage() {
 				});
 			}
 
+			// Cerrar diálogo
 			setIsDialogOpen(false);
 		} catch (error) {
 			console.error("Error al guardar usuario:", error);
@@ -327,39 +340,37 @@ export default function UsuariosPage() {
 	};
 
 	const handleDeleteUser = async (userId: string) => {
-		// Prevenir eliminar al usuario c.llanos
-		const userToDelete = users.find((user) => user.id === userId);
-		if (userToDelete?.username === "c.llanos") {
-			toast({
-				title: "Acción no permitida",
-				description: "No se puede eliminar el usuario c.llanos",
-				variant: "destructive",
-			});
-			return;
-		}
-
-		if (window.confirm("¿Está seguro de que desea eliminar este usuario?")) {
-			try {
-				// Eliminar de Supabase
-				const { error } = await supabase.from("usuarios").delete().eq("id", userId);
-
-				if (error) throw error;
-
-				// Actualizar estado local
-				setUsers((prev) => prev.filter((user) => user.id !== userId));
-
+		try {
+			// Verificar que no se elimine el superusuario
+			const userToDelete = users.find((user) => user.id === userId);
+			if (userToDelete?.username === "c.llanos") {
 				toast({
-					title: "Usuario eliminado",
-					description: "El usuario ha sido eliminado correctamente",
-				});
-			} catch (error) {
-				console.error("Error al eliminar usuario:", error);
-				toast({
-					title: "Error",
-					description: "No se pudo eliminar el usuario",
+					title: "Operación no permitida",
+					description: "No se puede eliminar el usuario principal del sistema",
 					variant: "destructive",
 				});
+				return;
 			}
+
+			// Eliminar de Supabase
+			const { error } = await supabase.from("usuarios").delete().eq("id", userId);
+
+			if (error) throw error;
+
+			// Actualizar estado local
+			setUsers((prev) => prev.filter((user) => user.id !== userId));
+
+			toast({
+				title: "Usuario eliminado",
+				description: "El usuario ha sido eliminado correctamente",
+			});
+		} catch (error) {
+			console.error("Error al eliminar usuario:", error);
+			toast({
+				title: "Error",
+				description: "No se pudo eliminar el usuario",
+				variant: "destructive",
+			});
 		}
 	};
 
