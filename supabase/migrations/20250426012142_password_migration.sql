@@ -14,10 +14,10 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Crear una vista temporal para identificar contraseñas que necesitan ser hasheadas
 -- (Las que no comienzan con el prefijo de bcrypt '$2')
 CREATE OR REPLACE VIEW usuarios_por_hashear AS 
-SELECT id, password 
+SELECT id, password_hash as password 
 FROM usuarios 
-WHERE password IS NOT NULL 
-  AND (password NOT LIKE '$2%' OR password = '')
+WHERE password_hash IS NOT NULL 
+  AND (password_hash NOT LIKE '$2%' OR password_hash = '')
   AND estado = true;
 
 -- Comentado: Código para actualizar automáticamente todas las contraseñas existentes
@@ -30,7 +30,7 @@ WHERE password IS NOT NULL
 --     FOR usuario_record IN SELECT * FROM usuarios_por_hashear LOOP
 --         IF usuario_record.password != '' THEN
 --             UPDATE usuarios 
---             SET password = hash_password(usuario_record.password),
+--             SET password_hash = hash_password(usuario_record.password),
 --                 password_last_changed = NOW()
 --             WHERE id = usuario_record.id;
 --         END IF;
@@ -47,8 +47,8 @@ BEGIN
     FOR usuario_record IN SELECT * FROM usuarios_por_hashear LOOP
         IF usuario_record.password != '' THEN
             UPDATE usuarios 
-            SET password = hash_password(usuario_record.password),
-                password_last_changed = NOW()
+            SET password_hash = hash_password(usuario_record.password),
+                ultimo_cambio_password = NOW()
             WHERE id = usuario_record.id;
             contador := contador + 1;
         END IF;
@@ -63,9 +63,9 @@ CREATE OR REPLACE FUNCTION hash_password_trigger()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Solo hashear si la contraseña es texto plano (no comienza con $2)
-    IF NEW.password IS NOT NULL AND NEW.password != '' AND NEW.password NOT LIKE '$2%' THEN
-        NEW.password := hash_password(NEW.password);
-        NEW.password_last_changed := NOW();
+    IF NEW.password_hash IS NOT NULL AND NEW.password_hash != '' AND NEW.password_hash NOT LIKE '$2%' THEN
+        NEW.password_hash := hash_password(NEW.password_hash);
+        NEW.ultimo_cambio_password := NOW();
     END IF;
     
     RETURN NEW;
@@ -74,7 +74,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Crear el trigger para hashear contraseñas automáticamente
 CREATE TRIGGER hash_passwords_before_save
-BEFORE INSERT OR UPDATE OF password ON usuarios
+BEFORE INSERT OR UPDATE OF password_hash ON usuarios
 FOR EACH ROW
 EXECUTE FUNCTION hash_password_trigger();
 
