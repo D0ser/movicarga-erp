@@ -158,12 +158,12 @@ export default function Login() {
 				// Si no hay hash aún (migración), usar verificación simple
 				let passwordCorrect = false;
 
-				if (userFromDB.password && userFromDB.password.startsWith("$2")) {
+				if (userFromDB.password_hash && userFromDB.password_hash.startsWith("$2")) {
 					// La contraseña está hasheada con bcrypt
-					passwordCorrect = await verifyPassword(password, userFromDB.password);
-				} else if (userFromDB.password) {
+					passwordCorrect = await verifyPassword(password, userFromDB.password_hash);
+				} else if (userFromDB.password_hash) {
 					// Contraseña en texto plano (temporal)
-					passwordCorrect = userFromDB.password === password;
+					passwordCorrect = userFromDB.password_hash === password;
 				}
 
 				if (!passwordCorrect) {

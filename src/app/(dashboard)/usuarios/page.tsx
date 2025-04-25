@@ -249,7 +249,7 @@ export default function UsuariosPage() {
 					email: formData.email,
 					rol: formData.role,
 					estado: true,
-					password: hashedPassword,
+					password_hash: hashedPassword,
 					password_last_changed: new Date().toISOString(),
 					ultimo_acceso: new Date().toISOString(),
 					created_at: new Date().toISOString(),
@@ -368,7 +368,7 @@ export default function UsuariosPage() {
 				const { error } = await supabase
 					.from("usuarios")
 					.update({
-						password: hashedPassword,
+						password_hash: hashedPassword,
 						password_last_changed: new Date().toISOString(),
 						updated_at: new Date().toISOString(),
 					})

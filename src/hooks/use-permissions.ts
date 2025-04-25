@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { UserRole } from "@/types/users";
+import { ROLE_ROUTE_MAP } from "@/types/permissions";
 
 export enum PermissionType {
 	VIEW = "view",
@@ -10,6 +11,7 @@ export enum PermissionType {
 
 interface UsePermissionsReturn {
 	hasPermission: (permission: PermissionType) => boolean;
+	hasRouteAccess: (path: string) => boolean;
 	userRole: UserRole | null;
 	isLoading: boolean;
 }
@@ -32,6 +34,7 @@ export function usePermissions(): UsePermissionsReturn {
 		setIsLoading(false);
 	}, []);
 
+	// Verifica si el usuario tiene un permiso específico (view, create, edit, delete)
 	const hasPermission = (permission: PermissionType): boolean => {
 		if (!userRole) return false;
 
@@ -54,5 +57,20 @@ export function usePermissions(): UsePermissionsReturn {
 		}
 	};
 
-	return { hasPermission, userRole, isLoading };
+	// Verifica si el usuario tiene acceso a una ruta específica
+	const hasRouteAccess = (path: string): boolean => {
+		if (!userRole) return false;
+
+		// Los administradores tienen acceso a todas las rutas
+		if (userRole === UserRole.ADMIN) return true;
+
+		// La página de acceso denegado siempre es accesible
+		if (path === "/acceso-denegado") return true;
+
+		// Verificar rutas permitidas
+		const allowedRoutes = ROLE_ROUTE_MAP[userRole];
+		return allowedRoutes.some((route) => path === route || path.startsWith(`${route}/`));
+	};
+
+	return { hasPermission, hasRouteAccess, userRole, isLoading };
 }
