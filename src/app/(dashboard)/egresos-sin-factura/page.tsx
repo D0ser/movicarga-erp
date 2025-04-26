@@ -7,11 +7,15 @@ import { egresoSinFacturaService, EgresoSinFactura } from "@/lib/supabaseService
 import notificationService from "@/components/notifications/NotificationService";
 import { EditButton, DeleteButton, ActionButtonGroup } from "@/components/ActionIcons";
 import Modal from "@/components/Modal";
+import { usePermissions, PermissionType } from "@/hooks/use-permissions";
 
 export default function EgresosSinFacturaPage() {
 	// Cargar datos de Supabase
 	const [egresosSinFactura, setEgresosSinFactura] = useState<EgresoSinFactura[]>([]);
 	const [loading, setLoading] = useState(true);
+
+	// Estado para permisos
+	const { hasPermission } = usePermissions();
 
 	useEffect(() => {
 		async function cargarEgresos() {
@@ -354,26 +358,28 @@ export default function EgresosSinFacturaPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Egresos sin Factura</h1>
-				<button
-					onClick={() => {
-						setFormData({
-							fecha: new Date().toISOString().split("T")[0],
-							beneficiario: "",
-							concepto: "",
-							monto: 0,
-							metodo_pago: "Efectivo",
-							observaciones: "",
-							moneda: "PEN",
-							numeroCheque: "",
-							numeroLiquidacion: "",
-							tipoEgreso: "",
-							comprobante: "",
-						});
-						setShowForm(true);
-					}}
-					className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-					Nuevo Egreso
-				</button>
+				{hasPermission(PermissionType.CREATE) && (
+					<button
+						onClick={() => {
+							setFormData({
+								fecha: new Date().toISOString().split("T")[0],
+								beneficiario: "",
+								concepto: "",
+								monto: 0,
+								metodo_pago: "Efectivo",
+								observaciones: "",
+								moneda: "PEN",
+								numeroCheque: "",
+								numeroLiquidacion: "",
+								tipoEgreso: "",
+								comprobante: "",
+							});
+							setShowForm(true);
+						}}
+						className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+						Nuevo Egreso
+					</button>
+				)}
 			</div>
 
 			{/* Usar el componente Modal para el formulario */}

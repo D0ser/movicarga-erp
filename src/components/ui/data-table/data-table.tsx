@@ -152,7 +152,7 @@ export function DataTable<TData, TValue>({
 						{enableColumnToggle && <DataTableViewOptions table={table} />}
 
 						{enableExport && (
-							<Button onClick={() => onExport && onExport(data)} size="sm" className="bg-secondary hover:bg-secondary-dark text-white">
+							<Button onClick={() => onExport && onExport(data)} size="sm" className="bg-[#ff5722] hover:bg-[#e64a19] text-white">
 								<Download className="mr-2 h-4 w-4" />
 								Exportar
 							</Button>

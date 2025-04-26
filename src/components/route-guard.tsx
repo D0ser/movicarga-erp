@@ -13,14 +13,38 @@ export function RouteGuard({ children }: RouteGuardProps) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const [isAuthorized, setIsAuthorized] = useState(true); // Por defecto permitimos acceso hasta determinar lo contrario
+	const [isChecking, setIsChecking] = useState(false);
 
 	useEffect(() => {
+		// Si estamos en proceso de redirección desde el login, permitir acceso inmediato
+		if (typeof window !== "undefined" && sessionStorage.getItem("isRedirecting") === "true") {
+			console.log("RouteGuard: Permitiendo acceso durante redirección desde login");
+			setIsAuthorized(true);
+			return;
+		}
+
+		// Evitar múltiples verificaciones
+		if (isChecking) return;
+		setIsChecking(true);
+
 		// Si está cargando, no hacer nada todavía
-		if (isLoading) return;
+		if (isLoading) {
+			setIsChecking(false);
+			return;
+		}
+
+		// Si estamos en proceso de redirección, no interferir
+		if (typeof window !== "undefined" && (sessionStorage.getItem("isRedirecting") === "true" || sessionStorage.getItem("redirectingToLogin") === "true")) {
+			console.log("RouteGuard: Ruta en proceso de redirección, no verificando permisos");
+			setIsChecking(false);
+			setIsAuthorized(true);
+			return;
+		}
 
 		// Ignorar si ya estamos en la página de acceso denegado
 		if (pathname === "/acceso-denegado") {
 			setIsAuthorized(true);
+			setIsChecking(false);
 			return;
 		}
 
@@ -33,9 +57,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
 		if (!isPathAllowed) {
 			console.warn(`Acceso denegado a la ruta ${pathname}`);
 			// Redirigir a la página de acceso denegado
+			sessionStorage.setItem("redirectingToAccessDenied", "true");
 			router.push("/acceso-denegado");
 		}
-	}, [isLoading, hasRouteAccess, pathname, router]);
+
+		setIsChecking(false);
+	}, [isLoading, hasRouteAccess, pathname, router, isChecking]);
 
 	// Si está cargando, mostrar nada o un indicador de carga
 	if (isLoading) {

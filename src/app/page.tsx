@@ -35,20 +35,48 @@ export default function Login() {
 
 	// Verificar si hay credenciales guardadas al cargar la página
 	useEffect(() => {
-		const savedCredentials = localStorage.getItem("savedCredentials");
-		if (savedCredentials) {
-			const credentials = JSON.parse(savedCredentials);
-			setUsername(credentials.username);
-			setRememberMe(true);
+		// Variable para controlar si debemos continuar con la redirección
+		let shouldProceed = true;
+
+		// Evitar que este efecto se ejecute durante la fase de renderizado del servidor
+		if (typeof window === "undefined") return;
+
+		// Si ya estamos en proceso de redirección, no hacer nada
+		if (sessionStorage.getItem("isRedirecting") === "true") {
+			return;
 		}
 
-		// Verificar si hay un token JWT válido
-		const token = localStorage.getItem("authToken");
-		if (token) {
-			// En una implementación real, aquí verificaríamos el token
-			// Si es válido, redirigir al dashboard
-			router.push("/dashboard");
+		const savedCredentials = localStorage.getItem("savedCredentials");
+		if (savedCredentials && shouldProceed) {
+			try {
+				const credentials = JSON.parse(savedCredentials);
+				setUsername(credentials.username);
+				setRememberMe(true);
+			} catch (e) {
+				console.error("Error al cargar credenciales guardadas:", e);
+			}
 		}
+
+		// Función para verificar el token y redireccionar si es necesario
+		const checkTokenAndRedirect = () => {
+			const token = localStorage.getItem("authToken");
+			// Solo redireccionar si hay un token y no estamos ya redireccionando
+			if (token && shouldProceed) {
+				// Marcamos que estamos en proceso de redirección
+				sessionStorage.setItem("isRedirecting", "true");
+				console.log("Redireccionando al dashboard desde Login useEffect");
+				router.push("/dashboard");
+			}
+		};
+
+		// Ejecutar la verificación del token con un pequeño retraso para evitar conflictos
+		const redirectTimer = setTimeout(checkTokenAndRedirect, 100);
+
+		// Limpieza: cancelar la redirección si el componente se desmonta
+		return () => {
+			shouldProceed = false;
+			clearTimeout(redirectTimer);
+		};
 	}, [router]);
 
 	const handleLogin = async (e: React.FormEvent) => {
@@ -227,38 +255,54 @@ export default function Login() {
 
 	// Finalizar el proceso de inicio de sesión
 	const finishLogin = (userData: { id: string; username: string; role: string }) => {
-		// Generar token JWT
-		const token = generateJwtToken({
-			sub: userData.id,
-			username: userData.username,
-			role: userData.role,
-		});
-
-		// Guardar token en localStorage
-		localStorage.setItem("authToken", token);
-
-		// Guardar información del usuario en localStorage
-		localStorage.setItem(
-			"user",
-			JSON.stringify({
+		try {
+			// Generar token JWT
+			const token = generateJwtToken({
+				sub: userData.id,
 				username: userData.username,
 				role: userData.role,
-			})
-		);
+			});
 
-		// Si rememberMe está activado, guardar credenciales
-		if (rememberMe) {
+			// Guardar token en localStorage
+			localStorage.setItem("authToken", token);
+
+			// Guardar información del usuario en localStorage
 			localStorage.setItem(
-				"savedCredentials",
+				"user",
 				JSON.stringify({
 					username: userData.username,
+					role: userData.role,
 				})
 			);
-		} else {
-			localStorage.removeItem("savedCredentials");
-		}
 
-		router.push("/dashboard");
+			// Si rememberMe está activado, guardar credenciales
+			if (rememberMe) {
+				localStorage.setItem(
+					"savedCredentials",
+					JSON.stringify({
+						username: userData.username,
+					})
+				);
+			} else {
+				localStorage.removeItem("savedCredentials");
+			}
+
+			// Limpiar cualquier bandera de redirección al login
+			sessionStorage.removeItem("redirectingToLogin");
+
+			// Marcar que estamos en proceso de redirección
+			sessionStorage.setItem("isRedirecting", "true");
+
+			console.log("Login exitoso, redirigiendo al dashboard");
+
+			// Técnica de redirección forzada - usar location directamente
+			// si el router.push no funciona correctamente
+			window.location.href = "/dashboard";
+		} catch (error) {
+			console.error("Error en finishLogin:", error);
+			setError("Error al completar el inicio de sesión. Intente nuevamente.");
+			setIsValidating(false);
+		}
 	};
 
 	// Verificar si Caps Lock está activado

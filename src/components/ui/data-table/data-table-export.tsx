@@ -43,7 +43,7 @@ export function DataTableExport<TData>({ data, onExport }: DataTableExportProps<
 	};
 
 	return (
-		<Button variant="outline" size="sm" className="ml-auto" onClick={() => (onExport ? onExport(data) : defaultExportHandler())}>
+		<Button variant="default" size="sm" className="ml-auto bg-[#ff5722] hover:bg-[#e64a19] text-white" onClick={() => (onExport ? onExport(data) : defaultExportHandler())}>
 			<Download className="mr-2 h-4 w-4" />
 			Exportar
 		</Button>

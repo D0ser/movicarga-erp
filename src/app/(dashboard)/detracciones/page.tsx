@@ -8,6 +8,7 @@ import { detraccionService, Detraccion as DetraccionType } from "@/lib/supabaseS
 import supabase, { testSupabaseConnection as testConnection } from "@/lib/supabase";
 import { clienteService } from "@/lib/supabaseServices";
 import Modal from "@/components/Modal";
+import { usePermissions, PermissionType } from "@/hooks/use-permissions";
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -78,6 +79,9 @@ export default function DetraccionesPage() {
 	const [importError, setImportError] = useState<string>("");
 	const [nombreArchivoCsv, setNombreArchivoCsv] = useState<string>("");
 	const [testConnectionResult, setTestConnectionResult] = useState<{ success: boolean; message: string } | null>(null);
+
+	// Usar permisos
+	const { hasPermission } = usePermissions();
 
 	// Cargar datos de detracciones desde Supabase
 	useEffect(() => {
@@ -920,15 +924,17 @@ export default function DetraccionesPage() {
 
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Detracciones</h1>
-				<div className="flex space-x-2">
-					<button onClick={() => setShowImportForm(!showImportForm)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
-						Importar CSV
-					</button>
+				{hasPermission(PermissionType.CREATE) && (
+					<div className="flex space-x-2">
+						<button onClick={() => setShowImportForm(!showImportForm)} className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">
+							Importar CSV
+						</button>
 
-					<button onClick={() => setShowDeleteModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
-						Eliminar por CSV
-					</button>
-				</div>
+						<button onClick={() => setShowDeleteModal(true)} className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700">
+							Eliminar por CSV
+						</button>
+					</div>
+				)}
 			</div>
 
 			{/* Modal para importación CSV */}

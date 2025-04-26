@@ -83,23 +83,34 @@ export function validatePasswordComplexity(password: string): { isValid: boolean
  */
 export function generateJwtToken(payload: any): string {
 	try {
-		// Primero verificamos si jwt está disponible correctamente
-		if (typeof jwt !== "object" || !jwt.sign) {
-			console.warn("La biblioteca JWT no está disponible en el navegador, creando token simple");
+		// Generamos un identificador de sesión único
+		const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
+
+		// Añadir un identificador único al payload para evitar duplicaciones
+		const uniquePayload = {
+			...payload,
+			nonce: Math.random().toString(36).substring(2, 15), // Valor aleatorio para evitar duplicados
+			iat: Math.floor(Date.now() / 1000), // Timestamp actual
+			sid: sessionId, // Identificador de sesión
+		};
+
+		// En el cliente (navegador), jwt puede no estar disponible correctamente
+		// Usamos el enfoque de token simple para el cliente
+		if (typeof window !== "undefined") {
+			console.log("Generando token en el cliente (navegador)");
 
 			// Crear un token simple para navegador
 			const tokenData = {
-				...payload,
+				...uniquePayload,
 				exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 horas
-				iat: Math.floor(Date.now() / 1000),
 			};
 
 			// Convertir a base64 para simular un JWT
 			return "DEV." + btoa(JSON.stringify(tokenData)) + "." + btoa(JWT_SECRET.substring(0, 10)); // No usamos el secret completo en navegador
 		}
 
-		// Si jwt está disponible, usamos la implementación normal
-		return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+		// Si estamos en el servidor y jwt está disponible, usamos la implementación normal
+		return jwt.sign(uniquePayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 	} catch (error) {
 		console.warn("Error al generar JWT, usando token alternativo:", error);
 
@@ -107,6 +118,8 @@ export function generateJwtToken(payload: any): string {
 		const simpleToken = btoa(
 			JSON.stringify({
 				...payload,
+				nonce: Math.random().toString(36).substring(2, 15),
+				sid: `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
 				generated: new Date().toISOString(),
 				exp: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
 			})

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { EditButton, DeleteButton, ActivateButton, ActionButtonGroup } from "@/components/ActionIcons";
 import { createClient } from "@supabase/supabase-js";
 import Modal from "@/components/Modal";
+import { usePermissions, PermissionType } from "@/hooks/use-permissions";
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -32,6 +33,9 @@ export default function EgresosPage() {
 	// Estado para almacenar los egresos
 	const [egresos, setEgresos] = useState<Egreso[]>([]);
 	const [loading, setLoading] = useState(true);
+
+	// Hook para permisos de usuario
+	const { hasPermission } = usePermissions();
 
 	// Cargar datos desde Supabase al montar el componente
 	useEffect(() => {
@@ -524,9 +528,11 @@ export default function EgresosPage() {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<h1 className="text-2xl font-bold">Gestión de Egresos</h1>
-				<button onClick={() => setShowForm(!showForm)} className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-dark">
-					Nuevo Egreso
-				</button>
+				{hasPermission(PermissionType.CREATE) && (
+					<button onClick={() => setShowForm(!showForm)} className="bg-secondary text-white px-4 py-2 rounded-md hover:bg-secondary-dark">
+						Nuevo Egreso
+					</button>
+				)}
 			</div>
 
 			{/* Modal para formulario de egreso */}

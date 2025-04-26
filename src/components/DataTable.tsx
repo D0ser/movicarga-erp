@@ -364,7 +364,7 @@ export default function DataTable<T extends DataItem = DataItem>({ columns, data
 						</button>
 
 						{/* Botón de exportar */}
-						<button onClick={exportToExcel} className="bg-secondary text-white px-3 py-1.5 rounded hover:bg-secondary-dark text-sm flex items-center" disabled={isLoading || filteredData.length === 0}>
+						<button onClick={exportToExcel} className="bg-[#ff5722] text-white px-3 py-1.5 rounded hover:bg-[#e64a19] text-sm flex items-center" disabled={isLoading || filteredData.length === 0}>
 							<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
 							</svg>

@@ -9,6 +9,39 @@ import { Line, Bar, Doughnut, Radar } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, RadialLinearScale, Filler);
 
 export default function Dashboard() {
+	// Estado para controlar que la página ha sido montada correctamente
+	const [isMounted, setIsMounted] = useState(false);
+
+	// Verificar que la página se ha cargado correctamente
+	useEffect(() => {
+		// Limpiar todas las banderas de redirección
+		if (typeof window !== "undefined") {
+			console.log("Dashboard: Limpiando banderas de redirección");
+
+			// Retrasar ligeramente la limpieza para asegurar que el layout haya terminado de procesar
+			setTimeout(() => {
+				sessionStorage.removeItem("isRedirecting");
+				sessionStorage.removeItem("redirectingToLogin");
+				sessionStorage.removeItem("redirectingToAccessDenied");
+
+				// Indicar que ya estamos en el dashboard
+				sessionStorage.setItem("dashboardLoaded", "true");
+
+				// Forzar actualización del estado global si es necesario
+				const event = new Event("dashboardLoaded");
+				window.dispatchEvent(event);
+
+				console.log("Dashboard: Banderas de redirección limpiadas");
+			}, 200);
+		}
+
+		// Marcar la página como montada
+		setIsMounted(true);
+
+		// Registrar que el dashboard se ha cargado correctamente
+		console.log("Dashboard cargado correctamente");
+	}, []);
+
 	// En una aplicación real, estos datos vendrían de Supabase
 	const [stats, setStats] = useState({
 		ingresos: 0,
