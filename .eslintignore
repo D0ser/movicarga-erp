@@ -1,0 +1,24 @@
+# Directorios
+node_modules/
+.next/
+out/
+build/
+.vercel/
+public/
+coverage/
+
+# Archivos
+next-env.d.ts
+next.config.js
+next.config.mjs
+postcss.config.js
+postcss.config.mjs
+tailwind.config.js
+tailwind.config.mjs
+
+# Archivos de configuración
+*.config.js
+*.config.mjs
+
+# Archivos generados
+*.generated.* 

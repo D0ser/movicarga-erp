@@ -1,0 +1,32 @@
+# Directorios
+node_modules/
+.next/
+out/
+build/
+.vercel/
+public/
+coverage/
+dist/
+
+# Archivos
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+next-env.d.ts
+
+# Configuración
+.eslintrc
+.eslintrc.js
+.eslintrc.json
+next.config.js
+next.config.mjs
+postcss.config.js
+postcss.config.mjs
+tailwind.config.js
+tailwind.config.mjs
+
+# Archivos SQL largos
+*.sql
+
+# Archivos generados
+*.generated.* 

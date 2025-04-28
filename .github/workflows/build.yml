@@ -1,0 +1,43 @@
+name: Build Check
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+        env:
+          # Agrega aquí las variables de entorno mínimas necesarias para la construcción
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://example.com' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'example-key' }}
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ El proyecto se ha construido correctamente!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ La construcción del proyecto ha fallado."
+          echo "Por favor, revisa los errores antes de continuar."

@@ -1,0 +1,42 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+jobs:
+  code-quality:
+    name: Lint and TypeScript Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: TypeScript Check
+        run: npx tsc --noEmit
+
+      - name: Notify on success
+        if: success()
+        run: echo "✅ Todas las comprobaciones de calidad de código pasaron correctamente!"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Algunas comprobaciones de calidad de código fallaron."
+          echo "Por favor, revisa los errores de ESLint o TypeScript antes de continuar."

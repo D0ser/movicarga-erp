@@ -10,30 +10,63 @@ Este proyecto utiliza Supabase como backend principal para base de datos, autent
 ## Archivos clave
 
 - [src/lib/supabase.ts](mdc:src/lib/supabase.ts): Configuración principal del cliente Supabase
-- [src/lib/supabase-client.ts](mdc:src/lib/supabase-client.ts): Cliente Supabase para el navegador
+- [src/lib/supabaseClient.ts](mdc:src/lib/supabaseClient.ts): Cliente Supabase para el navegador y abstracciones
 - [src/lib/supabase-node.ts](mdc:src/lib/supabase-node.ts): Cliente Supabase para uso en el servidor
 - [src/lib/supabaseServices.ts](mdc:src/lib/supabaseServices.ts): Servicios y funciones para interactuar con Supabase
+- [src/lib/db-example.ts](mdc:src/lib/db-example.ts): Ejemplos de uso de la abstracción de la base de datos
 
 ## Uso de Supabase
 
 ### Consultas a la base de datos
 
-Para realizar consultas a Supabase, utiliza los servicios definidos en `supabaseServices.ts`. 
-Ejemplo:
+#### Forma recomendada (utilizando la abstracción)
+
+La forma preferida para realizar operaciones con Supabase es utilizar la abstracción proporcionada en `supabaseClient.ts`:
 
 ```typescript
-import { getViajes } from 'src/lib/supabaseServices';
+import { db } from '@/lib/supabaseClient';
+import { Cliente } from '@/lib/supabaseServices';
 
-// En un componente...
-const viajes = await getViajes();
+// Obtener todos los clientes
+const clientes = await db.getAll<Cliente>('clientes', 'razon_social');
+
+// Obtener cliente por ID
+const cliente = await db.getById<Cliente>('clientes', id);
+
+// Crear un cliente
+const nuevoCliente = await db.create<Cliente>('clientes', clienteData);
+
+// Actualizar un cliente
+const clienteActualizado = await db.update<Cliente>('clientes', id, cambios);
+
+// Eliminar un cliente
+await db.delete('clientes', id);
+
+// Para consultas más complejas, usar el método 'from'
+const { data, error } = await db.from('clientes')
+  .select('*')
+  .eq('estado', true)
+  .order('razon_social');
 ```
 
-### Autenticación
+#### Forma tradicional (usando servicios)
 
-La autenticación se gestiona a través de Supabase Auth. Ejemplos de uso:
+Para entidades comunes, se pueden utilizar los servicios predefinidos en `supabaseServices.ts`:
 
 ```typescript
-import { supabase } from 'src/lib/supabase';
+import { clienteService } from '@/lib/supabaseServices';
+
+// En un componente...
+const clientes = await clienteService.getClientes();
+const cliente = await clienteService.getClienteById(id);
+```
+
+#### Forma directa (menos recomendada)
+
+En casos donde se necesite acceso directo al cliente de Supabase:
+
+```typescript
+import supabase from '@/lib/supabase';
 
 // Login
 const { data, error } = await supabase.auth.signInWithPassword({

@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Ejecutar lint pero permitir que el commit continue incluso si hay errores
+npm run lint || true
