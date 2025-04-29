@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -14,6 +15,7 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
+  description?: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showFooter?: boolean;
@@ -26,6 +28,7 @@ export default function Modal({
   isOpen,
   onClose,
   title,
+  description,
   children,
   size = 'md',
   showFooter = false,
@@ -54,6 +57,7 @@ export default function Modal({
       <DialogContent className={`${getSizeClass()}`}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
+          {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <div className="max-h-[calc(100vh-200px)] overflow-y-auto">{children}</div>
         {showFooter && (

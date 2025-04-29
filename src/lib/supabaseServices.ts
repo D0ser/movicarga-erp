@@ -153,25 +153,6 @@ export interface Detraccion extends DataItem, RelatedEntities {
   fecha_constancia: string | null;
   estado: string;
   observaciones: string;
-
-  // Campos para CSV
-  tipo_cuenta?: string;
-  numero_cuenta?: string;
-  periodo_tributario?: string;
-  ruc_proveedor?: string;
-  nombre_proveedor?: string;
-  tipo_documento_adquiriente?: string;
-  numero_documento_adquiriente?: string;
-  nombre_razon_social_adquiriente?: string;
-  fecha_pago?: string;
-  tipo_bien?: string;
-  tipo_operacion?: string;
-  tipo_comprobante?: string;
-  serie_comprobante?: string;
-  numero_comprobante?: string;
-  numero_pago_detracciones?: string;
-  origen_csv?: string;
-
   created_at?: string;
   updated_at?: string;
   ingreso?: Ingreso;
@@ -234,1242 +215,546 @@ export interface Empresa extends DataItem {
 
 // Servicios para clientes
 export const clienteService = {
-  async getClientes(): Promise<Cliente[]> {
-    return db.getAll<Cliente>('clientes', 'razon_social');
+  getClientes: async (): Promise<Cliente[]> => {
+    const { data, error } = await supabase.from('clientes').select('*').order('razon_social');
+    if (error) throw error;
+    return data;
   },
 
-  async getClienteById(id: string): Promise<Cliente | null> {
-    return db.getById<Cliente>('clientes', id);
+  createCliente: async (
+    cliente: Omit<Cliente, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Cliente> => {
+    const { data, error } = await supabase.from('clientes').insert(cliente).select().single();
+    if (error) throw error;
+    return data;
   },
 
-  async getClienteByRuc(ruc: string): Promise<Cliente | null> {
-    return db.getOneWhere<Cliente>('clientes', 'ruc', ruc);
+  updateCliente: async (id: string, cliente: Partial<Cliente>): Promise<Cliente> => {
+    const { data, error } = await supabase
+      .from('clientes')
+      .update(cliente)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createCliente(cliente: Omit<Cliente, 'id'>): Promise<Cliente> {
-    return db.create<Cliente>('clientes', cliente);
-  },
-
-  async updateCliente(id: string, cliente: Partial<Cliente>): Promise<Cliente> {
-    return db.update<Cliente>('clientes', id, cliente);
-  },
-
-  async deleteCliente(id: string): Promise<void> {
-    return db.delete('clientes', id);
+  deleteCliente: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('clientes').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para conductores
 export const conductorService = {
-  async getConductores(): Promise<Conductor[]> {
-    // Ejemplo de uso de la nueva API
-    return db.getAll<Conductor>('conductores');
+  getConductores: async (): Promise<Conductor[]> => {
+    const { data, error } = await supabase.from('conductores').select('*').order('nombres');
+    if (error) throw error;
+    return data;
   },
 
-  async getConductorById(id: string): Promise<Conductor | null> {
-    return db.getById<Conductor>('conductores', id);
+  createConductor: async (
+    conductor: Omit<Conductor, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Conductor> => {
+    const { data, error } = await supabase.from('conductores').insert(conductor).select().single();
+    if (error) throw error;
+    return data;
   },
 
-  async createConductor(conductor: Omit<Conductor, 'id'>): Promise<Conductor> {
-    return db.create<Conductor>('conductores', conductor);
+  updateConductor: async (id: string, conductor: Partial<Conductor>): Promise<Conductor> => {
+    const { data, error } = await supabase
+      .from('conductores')
+      .update(conductor)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateConductor(id: string, conductor: Partial<Conductor>): Promise<Conductor> {
-    return db.update<Conductor>('conductores', id, conductor);
-  },
-
-  async deleteConductor(id: string): Promise<void> {
-    return db.delete('conductores', id);
+  deleteConductor: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('conductores').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para vehículos
 export const vehiculoService = {
-  async getVehiculos(): Promise<Vehiculo[]> {
-    return db.getAll<Vehiculo>('vehiculos', 'placa');
+  getVehiculos: async (): Promise<Vehiculo[]> => {
+    const { data, error } = await supabase.from('vehiculos').select('*').order('placa');
+    if (error) throw error;
+    return data;
   },
 
-  async getVehiculoById(id: string): Promise<Vehiculo | null> {
-    return db.getById<Vehiculo>('vehiculos', id);
+  createVehiculo: async (
+    vehiculo: Omit<Vehiculo, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Vehiculo> => {
+    const { data, error } = await supabase.from('vehiculos').insert(vehiculo).select().single();
+    if (error) throw error;
+    return data;
   },
 
-  async createVehiculo(vehiculo: Omit<Vehiculo, 'id'>): Promise<Vehiculo> {
-    console.log('Creando vehículo con datos:', vehiculo);
-    try {
-      // Asegurar que todos los campos tengan el tipo correcto
-      const vehiculoPreparado = {
-        ...vehiculo,
-        anio: Number(vehiculo.anio),
-        num_ejes: Number(vehiculo.num_ejes),
-        capacidad_carga: Number(vehiculo.capacidad_carga),
-        kilometraje: Number(vehiculo.kilometraje),
-        tipo_vehiculo: vehiculo.tipo_vehiculo || 'Tracto',
-      };
-
-      const { data, error } = await supabase.from('vehiculos').insert([vehiculoPreparado]).select();
-
-      if (error) {
-        console.error('Error al crear vehículo en Supabase:', error);
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('No se recibieron datos de respuesta al crear el vehículo');
-      }
-
-      return data[0];
-    } catch (error) {
-      console.error('Error en createVehiculo:', error);
-      throw error;
-    }
+  updateVehiculo: async (id: string, vehiculo: Partial<Vehiculo>): Promise<Vehiculo> => {
+    const { data, error } = await supabase
+      .from('vehiculos')
+      .update(vehiculo)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateVehiculo(id: string, vehiculo: Partial<Vehiculo>): Promise<Vehiculo> {
-    console.log('Actualizando vehículo con ID', id, 'y datos:', vehiculo);
-    try {
-      // Asegurar que todos los campos numéricos tengan el tipo correcto
-      const vehiculoPreparado: Partial<Vehiculo> = { ...vehiculo };
-
-      if (vehiculoPreparado.anio !== undefined)
-        vehiculoPreparado.anio = Number(vehiculoPreparado.anio);
-      if (vehiculoPreparado.num_ejes !== undefined)
-        vehiculoPreparado.num_ejes = Number(vehiculoPreparado.num_ejes);
-      if (vehiculoPreparado.capacidad_carga !== undefined)
-        vehiculoPreparado.capacidad_carga = Number(vehiculoPreparado.capacidad_carga);
-      if (vehiculoPreparado.kilometraje !== undefined)
-        vehiculoPreparado.kilometraje = Number(vehiculoPreparado.kilometraje);
-      if (vehiculoPreparado.tipo_vehiculo === undefined) vehiculoPreparado.tipo_vehiculo = 'Tracto';
-
-      const { data, error } = await supabase
-        .from('vehiculos')
-        .update(vehiculoPreparado)
-        .eq('id', id)
-        .select();
-
-      if (error) {
-        console.error('Error al actualizar vehículo en Supabase:', error);
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('No se recibieron datos de respuesta al actualizar el vehículo');
-      }
-
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateVehiculo:', error);
-      throw error;
-    }
-  },
-
-  async deleteVehiculo(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('vehiculos').delete().eq('id', id);
-
-      if (error) {
-        console.error('Error al eliminar vehículo:', error);
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error en deleteVehiculo:', error);
-      throw error;
-    }
+  deleteVehiculo: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('vehiculos').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para viajes
 export const viajeService = {
-  async getViajes(): Promise<Viaje[]> {
-    try {
-      // Primero, obtener todos los viajes
-      const { data: viajes, error: viajesError } = await supabase
-        .from('viajes')
-        .select('*')
-        .order('fecha_salida', { ascending: false });
-
-      if (viajesError) throw viajesError;
-      if (!viajes || viajes.length === 0) return [];
-
-      // Obtener IDs únicos para las entidades relacionadas
-      const clienteIds = [...new Set(viajes.map((v) => v.cliente_id).filter(Boolean))];
-      const conductorIds = [...new Set(viajes.map((v) => v.conductor_id).filter(Boolean))];
-      const vehiculoIds = [...new Set(viajes.map((v) => v.vehiculo_id).filter(Boolean))];
-
-      // Obtener datos relacionados en consultas separadas
-      const [clientesResult, conductoresResult, vehiculosResult] = await Promise.all([
-        clienteIds.length > 0
-          ? supabase.from('clientes').select('id, razon_social, ruc').in('id', clienteIds)
-          : { data: [] },
-        conductorIds.length > 0
-          ? supabase
-              .from('conductores')
-              .select('id, nombres, apellidos, licencia')
-              .in('id', conductorIds)
-          : { data: [] },
-        vehiculoIds.length > 0
-          ? supabase.from('vehiculos').select('id, placa, marca, modelo').in('id', vehiculoIds)
-          : { data: [] },
-      ]);
-
-      // Crear mapas para búsqueda rápida
-      const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
-      const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
-      const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
-
-      // Combinar datos
-      return viajes.map((viaje) => ({
-        ...viaje,
-        cliente: viaje.cliente_id ? clienteMap.get(viaje.cliente_id) : undefined,
-        conductor: viaje.conductor_id ? conductorMap.get(viaje.conductor_id) : undefined,
-        vehiculo: viaje.vehiculo_id ? vehiculoMap.get(viaje.vehiculo_id) : undefined,
-      }));
-    } catch (error) {
-      console.error('Error en getViajes:', error);
-      throw error;
-    }
-  },
-
-  async getViajeById(id: string): Promise<Viaje | null> {
-    try {
-      // Obtener el viaje
-      const { data: viaje, error: viajeError } = await supabase
-        .from('viajes')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (viajeError) throw viajeError;
-      if (!viaje) return null;
-
-      // Obtener datos relacionados en consultas separadas
-      const [clienteResult, conductorResult, vehiculoResult] = await Promise.all([
-        viaje.cliente_id
-          ? supabase
-              .from('clientes')
-              .select('id, razon_social, ruc')
-              .eq('id', viaje.cliente_id)
-              .single()
-          : { data: null },
-        viaje.conductor_id
-          ? supabase
-              .from('conductores')
-              .select('id, nombres, apellidos, licencia')
-              .eq('id', viaje.conductor_id)
-              .single()
-          : { data: null },
-        viaje.vehiculo_id
-          ? supabase
-              .from('vehiculos')
-              .select('id, placa, marca, modelo')
-              .eq('id', viaje.vehiculo_id)
-              .single()
-          : { data: null },
-      ]);
-
-      // Combinar datos
-      return {
-        ...viaje,
-        cliente: clienteResult.data || undefined,
-        conductor: conductorResult.data || undefined,
-        vehiculo: vehiculoResult.data || undefined,
-      };
-    } catch (error) {
-      console.error('Error en getViajeById:', error);
-      throw error;
-    }
-  },
-
-  async createViaje(
-    viaje: Omit<Viaje, 'id' | 'cliente' | 'conductor' | 'vehiculo'>
-  ): Promise<Viaje> {
-    const { data, error } = await supabase.from('viajes').insert([viaje]).select();
-
+  getViajes: async (): Promise<Viaje[]> => {
+    const { data, error } = await supabase
+      .from('viajes')
+      .select(
+        `
+        *,
+        cliente:clientes(*),
+        conductor:conductores(*),
+        vehiculo:vehiculos(*)
+      `
+      )
+      .order('fecha_salida', { ascending: false });
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async updateViaje(
-    id: string,
-    viaje: Partial<Omit<Viaje, 'cliente' | 'conductor' | 'vehiculo'>>
-  ): Promise<Viaje> {
-    const { data, error } = await supabase.from('viajes').update(viaje).eq('id', id).select();
-
+  createViaje: async (viaje: Omit<Viaje, 'id' | 'created_at' | 'updated_at'>): Promise<Viaje> => {
+    const { data, error } = await supabase.from('viajes').insert(viaje).select().single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteViaje(id: string): Promise<void> {
+  updateViaje: async (id: string, viaje: Partial<Viaje>): Promise<Viaje> => {
+    const { data, error } = await supabase
+      .from('viajes')
+      .update(viaje)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteViaje: async (id: string): Promise<void> => {
     const { error } = await supabase.from('viajes').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para ingresos
 export const ingresoService = {
-  async getIngresos(): Promise<Ingreso[]> {
-    try {
-      // Primero, obtener todos los ingresos
-      const { data: ingresos, error: ingresosError } = await supabase
-        .from('ingresos')
-        .select('*')
-        .order('fecha', { ascending: false });
-
-      if (ingresosError) throw ingresosError;
-      if (!ingresos || ingresos.length === 0) return [];
-
-      // Obtener IDs únicos para las entidades relacionadas
-      const clienteIds = [...new Set(ingresos.map((i) => i.cliente_id).filter(Boolean))];
-      const viajeIds = [...new Set(ingresos.map((i) => i.viaje_id).filter(Boolean))];
-
-      // Obtener datos relacionados en consultas separadas
-      const [clientesResult, viajesResult] = await Promise.all([
-        clienteIds.length > 0
-          ? supabase.from('clientes').select('id, razon_social, ruc').in('id', clienteIds)
-          : { data: [] },
-        viajeIds.length > 0
-          ? supabase.from('viajes').select('id, origen, destino, fecha_salida').in('id', viajeIds)
-          : { data: [] },
-      ]);
-
-      // Crear mapas para búsqueda rápida
-      const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
-      const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
-
-      // Combinar datos
-      return ingresos.map((ingreso) => ({
-        ...ingreso,
-        cliente: ingreso.cliente_id ? clienteMap.get(ingreso.cliente_id) : undefined,
-        viaje: ingreso.viaje_id ? viajeMap.get(ingreso.viaje_id) : undefined,
-      }));
-    } catch (error) {
-      console.error('Error en getIngresos:', error);
-      throw error;
-    }
-  },
-
-  async getIngresoById(id: string): Promise<Ingreso | null> {
-    try {
-      // Obtener el ingreso
-      const { data: ingreso, error: ingresoError } = await supabase
-        .from('ingresos')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (ingresoError) throw ingresoError;
-      if (!ingreso) return null;
-
-      // Obtener datos relacionados en consultas separadas
-      const [clienteResult, viajeResult] = await Promise.all([
-        ingreso.cliente_id
-          ? supabase
-              .from('clientes')
-              .select('id, razon_social, ruc')
-              .eq('id', ingreso.cliente_id)
-              .single()
-          : { data: null },
-        ingreso.viaje_id
-          ? supabase
-              .from('viajes')
-              .select('id, origen, destino, fecha_salida')
-              .eq('id', ingreso.viaje_id)
-              .single()
-          : { data: null },
-      ]);
-
-      // Combinar datos
-      return {
-        ...ingreso,
-        cliente: clienteResult.data || undefined,
-        viaje: viajeResult.data || undefined,
-      };
-    } catch (error) {
-      console.error('Error en getIngresoById:', error);
-      throw error;
-    }
-  },
-
-  async createIngreso(ingreso: Omit<Ingreso, 'id' | 'cliente' | 'viaje'>): Promise<Ingreso> {
-    const { data, error } = await supabase.from('ingresos').insert([ingreso]).select();
-
+  getIngresos: async (): Promise<Ingreso[]> => {
+    const { data, error } = await supabase
+      .from('ingresos')
+      .select(
+        `
+        *,
+        cliente:clientes(*),
+        viaje:viajes(*)
+      `
+      )
+      .order('fecha', { ascending: false });
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async updateIngreso(
-    id: string,
-    ingreso: Partial<Omit<Ingreso, 'cliente' | 'viaje'>>
-  ): Promise<Ingreso> {
-    const { data, error } = await supabase.from('ingresos').update(ingreso).eq('id', id).select();
-
+  createIngreso: async (
+    ingreso: Omit<Ingreso, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Ingreso> => {
+    const { data, error } = await supabase.from('ingresos').insert(ingreso).select().single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteIngreso(id: string): Promise<void> {
+  updateIngreso: async (id: string, ingreso: Partial<Ingreso>): Promise<Ingreso> => {
+    const { data, error } = await supabase
+      .from('ingresos')
+      .update(ingreso)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteIngreso: async (id: string): Promise<void> => {
     const { error } = await supabase.from('ingresos').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para egresos (con factura)
 export const egresoService = {
-  async getEgresos(): Promise<Egreso[]> {
-    try {
-      // Primero, obtener todos los egresos
-      const { data: egresos, error: egresosError } = await supabase
-        .from('egresos')
-        .select('*')
-        .order('fecha', { ascending: false });
-
-      if (egresosError) throw egresosError;
-      if (!egresos || egresos.length === 0) return [];
-
-      // Obtener IDs únicos para las entidades relacionadas
-      const viajeIds = [...new Set(egresos.map((e) => e.viaje_id).filter(Boolean))];
-      const vehiculoIds = [...new Set(egresos.map((e) => e.vehiculo_id).filter(Boolean))];
-      const conductorIds = [...new Set(egresos.map((e) => e.conductor_id).filter(Boolean))];
-
-      // Obtener datos relacionados en consultas separadas
-      const [viajesResult, vehiculosResult, conductoresResult] = await Promise.all([
-        viajeIds.length > 0
-          ? supabase.from('viajes').select('id, origen, destino, fecha_salida').in('id', viajeIds)
-          : { data: [] },
-        vehiculoIds.length > 0
-          ? supabase.from('vehiculos').select('id, placa, marca, modelo').in('id', vehiculoIds)
-          : { data: [] },
-        conductorIds.length > 0
-          ? supabase.from('conductores').select('id, nombres, apellidos').in('id', conductorIds)
-          : { data: [] },
-      ]);
-
-      // Crear mapas para búsqueda rápida
-      const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
-      const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
-      const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
-
-      // Combinar datos
-      return egresos.map((egreso) => ({
-        ...egreso,
-        viaje: egreso.viaje_id ? viajeMap.get(egreso.viaje_id) : undefined,
-        vehiculo: egreso.vehiculo_id ? vehiculoMap.get(egreso.vehiculo_id) : undefined,
-        conductor: egreso.conductor_id ? conductorMap.get(egreso.conductor_id) : undefined,
-      }));
-    } catch (error) {
-      console.error('Error en getEgresos:', error);
-      throw error;
-    }
-  },
-
-  async getEgresoById(id: string): Promise<Egreso | null> {
-    try {
-      // Obtener el egreso
-      const { data: egreso, error: egresoError } = await supabase
-        .from('egresos')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (egresoError) throw egresoError;
-      if (!egreso) return null;
-
-      // Obtener datos relacionados en consultas separadas
-      const [viajeResult, vehiculoResult, conductorResult] = await Promise.all([
-        egreso.viaje_id
-          ? supabase
-              .from('viajes')
-              .select('id, origen, destino, fecha_salida')
-              .eq('id', egreso.viaje_id)
-              .single()
-          : { data: null },
-        egreso.vehiculo_id
-          ? supabase
-              .from('vehiculos')
-              .select('id, placa, marca, modelo')
-              .eq('id', egreso.vehiculo_id)
-              .single()
-          : { data: null },
-        egreso.conductor_id
-          ? supabase
-              .from('conductores')
-              .select('id, nombres, apellidos')
-              .eq('id', egreso.conductor_id)
-              .single()
-          : { data: null },
-      ]);
-
-      // Combinar datos
-      return {
-        ...egreso,
-        viaje: viajeResult.data || undefined,
-        vehiculo: vehiculoResult.data || undefined,
-        conductor: conductorResult.data || undefined,
-      };
-    } catch (error) {
-      console.error('Error en getEgresoById:', error);
-      throw error;
-    }
-  },
-
-  async createEgreso(
-    egreso: Omit<Egreso, 'id' | 'viaje' | 'vehiculo' | 'conductor'>
-  ): Promise<Egreso> {
-    const { data, error } = await supabase.from('egresos').insert([egreso]).select();
-
+  getEgresos: async (): Promise<Egreso[]> => {
+    const { data, error } = await supabase
+      .from('egresos')
+      .select(
+        `
+        *,
+        viaje:viajes(*),
+        vehiculo:vehiculos(*),
+        conductor:conductores(*)
+      `
+      )
+      .order('fecha', { ascending: false });
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async updateEgreso(
-    id: string,
-    egreso: Partial<Omit<Egreso, 'viaje' | 'vehiculo' | 'conductor'>>
-  ): Promise<Egreso> {
-    const { data, error } = await supabase.from('egresos').update(egreso).eq('id', id).select();
-
+  createEgreso: async (
+    egreso: Omit<Egreso, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Egreso> => {
+    const { data, error } = await supabase.from('egresos').insert(egreso).select().single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteEgreso(id: string): Promise<void> {
+  updateEgreso: async (id: string, egreso: Partial<Egreso>): Promise<Egreso> => {
+    const { data, error } = await supabase
+      .from('egresos')
+      .update(egreso)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  deleteEgreso: async (id: string): Promise<void> => {
     const { error } = await supabase.from('egresos').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para egresos sin factura
 export const egresoSinFacturaService = {
-  async getEgresosSinFactura(): Promise<EgresoSinFactura[]> {
-    try {
-      // Primero, obtener todos los egresos sin factura
-      const { data: egresos, error: egresosError } = await supabase
-        .from('egresos_sin_factura')
-        .select('*')
-        .order('fecha', { ascending: false });
-
-      if (egresosError) throw egresosError;
-      if (!egresos || egresos.length === 0) return [];
-
-      // Obtener IDs únicos para las entidades relacionadas
-      const viajeIds = [...new Set(egresos.map((e) => e.viaje_id).filter(Boolean))];
-      const vehiculoIds = [...new Set(egresos.map((e) => e.vehiculo_id).filter(Boolean))];
-      const conductorIds = [...new Set(egresos.map((e) => e.conductor_id).filter(Boolean))];
-
-      // Obtener datos relacionados en consultas separadas
-      const [viajesResult, vehiculosResult, conductoresResult] = await Promise.all([
-        viajeIds.length > 0
-          ? supabase.from('viajes').select('id, origen, destino, fecha_salida').in('id', viajeIds)
-          : { data: [] },
-        vehiculoIds.length > 0
-          ? supabase.from('vehiculos').select('id, placa, marca, modelo').in('id', vehiculoIds)
-          : { data: [] },
-        conductorIds.length > 0
-          ? supabase.from('conductores').select('id, nombres, apellidos').in('id', conductorIds)
-          : { data: [] },
-      ]);
-
-      // Crear mapas para búsqueda rápida
-      const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
-      const vehiculoMap = new Map((vehiculosResult.data || []).map((v) => [v.id, v]));
-      const conductorMap = new Map((conductoresResult.data || []).map((c) => [c.id, c]));
-
-      // Combinar datos
-      return egresos.map((egreso) => ({
-        ...egreso,
-        viaje: egreso.viaje_id ? viajeMap.get(egreso.viaje_id) : undefined,
-        vehiculo: egreso.vehiculo_id ? vehiculoMap.get(egreso.vehiculo_id) : undefined,
-        conductor: egreso.conductor_id ? conductorMap.get(egreso.conductor_id) : undefined,
-      }));
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  async getEgresoSinFacturaById(id: string): Promise<EgresoSinFactura | null> {
-    try {
-      // Obtener el egreso sin factura
-      const { data: egreso, error: egresoError } = await supabase
-        .from('egresos_sin_factura')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (egresoError) throw egresoError;
-      if (!egreso) return null;
-
-      // Obtener datos relacionados en consultas separadas
-      const [viajeResult, vehiculoResult, conductorResult] = await Promise.all([
-        egreso.viaje_id
-          ? supabase
-              .from('viajes')
-              .select('id, origen, destino, fecha_salida')
-              .eq('id', egreso.viaje_id)
-              .single()
-          : { data: null },
-        egreso.vehiculo_id
-          ? supabase
-              .from('vehiculos')
-              .select('id, placa, marca, modelo')
-              .eq('id', egreso.vehiculo_id)
-              .single()
-          : { data: null },
-        egreso.conductor_id
-          ? supabase
-              .from('conductores')
-              .select('id, nombres, apellidos')
-              .eq('id', egreso.conductor_id)
-              .single()
-          : { data: null },
-      ]);
-
-      // Combinar datos
-      return {
-        ...egreso,
-        viaje: viajeResult.data || undefined,
-        vehiculo: vehiculoResult.data || undefined,
-        conductor: conductorResult.data || undefined,
-      };
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  // Los métodos de crear, actualizar y eliminar permanecen igual
-  async createEgresoSinFactura(
-    egreso: Omit<EgresoSinFactura, 'id' | 'viaje' | 'vehiculo' | 'conductor'>
-  ): Promise<EgresoSinFactura> {
-    const { data, error } = await supabase.from('egresos_sin_factura').insert([egreso]).select();
-
+  getEgresosSinFactura: async (): Promise<EgresoSinFactura[]> => {
+    const { data, error } = await supabase
+      .from('egresos_sin_factura')
+      .select(
+        `
+        *,
+        viaje:viajes(*),
+        vehiculo:vehiculos(*),
+        conductor:conductores(*)
+      `
+      )
+      .order('fecha', { ascending: false });
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async updateEgresoSinFactura(
+  createEgresoSinFactura: async (
+    egreso: Omit<EgresoSinFactura, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<EgresoSinFactura> => {
+    const { data, error } = await supabase
+      .from('egresos_sin_factura')
+      .insert(egreso)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  },
+
+  updateEgresoSinFactura: async (
     id: string,
-    egreso: Partial<Omit<EgresoSinFactura, 'viaje' | 'vehiculo' | 'conductor'>>
-  ): Promise<EgresoSinFactura> {
+    egreso: Partial<EgresoSinFactura>
+  ): Promise<EgresoSinFactura> => {
     const { data, error } = await supabase
       .from('egresos_sin_factura')
       .update(egreso)
       .eq('id', id)
-      .select();
-
+      .select()
+      .single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteEgresoSinFactura(id: string): Promise<void> {
+  deleteEgresoSinFactura: async (id: string): Promise<void> => {
     const { error } = await supabase.from('egresos_sin_factura').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para detracciones
 export const detraccionService = {
-  async getDetracciones(): Promise<Detraccion[]> {
-    try {
-      const { data: detracciones, error } = await supabase
-        .from('detracciones')
-        .select('*')
-        .order('fecha_deposito', { ascending: false });
-
-      if (error) throw error;
-      if (!detracciones || detracciones.length === 0) return [];
-
-      // Obtener IDs para consultas relacionadas
-      const clienteIds = [...new Set(detracciones.map((d) => d.cliente_id).filter(Boolean))];
-      const viajeIds = [...new Set(detracciones.map((d) => d.viaje_id).filter(Boolean))];
-      const ingresoIds = [...new Set(detracciones.map((d) => d.ingreso_id).filter(Boolean))];
-
-      // Obtener datos relacionados
-      const [clientesResult, viajesResult, ingresosResult] = await Promise.all([
-        clienteIds.length > 0
-          ? supabase.from('clientes').select('id, razon_social, ruc').in('id', clienteIds)
-          : { data: [] },
-        viajeIds.length > 0
-          ? supabase.from('viajes').select('id, origen, destino, fecha_salida').in('id', viajeIds)
-          : { data: [] },
-        ingresoIds.length > 0
-          ? supabase
-              .from('ingresos')
-              .select('id, concepto, monto, numero_factura')
-              .in('id', ingresoIds)
-          : { data: [] },
-      ]);
-
-      // Crear mapas para búsqueda eficiente
-      const clienteMap = new Map((clientesResult.data || []).map((c) => [c.id, c]));
-      const viajeMap = new Map((viajesResult.data || []).map((v) => [v.id, v]));
-      const ingresoMap = new Map((ingresosResult.data || []).map((i) => [i.id, i]));
-
-      // Asignar relaciones a las detracciones
-      return detracciones.map((detraccion) => ({
-        ...detraccion,
-        cliente: detraccion.cliente_id ? clienteMap.get(detraccion.cliente_id) : undefined,
-        viaje: detraccion.viaje_id ? viajeMap.get(detraccion.viaje_id) : undefined,
-        ingreso: detraccion.ingreso_id ? ingresoMap.get(detraccion.ingreso_id) : undefined,
-      }));
-    } catch (error) {
-      throw error;
-    }
+  getDetracciones: async (): Promise<Detraccion[]> => {
+    const { data, error } = await supabase
+      .from('detracciones')
+      .select(
+        `
+        *,
+        ingreso:ingresos(*),
+        viaje:viajes(*),
+        cliente:clientes(*)
+      `
+      )
+      .order('fecha_deposito', { ascending: false });
+    if (error) throw error;
+    return data;
   },
 
-  async getDetraccionById(id: string): Promise<Detraccion | null> {
-    try {
-      const { data: detraccion, error } = await supabase
-        .from('detracciones')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      if (!detraccion) return null;
-
-      // Obtener datos relacionados
-      const [clienteResult, viajeResult, ingresoResult] = await Promise.all([
-        detraccion.cliente_id
-          ? supabase
-              .from('clientes')
-              .select('id, razon_social, ruc')
-              .eq('id', detraccion.cliente_id)
-              .single()
-          : { data: null },
-        detraccion.viaje_id
-          ? supabase
-              .from('viajes')
-              .select('id, origen, destino, fecha_salida')
-              .eq('id', detraccion.viaje_id)
-              .single()
-          : { data: null },
-        detraccion.ingreso_id
-          ? supabase
-              .from('ingresos')
-              .select('id, concepto, monto, numero_factura')
-              .eq('id', detraccion.ingreso_id)
-              .single()
-          : { data: null },
-      ]);
-
-      // Devolver detracción con sus relaciones
-      return {
-        ...detraccion,
-        cliente: clienteResult.data || undefined,
-        viaje: viajeResult.data || undefined,
-        ingreso: ingresoResult.data || undefined,
-      };
-    } catch (error) {
-      throw error;
-    }
+  createDetraccion: async (
+    detraccion: Omit<Detraccion, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Detraccion> => {
+    const { data, error } = await supabase
+      .from('detracciones')
+      .insert(detraccion)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createDetraccion(
-    detraccion: Omit<Detraccion, 'id' | 'cliente' | 'viaje' | 'ingreso'>
-  ): Promise<Detraccion> {
-    try {
-      // Sanitizar datos antes de insertar (eliminar campos undefined o null que podrían causar problemas)
-      const datosSanitizados: any = {};
-
-      // Solo incluir propiedades que no son undefined
-      Object.keys(detraccion).forEach((key) => {
-        const valor = (detraccion as any)[key];
-        if (valor !== undefined) {
-          datosSanitizados[key] = valor;
-        }
-      });
-
-      // Realizar la inserción con datos sanitizados
-      const { data, error } = await supabase
-        .from('detracciones')
-        .insert([datosSanitizados])
-        .select();
-
-      if (error) {
-        // Manejo específico de errores comunes
-        if (error.code === '23502') {
-          throw new Error(
-            'Error: Campo obligatorio faltante. Revise que los campos requeridos no estén vacíos.'
-          );
-        } else if (error.code === '23505') {
-          throw new Error(
-            'Error: Registro duplicado. Ya existe una detracción con la misma constancia o identificador.'
-          );
-        } else if (error.code === '23503') {
-          throw new Error(
-            'Error: Clave foránea inválida. Asegúrese de que los IDs de cliente, viaje o ingreso existan.'
-          );
-        }
-
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('No se recibieron datos de respuesta al crear la detracción');
-      }
-
-      return data[0];
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  async updateDetraccion(
-    id: string,
-    detraccion: Partial<Omit<Detraccion, 'cliente' | 'viaje' | 'ingreso'>>
-  ): Promise<Detraccion> {
+  updateDetraccion: async (id: string, detraccion: Partial<Detraccion>): Promise<Detraccion> => {
     const { data, error } = await supabase
       .from('detracciones')
       .update(detraccion)
       .eq('id', id)
-      .select();
-
+      .select()
+      .single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteDetraccion(id: string): Promise<void> {
+  deleteDetraccion: async (id: string): Promise<void> => {
     const { error } = await supabase.from('detracciones').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para series
 export const serieService = {
-  async getSeries(): Promise<Serie[]> {
+  getSeries: async (): Promise<Serie[]> => {
     const { data, error } = await supabase.from('series').select('*').order('serie');
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  async getSerieById(id: string): Promise<Serie | null> {
-    const { data, error } = await supabase.from('series').select('*').eq('id', id).single();
-
     if (error) throw error;
     return data;
   },
 
-  async createSerie(serie: Omit<Serie, 'id'>): Promise<Serie> {
-    const { data, error } = await supabase.from('series').insert([serie]).select();
-
+  createSerie: async (serie: Omit<Serie, 'id' | 'created_at' | 'updated_at'>): Promise<Serie> => {
+    const { data, error } = await supabase.from('series').insert(serie).select().single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async updateSerie(id: string, serie: Partial<Serie>): Promise<Serie> {
-    const { data, error } = await supabase.from('series').update(serie).eq('id', id).select();
-
+  updateSerie: async (id: string, serie: Partial<Serie>): Promise<Serie> => {
+    const { data, error } = await supabase
+      .from('series')
+      .update(serie)
+      .eq('id', id)
+      .select()
+      .single();
     if (error) throw error;
-    return data[0];
+    return data;
   },
 
-  async deleteSerie(id: string): Promise<void> {
+  deleteSerie: async (id: string): Promise<void> => {
     const { error } = await supabase.from('series').delete().eq('id', id);
-
     if (error) throw error;
   },
 };
 
 // Servicios para observaciones
 export const observacionService = {
-  async getObservaciones(): Promise<Observacion[]> {
-    try {
-      const { data, error } = await supabase
-        .from('observaciones')
-        .select('*')
-        .order('fecha_creacion', { ascending: false });
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      return data;
-    } catch (error) {
-      console.error('Error en getObservaciones:', error);
-      throw error;
-    }
+  getObservaciones: async (): Promise<Observacion[]> => {
+    const { data, error } = await supabase
+      .from('observaciones')
+      .select('*')
+      .order('fecha_creacion', { ascending: false });
+    if (error) throw error;
+    return data;
   },
 
-  async getObservacionById(id: string): Promise<Observacion | null> {
-    try {
-      const { data, error } = await supabase
-        .from('observaciones')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error en getObservacionById:', error);
-      throw error;
-    }
+  createObservacion: async (
+    observacion: Omit<Observacion, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Observacion> => {
+    const { data, error } = await supabase
+      .from('observaciones')
+      .insert(observacion)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createObservacion(observacion: Omit<Observacion, 'id'>): Promise<Observacion> {
-    try {
-      const { data, error } = await supabase.from('observaciones').insert([observacion]).select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en createObservacion:', error);
-      throw error;
-    }
+  updateObservacion: async (
+    id: string,
+    observacion: Partial<Observacion>
+  ): Promise<Observacion> => {
+    const { data, error } = await supabase
+      .from('observaciones')
+      .update(observacion)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateObservacion(id: string, observacion: Partial<Observacion>): Promise<Observacion> {
-    try {
-      const { data, error } = await supabase
-        .from('observaciones')
-        .update(observacion)
-        .eq('id', id)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateObservacion:', error);
-      throw error;
-    }
-  },
-
-  async deleteObservacion(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('observaciones').delete().eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error en deleteObservacion:', error);
-      throw error;
-    }
+  deleteObservacion: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('observaciones').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para tipos de egreso
 export const tipoEgresoService = {
-  async getTiposEgreso(): Promise<TipoEgreso[]> {
-    try {
-      const { data, error } = await supabase.from('tipos_egreso').select('*').order('tipo');
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      return data;
-    } catch (error) {
-      console.error('Error en getTiposEgreso:', error);
-      throw error;
-    }
+  getTiposEgreso: async (): Promise<TipoEgreso[]> => {
+    const { data, error } = await supabase.from('tipos_egreso').select('*').order('tipo');
+    if (error) throw error;
+    return data;
   },
 
-  async getTipoEgresoById(id: string): Promise<TipoEgreso | null> {
-    try {
-      const { data, error } = await supabase.from('tipos_egreso').select('*').eq('id', id).single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error en getTipoEgresoById:', error);
-      throw error;
-    }
+  createTipoEgreso: async (
+    tipoEgreso: Omit<TipoEgreso, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<TipoEgreso> => {
+    const { data, error } = await supabase
+      .from('tipos_egreso')
+      .insert(tipoEgreso)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createTipoEgreso(tipoEgreso: Omit<TipoEgreso, 'id'>): Promise<TipoEgreso> {
-    try {
-      const { data, error } = await supabase.from('tipos_egreso').insert([tipoEgreso]).select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en createTipoEgreso:', error);
-      throw error;
-    }
+  updateTipoEgreso: async (id: string, tipoEgreso: Partial<TipoEgreso>): Promise<TipoEgreso> => {
+    const { data, error } = await supabase
+      .from('tipos_egreso')
+      .update(tipoEgreso)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateTipoEgreso(id: string, tipoEgreso: Partial<TipoEgreso>): Promise<TipoEgreso> {
-    try {
-      const { data, error } = await supabase
-        .from('tipos_egreso')
-        .update(tipoEgreso)
-        .eq('id', id)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateTipoEgreso:', error);
-      throw error;
-    }
-  },
-
-  async deleteTipoEgreso(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('tipos_egreso').delete().eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error en deleteTipoEgreso:', error);
-      throw error;
-    }
+  deleteTipoEgreso: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('tipos_egreso').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para tipos de egreso sin factura
 export const tipoEgresoSFService = {
-  async getTiposEgresoSF(): Promise<TipoEgresoSF[]> {
-    try {
-      const { data, error } = await supabase.from('tipos_egreso_sf').select('*').order('tipo');
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      return data;
-    } catch (error) {
-      console.error('Error en getTiposEgresoSF:', error);
-      throw error;
-    }
+  getTiposEgresoSF: async (): Promise<TipoEgresoSF[]> => {
+    const { data, error } = await supabase.from('tipos_egreso_sf').select('*').order('tipo');
+    if (error) throw error;
+    return data;
   },
 
-  async getTipoEgresoSFById(id: string): Promise<TipoEgresoSF | null> {
-    try {
-      const { data, error } = await supabase
-        .from('tipos_egreso_sf')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error en getTipoEgresoSFById:', error);
-      throw error;
-    }
+  createTipoEgresoSF: async (
+    tipoEgresoSF: Omit<TipoEgresoSF, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<TipoEgresoSF> => {
+    const { data, error } = await supabase
+      .from('tipos_egreso_sf')
+      .insert(tipoEgresoSF)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createTipoEgresoSF(tipoEgresoSF: Omit<TipoEgresoSF, 'id'>): Promise<TipoEgresoSF> {
-    try {
-      const { data, error } = await supabase
-        .from('tipos_egreso_sf')
-        .insert([tipoEgresoSF])
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en createTipoEgresoSF:', error);
-      throw error;
-    }
+  updateTipoEgresoSF: async (
+    id: string,
+    tipoEgresoSF: Partial<TipoEgresoSF>
+  ): Promise<TipoEgresoSF> => {
+    const { data, error } = await supabase
+      .from('tipos_egreso_sf')
+      .update(tipoEgresoSF)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateTipoEgresoSF(id: string, tipoEgresoSF: Partial<TipoEgresoSF>): Promise<TipoEgresoSF> {
-    try {
-      const { data, error } = await supabase
-        .from('tipos_egreso_sf')
-        .update(tipoEgresoSF)
-        .eq('id', id)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateTipoEgresoSF:', error);
-      throw error;
-    }
-  },
-
-  async deleteTipoEgresoSF(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('tipos_egreso_sf').delete().eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error en deleteTipoEgresoSF:', error);
-      throw error;
-    }
+  deleteTipoEgresoSF: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('tipos_egreso_sf').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para cuentas bancarias
 export const cuentaBancoService = {
-  async getCuentasBanco(): Promise<CuentaBanco[]> {
-    try {
-      const { data, error } = await supabase.from('cuentas_banco').select('*').order('banco');
-
-      if (error) throw error;
-      if (!data || data.length === 0) return [];
-
-      return data;
-    } catch (error) {
-      console.error('Error en getCuentasBanco:', error);
-      throw error;
-    }
+  getCuentasBanco: async (): Promise<CuentaBanco[]> => {
+    const { data, error } = await supabase.from('cuentas_banco').select('*').order('banco');
+    if (error) throw error;
+    return data;
   },
 
-  async getCuentaBancoById(id: string): Promise<CuentaBanco | null> {
-    try {
-      const { data, error } = await supabase
-        .from('cuentas_banco')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error en getCuentaBancoById:', error);
-      throw error;
-    }
+  createCuentaBanco: async (
+    cuentaBanco: Omit<CuentaBanco, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<CuentaBanco> => {
+    const { data, error } = await supabase
+      .from('cuentas_banco')
+      .insert(cuentaBanco)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async createCuentaBanco(cuentaBanco: Omit<CuentaBanco, 'id'>): Promise<CuentaBanco> {
-    try {
-      const { data, error } = await supabase.from('cuentas_banco').insert([cuentaBanco]).select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en createCuentaBanco:', error);
-      throw error;
-    }
+  updateCuentaBanco: async (
+    id: string,
+    cuentaBanco: Partial<CuentaBanco>
+  ): Promise<CuentaBanco> => {
+    const { data, error } = await supabase
+      .from('cuentas_banco')
+      .update(cuentaBanco)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateCuentaBanco(id: string, cuentaBanco: Partial<CuentaBanco>): Promise<CuentaBanco> {
-    try {
-      const { data, error } = await supabase
-        .from('cuentas_banco')
-        .update(cuentaBanco)
-        .eq('id', id)
-        .select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateCuentaBanco:', error);
-      throw error;
-    }
-  },
-
-  async deleteCuentaBanco(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('cuentas_banco').delete().eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error en deleteCuentaBanco:', error);
-      throw error;
-    }
+  deleteCuentaBanco: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('cuentas_banco').delete().eq('id', id);
+    if (error) throw error;
   },
 };
 
 // Servicios para empresas
 export const empresaService = {
-  async getEmpresas(): Promise<Empresa[]> {
-    try {
-      const { data, error } = await supabase.from('empresas').select('*').order('nombre');
-
-      if (error) {
-        // Si el error es que la tabla no existe, retornar un arreglo vacío sin lanzar error
-        if (error.code === '42P01') {
-          // código PostgreSQL para "relation does not exist"
-          console.warn(
-            'La tabla "empresas" no existe en la base de datos. Se creará cuando se agregue el primer registro.'
-          );
-          return [];
-        }
-        throw error;
-      }
-
-      if (!data || data.length === 0) return [];
-
-      return data;
-    } catch (error) {
-      console.error('Error en getEmpresas:', error);
-      // En caso de error, retornar un arreglo vacío para evitar errores en la UI
-      return [];
-    }
+  getEmpresas: async (): Promise<Empresa[]> => {
+    const { data, error } = await supabase.from('empresas').select('*').order('nombre');
+    if (error) throw error;
+    return data;
   },
 
-  async getEmpresaById(id: string): Promise<Empresa | null> {
-    try {
-      const { data, error } = await supabase.from('empresas').select('*').eq('id', id).single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error en getEmpresaById:', error);
-      throw error;
-    }
+  createEmpresa: async (
+    empresa: Omit<Empresa, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<Empresa> => {
+    const { data, error } = await supabase.from('empresas').insert(empresa).select().single();
+    if (error) throw error;
+    return data;
   },
 
-  async createEmpresa(empresa: Omit<Empresa, 'id'>): Promise<Empresa> {
-    try {
-      // Intentar crear la empresa
-      const { data, error } = await supabase.from('empresas').insert([empresa]).select();
-
-      // Si el error es que la tabla no existe, intentar crearla y luego insertar
-      if (error && error.code === '42P01') {
-        console.log('La tabla "empresas" no existe, intentando crearla...');
-
-        // Crear la tabla con estructura básica
-        const createTableQuery = `
-          CREATE TABLE IF NOT EXISTS public.empresas (
-            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-            nombre TEXT NOT NULL,
-            ruc_dni TEXT NOT NULL,
-            cuenta_abonada TEXT,
-            fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-          );
-          
-          -- Habilitar RLS
-          ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
-          
-          -- Política básica para usuarios autenticados
-          CREATE POLICY "Allow authenticated access" ON public.empresas
-            FOR ALL USING (auth.role() = 'authenticated');
-        `;
-
-        // Ejecutar la creación de tabla usando rpc
-        await supabase.rpc('execute_sql', { query: createTableQuery });
-
-        // Intentar insertar nuevamente
-        const retryResult = await supabase.from('empresas').insert([empresa]).select();
-
-        if (retryResult.error) throw retryResult.error;
-        return retryResult.data[0];
-      }
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en createEmpresa:', error);
-      throw error;
-    }
+  updateEmpresa: async (id: string, empresa: Partial<Empresa>): Promise<Empresa> => {
+    const { data, error } = await supabase
+      .from('empresas')
+      .update(empresa)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   },
 
-  async updateEmpresa(id: string, empresa: Partial<Empresa>): Promise<Empresa> {
-    try {
-      const { data, error } = await supabase.from('empresas').update(empresa).eq('id', id).select();
-
-      if (error) throw error;
-      return data[0];
-    } catch (error) {
-      console.error('Error en updateEmpresa:', error);
-      throw error;
-    }
-  },
-
-  async deleteEmpresa(id: string): Promise<void> {
-    try {
-      const { error } = await supabase.from('empresas').delete().eq('id', id);
-
-      if (error) throw error;
-    } catch (error) {
-      console.error('Error en deleteEmpresa:', error);
-      throw error;
-    }
+  deleteEmpresa: async (id: string): Promise<void> => {
+    const { error } = await supabase.from('empresas').delete().eq('id', id);
+    if (error) throw error;
   },
 };

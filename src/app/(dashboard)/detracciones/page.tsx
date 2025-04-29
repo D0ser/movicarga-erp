@@ -11,7 +11,7 @@ import {
   ActionButton,
   ActivateIcon,
 } from '@/components/ActionIcons';
-import { detraccionService, Detraccion as DetraccionType } from '@/lib/supabaseServices';
+import { detraccionService, Detraccion as DetraccionType, Cliente } from '@/lib/supabaseServices';
 import supabase, { testSupabaseConnection as testConnection } from '@/lib/supabase';
 import { clienteService } from '@/lib/supabaseServices';
 import Modal from '@/components/Modal';
@@ -19,6 +19,7 @@ import { usePermissions, PermissionType } from '@/hooks/use-permissions';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
+import { Loading } from '@/components/ui/loading';
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -31,7 +32,6 @@ interface Detraccion extends DataItem {
   fecha_deposito: string;
   monto: number;
   porcentaje: number;
-  estado: string;
   observaciones: string;
 
   // Campos para CSV (nuevos campos solicitados)
@@ -92,6 +92,8 @@ export default function DetraccionesPage() {
     success: boolean;
     message: string;
   } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Toast para notificaciones
   const { toast } = useToast();
@@ -110,13 +112,6 @@ export default function DetraccionesPage() {
     type: 'error',
     variant: 'destructive',
     confirmText: 'Eliminar',
-  });
-
-  const pagarConfirm = useConfirmDialog({
-    title: 'Pagar Detracción',
-    description: '¿Está seguro de que desea marcar esta detracción como pagada?',
-    type: 'success',
-    confirmText: 'Marcar como Pagada',
   });
 
   // Usar permisos
@@ -492,86 +487,11 @@ export default function DetraccionesPage() {
       ),
     },
     {
-      header: 'Estado',
-      accessor: 'estado',
-      cell: (value: unknown) => {
-        const estado = value as string;
-        const isPagado = estado === 'Pagado';
-        return (
-          <div className="flex justify-center">
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${isPagado ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
-            >
-              {isPagado ? (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Pagado
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Pendiente
-                </>
-              )}
-            </span>
-          </div>
-        );
-      },
-    },
-    {
-      header: 'Origen',
-      accessor: 'origen_csv',
-      cell: (value: unknown) => (
-        <div className="flex justify-center">
-          <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-            {(value as string) || 'Manual'}
-          </span>
-        </div>
-      ),
-    },
-    {
       header: 'Acciones',
       accessor: 'id',
       cell: (value: unknown, row: Detraccion) => (
         <ActionButtonGroup>
           <DeleteButton onClick={() => handleDelete(value as string)} />
-          {row.estado === 'Pendiente' && (
-            <ActionButton
-              onClick={() => handlePagar(value as string)}
-              title="Pagar"
-              bgColor="bg-green-100"
-              textColor="text-green-700"
-              hoverColor="bg-green-200"
-            >
-              <ActivateIcon />
-            </ActionButton>
-          )}
         </ActionButtonGroup>
       ),
     },
@@ -583,11 +503,45 @@ export default function DetraccionesPage() {
     setCsvOrigenes(origenes);
   };
 
-  // Eliminar todas las detracciones de un origen CSV específico
+  const handleDelete = async (id: string) => {
+    try {
+      setIsDeleting(true);
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
+        // Eliminar de Supabase
+        await detraccionService.deleteDetraccion(id);
+        // Actualizar estado local
+        const nuevasDetracciones = detracciones.filter((det) => det.id !== id);
+        setDetracciones(nuevasDetracciones);
+
+        // Actualizar orígenes CSV
+        actualizarOrigenesCsv(nuevasDetracciones);
+
+        toast({
+          title: 'Éxito',
+          description: 'Detracción eliminada correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Error al eliminar la detracción',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleDeleteByCsv = async (origen: string) => {
     if (!origen) return;
 
     try {
+      setIsDeleting(true);
       const detracionesAEliminar = detracciones.filter((d) => d.origen_csv === origen);
 
       if (detracionesAEliminar.length === 0) {
@@ -648,66 +602,8 @@ export default function DetraccionesPage() {
         description: 'Error al eliminar las detracciones',
         variant: 'destructive',
       });
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      // Esperar confirmación mediante el diálogo
-      const confirmed = await deleteConfirm.confirm();
-
-      if (confirmed) {
-        // Eliminar de Supabase
-        await detraccionService.deleteDetraccion(id);
-        // Actualizar estado local
-        const nuevasDetracciones = detracciones.filter((det) => det.id !== id);
-        setDetracciones(nuevasDetracciones);
-
-        // Actualizar orígenes CSV
-        actualizarOrigenesCsv(nuevasDetracciones);
-
-        toast({
-          title: 'Éxito',
-          description: 'Detracción eliminada correctamente',
-          variant: 'default',
-          className: 'bg-green-600 text-white',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Error al eliminar la detracción',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handlePagar = async (id: string) => {
-    try {
-      // Esperar confirmación mediante el diálogo
-      const confirmed = await pagarConfirm.confirm();
-
-      if (confirmed) {
-        // Actualizar en Supabase
-        await detraccionService.updateDetraccion(id, { estado: 'Pagado' });
-        // Actualizar estado local
-        setDetracciones(
-          detracciones.map((det) => (det.id === id ? { ...det, estado: 'Pagado' } : det))
-        );
-
-        toast({
-          title: 'Éxito',
-          description: 'Estado de detracción actualizado correctamente',
-          variant: 'default',
-          className: 'bg-green-600 text-white',
-        });
-      }
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Error al actualizar el estado de la detracción',
-        variant: 'destructive',
-      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -751,8 +647,10 @@ export default function DetraccionesPage() {
 
   const processCSV = async () => {
     try {
+      setIsImporting(true);
       // Eliminar errores previos
       setImportError('');
+      const importedDetracciones: Detraccion[] = [];
 
       // Primero verificar la conexión a Supabase
       const connectionResult = await testConnection();
@@ -761,288 +659,196 @@ export default function DetraccionesPage() {
         return;
       }
 
-      // Procesar CSV - Usando delimitador adaptativo
+      // Procesar CSV
       const lines = csvData.split('\n');
       if (lines.length <= 1) {
         setImportError('El archivo CSV está vacío o no tiene datos válidos');
         return;
       }
 
-      // Detectar delimitador - probar primero coma, luego punto y coma, luego tab
-      let delimiter = ',';
-      const firstLine = lines[0];
-
-      // Contar ocurrencias de posibles delimitadores
-      const countCommas = (firstLine.match(/,/g) || []).length;
-      const countSemicolons = (firstLine.match(/;/g) || []).length;
-      const countTabs = (firstLine.match(/\t/g) || []).length;
-
-      if (countSemicolons > countCommas && countSemicolons > countTabs) {
-        delimiter = ';';
-      } else if (countTabs > countCommas && countTabs > countSemicolons) {
-        delimiter = '\t';
-      }
-
-      // Orden obligatorio de campos con nombres completos
-      const nombresCamposEsperados = [
-        'Tipo de Cuenta',
-        'Numero de Cuenta',
-        'Numero Constancia',
-        'Periodo Tributario',
-        'RUC Proveedor',
-        'Nombre Proveedor',
-        'Tipo de Documento Adquiriente',
-        'Numero de Documento Adquiriente',
-        'Nombre/Razon Social del Adquiriente',
-        'Fecha Pago',
-        'Monto Deposito',
-        'Tipo Bien',
-        'Tipo Operacion',
-        'Tipo de Comprobante',
-        'Serie de Comprobante',
-        'Numero de Comprobante',
-        'Numero de pago de Detracciones',
-      ];
-
-      // Mapeo de nombres completos a nombres de campo en el sistema
-      const mapeoNombresCampos: Record<string, string> = {
-        'Tipo de Cuenta': 'tipo_cuenta',
-        'Numero de Cuenta': 'numero_cuenta',
-        'Numero Constancia': 'numero_constancia',
-        'Periodo Tributario': 'periodo_tributario',
-        'RUC Proveedor': 'ruc_proveedor',
-        'Nombre Proveedor': 'nombre_proveedor',
-        'Tipo de Documento Adquiriente': 'tipo_documento_adquiriente',
-        'Numero de Documento Adquiriente': 'numero_documento_adquiriente',
-        'Nombre/Razon Social del Adquiriente': 'nombre_razon_social_adquiriente',
-        'Fecha Pago': 'fecha_pago',
-        'Monto Deposito': 'monto',
-        'Tipo Bien': 'tipo_bien',
-        'Tipo Operacion': 'tipo_operacion',
-        'Tipo de Comprobante': 'tipo_comprobante',
-        'Serie de Comprobante': 'serie_comprobante',
-        'Numero de Comprobante': 'numero_comprobante',
-        'Numero de pago de Detracciones': 'numero_pago_detracciones',
-      };
-
-      // Obtener encabezados del CSV
-      let headers: string[] = [];
-      try {
-        headers = firstLine.split(delimiter).map((header) => header.trim());
-      } catch (e) {
-        setImportError('Error al procesar los encabezados del CSV. Verifique el formato.');
-        return;
-      }
-
-      // Validar que los encabezados coincidan con el orden esperado
-      const headersMismatches: { expected: string; found: string }[] = [];
-      const headersValidos = nombresCamposEsperados.every((campo, index) => {
-        const headerFound = headers[index]?.toLowerCase() || '';
-        const headerExpected = campo.toLowerCase();
-        const isValid = headerFound === headerExpected;
-
-        if (!isValid) {
-          headersMismatches.push({ expected: headerExpected, found: headerFound });
-        }
-
-        return isValid;
-      });
-
-      if (!headersValidos) {
-        setImportError(
-          'El orden de los campos en el CSV no coincide con el orden requerido. Por favor, verifique la estructura del archivo.'
-        );
-        return;
-      }
-
-      const importedDetracciones: Detraccion[] = [];
-
       // Comenzar desde la segunda línea (índice 1) para omitir los encabezados
       for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue; // Saltar líneas vacías
-
-        let values: string[] = [];
-        try {
-          values = lines[i].split(delimiter).map((val) => val.trim());
-        } catch (e) {
-          setImportError(`Error al procesar la línea ${i + 1}. Verifique el formato.`);
-          continue; // Continuar con la siguiente línea en lugar de detener todo el proceso
-        }
-
-        if (values.length !== headers.length) {
-          // Ajustar el tamaño de values para que coincida con headers
-          while (values.length < headers.length) values.push('');
-          if (values.length > headers.length) values = values.slice(0, headers.length);
-        }
-
-        // Crear un objeto con los valores en el orden correcto
-        const detraccionData: Record<string, any> = {};
-
-        // Mapeo normal usando el orden esperado
-        nombresCamposEsperados.forEach((nombreCampo, index) => {
-          const nombreCampoInterno = mapeoNombresCampos[nombreCampo];
-          detraccionData[nombreCampoInterno] = values[index] || '';
-        });
-
-        // Generar ID único temporal (será reemplazado por Supabase en producción)
-        const uniqueId = `temp_${new Date().getTime()}_${i}`;
-
-        // Crear un objeto que cumpla con la interfaz Detraccion
-        const detraccion: Partial<Detraccion> = {
-          cliente_id: detraccionData.ruc_proveedor || '',
-          fecha_deposito: detraccionData.fecha_deposito || new Date().toISOString().split('T')[0],
-          numero_constancia: detraccionData.numero_constancia || '',
-          monto: parseFloat(detraccionData.monto) || 0,
-          porcentaje: 4.0, // Valor por defecto para porcentaje
-          estado: 'Pendiente',
-          observaciones: '',
-
-          // Campos CSV específicos
-          tipo_cuenta: detraccionData.tipo_cuenta || '',
-          numero_cuenta: detraccionData.numero_cuenta || '',
-          periodo_tributario: detraccionData.periodo_tributario || '',
-          ruc_proveedor: detraccionData.ruc_proveedor || '',
-          nombre_proveedor: detraccionData.nombre_proveedor || '',
-          tipo_documento_adquiriente: detraccionData.tipo_documento_adquiriente || '',
-          numero_documento_adquiriente: detraccionData.numero_documento_adquiriente || '',
-          nombre_razon_social_adquiriente: detraccionData.nombre_razon_social_adquiriente || '',
-          fecha_pago: detraccionData.fecha_pago || '',
-          tipo_bien: detraccionData.tipo_bien || '',
-          tipo_operacion: detraccionData.tipo_operacion || '',
-          tipo_comprobante: detraccionData.tipo_comprobante || '',
-          serie_comprobante: detraccionData.serie_comprobante || '',
-          numero_comprobante: detraccionData.numero_comprobante || '',
-          numero_pago_detracciones: detraccionData.numero_pago_detracciones || '',
-
-          // Identificador del archivo CSV
-          origen_csv: nombreArchivoCsv,
-        };
-
-        // Limpiar datos para Supabase: convertir strings vacíos a null para relaciones
-        // Supabase requiere que las claves foráneas sean null en lugar de string vacío
-        if (detraccion.cliente_id === '') detraccion.cliente_id = null as any;
-        if (detraccion.viaje_id === '') detraccion.viaje_id = null;
-        if (detraccion.ingreso_id === '') detraccion.ingreso_id = null;
-
-        // Asegurar formato de fechas correcto para Supabase (YYYY-MM-DD)
-        if (detraccion.fecha_pago && !detraccion.fecha_pago.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          // Intentar parsear la fecha si no está en formato ISO
-          try {
-            const fechaPago = new Date(detraccion.fecha_pago);
-            if (!isNaN(fechaPago.getTime())) {
-              detraccion.fecha_pago = fechaPago.toISOString().split('T')[0];
-            } else {
-              // Si no se puede parsear, dejar vacío para evitar errores en Supabase
-              detraccion.fecha_pago = null as any; // Usar null en lugar de string vacío
-            }
-          } catch (e) {
-            detraccion.fecha_pago = null as any;
-          }
-        } else if (detraccion.fecha_pago === '') {
-          detraccion.fecha_pago = null as any;
-        }
-
-        // También formatear fecha_deposito
-        if (detraccion.fecha_deposito && !detraccion.fecha_deposito.match(/^\d{4}-\d{2}-\d{2}$/)) {
-          try {
-            const fechaDeposito = new Date(detraccion.fecha_deposito);
-            if (!isNaN(fechaDeposito.getTime())) {
-              detraccion.fecha_deposito = fechaDeposito.toISOString().split('T')[0];
-            } else {
-              detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
-            }
-          } catch (e) {
-            detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
-          }
-        }
+        if (!lines[i].trim()) continue;
 
         try {
-          // Para modo offline o pruebas, agregar sin llamar a Supabase
-          const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === 'true';
+          // Procesar la línea actual
+          let values: string[] = [];
+          try {
+            values = lines[i].split(',').map((val) => val.trim());
+          } catch (e) {
+            setImportError(`Error al procesar la línea ${i + 1}. Verifique el formato.`);
+            continue;
+          }
 
-          if (isOfflineMode) {
-            // Modo offline: solo guardar en estado local con ID temporal
-            importedDetracciones.push({
-              ...detraccion,
-              id: uniqueId,
-              cliente: {
-                razon_social: detraccionData.nombre_proveedor || 'Sin especificar',
-                ruc: detraccionData.ruc_proveedor || '',
-              },
-            } as Detraccion);
-          } else {
-            // Modo online: guardar en Supabase
+          // Crear el objeto detraccion con los valores del CSV
+          const detraccion: Partial<Detraccion> = {
+            fecha_deposito: values[9] || new Date().toISOString().split('T')[0], // Fecha Pago
+            monto: parseFloat(values[10] || '0'), // Monto Deposito
+            porcentaje: 4.0,
+            tipo_cuenta: values[0], // Tipo de Cuenta
+            numero_cuenta: values[1], // Numero de Cuenta
+            numero_constancia: values[2], // Numero Constancia
+            periodo_tributario: values[3], // Periodo Tributario
+            ruc_proveedor: values[4], // RUC Proveedor
+            nombre_proveedor: values[5], // Nombre Proveedor
+            tipo_documento_adquiriente: values[6], // Tipo de Documento Adquiriente
+            numero_documento_adquiriente: values[7], // Numero de Documento Adquiriente
+            nombre_razon_social_adquiriente: values[8], // Nombre/Razon Social del Adquiriente
+            fecha_pago: values[9], // Fecha Pago
+            tipo_bien: values[11], // Tipo Bien
+            tipo_operacion: values[12], // Tipo Operacion
+            tipo_comprobante: values[13], // Tipo de Comprobante
+            serie_comprobante: values[14], // Serie de Comprobante
+            numero_comprobante: values[15], // Numero de Comprobante
+            numero_pago_detracciones: values[16], // Numero de pago de Detracciones
+            origen_csv: nombreArchivoCsv,
+          };
+
+          // Formatear fechas
+          if (detraccion.fecha_pago) {
             try {
-              // NUEVO: Buscar cliente por RUC del adquiriente antes de insertar
-              // Ahora usamos los datos del adquiriente en lugar del proveedor
-              if (detraccion.numero_documento_adquiriente) {
-                try {
-                  const clienteExistente = await clienteService.getClienteByRuc(
-                    detraccion.numero_documento_adquiriente
-                  );
-
-                  if (clienteExistente) {
-                    detraccion.cliente_id = clienteExistente.id;
-                  } else {
-                    // Opcionalmente, crear un nuevo cliente si no existe
-                    if (
-                      detraccion.nombre_razon_social_adquiriente &&
-                      detraccion.numero_documento_adquiriente
-                    ) {
-                      try {
-                        const nuevoCliente = await clienteService.createCliente({
-                          razon_social: detraccion.nombre_razon_social_adquiriente,
-                          ruc: detraccion.numero_documento_adquiriente,
-                          tipo_cliente_id: null as any, // Usar ID de tipo cliente predeterminado
-                          fecha_registro: new Date().toISOString().split('T')[0],
-                          estado: true,
-                        });
-
-                        detraccion.cliente_id = nuevoCliente.id;
-                      } catch (errorCreacion) {
-                        // Manejar error silenciosamente
-                      }
-                    }
-                  }
-                } catch (errorBusqueda) {
-                  // Manejar error silenciosamente
-                }
+              const fechaPago = new Date(detraccion.fecha_pago);
+              if (!isNaN(fechaPago.getTime())) {
+                detraccion.fecha_pago = fechaPago.toISOString().split('T')[0];
               }
+            } catch (e) {
+              detraccion.fecha_pago = null as any;
+            }
+          }
 
-              // Si después de todo esto el cliente_id sigue sin asignarse, dejarlo como null
-              if (!detraccion.cliente_id) {
-                detraccion.cliente_id = null as any;
-              }
-
-              // Añadir fecha_deposito si está ausente
-              if (!detraccion.fecha_deposito) {
+          if (detraccion.fecha_deposito) {
+            try {
+              const fechaDeposito = new Date(detraccion.fecha_deposito);
+              if (!isNaN(fechaDeposito.getTime())) {
+                detraccion.fecha_deposito = fechaDeposito.toISOString().split('T')[0];
+              } else {
                 detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
               }
-
-              // Remover propiedades que podrían causar problemas en Supabase
-              const detraccionLimpia = { ...detraccion };
-
-              // Crear en Supabase (omitiendo campos cliente y otros relacionados)
-              const createdDetraccion = await detraccionService.createDetraccion(
-                detraccionLimpia as Omit<DetraccionType, 'id' | 'cliente' | 'viaje' | 'ingreso'>
-              );
-
-              // Agregar el registro creado en Supabase con su ID real
-              importedDetracciones.push({
-                ...createdDetraccion,
-                cliente: {
-                  razon_social: detraccionData.nombre_proveedor || 'Sin especificar',
-                  ruc: detraccionData.ruc_proveedor || '',
-                },
-              });
-            } catch (innerError) {
-              setImportError(`Error al insertar detracción en Supabase en la línea ${i + 1}`);
+            } catch (e) {
+              detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
             }
           }
+
+          // NUEVO: Buscar cliente por RUC del adquiriente antes de insertar
+          let clienteId = null;
+          if (detraccion.numero_documento_adquiriente) {
+            try {
+              const { data: clientesEncontrados, error: errorBusqueda } = await supabase
+                .from('clientes')
+                .select('*')
+                .eq('ruc', detraccion.numero_documento_adquiriente)
+                .returns<Cliente[]>();
+
+              if (errorBusqueda) {
+                console.error('Error al buscar cliente:', errorBusqueda);
+              } else if (clientesEncontrados && clientesEncontrados.length > 0) {
+                clienteId = clientesEncontrados[0].id;
+              } else {
+                // Crear un nuevo cliente si no existe
+                try {
+                  // Determinar el tipo de cliente según el RUC
+                  const tipoCliente = detraccion.numero_documento_adquiriente.startsWith('1')
+                    ? 'Persona Natural'
+                    : detraccion.numero_documento_adquiriente.startsWith('2')
+                      ? 'Empresa'
+                      : 'Sin especificar';
+
+                  // Preparar datos del nuevo cliente
+                  const nuevoClienteData = {
+                    razon_social: detraccion.nombre_razon_social_adquiriente || 'Sin especificar',
+                    ruc: detraccion.numero_documento_adquiriente,
+                    tipo_cliente: tipoCliente,
+                    fecha_registro: new Date().toISOString().split('T')[0],
+                    estado: true,
+                  };
+
+                  const { data: nuevoCliente, error: errorCreacion } = await supabase
+                    .from('clientes')
+                    .insert(nuevoClienteData)
+                    .select()
+                    .single();
+
+                  if (errorCreacion) {
+                    console.error('Error al crear cliente:', errorCreacion);
+                    setImportError(`Error al crear cliente: ${errorCreacion.message}`);
+                  } else if (nuevoCliente) {
+                    clienteId = nuevoCliente.id;
+                    toast({
+                      title: 'Cliente creado',
+                      description: `Se ha creado automáticamente el cliente ${nuevoClienteData.razon_social} (${tipoCliente})`,
+                      variant: 'default',
+                      className: 'bg-green-600 text-white',
+                    });
+                  }
+                } catch (errorCreacion) {
+                  console.error('Error al crear cliente:', errorCreacion);
+                  setImportError('Error al crear el cliente automáticamente');
+                  continue;
+                }
+              }
+            } catch (errorBusqueda) {
+              console.error('Error al buscar cliente:', errorBusqueda);
+              setImportError('Error al buscar el cliente');
+              continue;
+            }
+          }
+
+          // Asignar el cliente_id encontrado o creado
+          detraccion.cliente_id = clienteId;
+
+          // Preparar los datos para la inserción
+          const detraccionData = {
+            cliente_id: detraccion.cliente_id,
+            fecha_deposito: detraccion.fecha_deposito,
+            monto: typeof detraccion.monto === 'number' ? detraccion.monto : 0,
+            porcentaje: 4.0,
+            origen_csv: nombreArchivoCsv,
+            tipo_cuenta: detraccion.tipo_cuenta,
+            numero_cuenta: detraccion.numero_cuenta,
+            numero_constancia: detraccion.numero_constancia,
+            periodo_tributario: detraccion.periodo_tributario,
+            ruc_proveedor: detraccion.ruc_proveedor,
+            nombre_proveedor: detraccion.nombre_proveedor,
+            tipo_documento_adquiriente: detraccion.tipo_documento_adquiriente,
+            numero_documento_adquiriente: detraccion.numero_documento_adquiriente,
+            nombre_razon_social_adquiriente: detraccion.nombre_razon_social_adquiriente,
+            fecha_pago: detraccion.fecha_pago,
+            tipo_bien: detraccion.tipo_bien,
+            tipo_operacion: detraccion.tipo_operacion,
+            tipo_comprobante: detraccion.tipo_comprobante,
+            serie_comprobante: detraccion.serie_comprobante,
+            numero_comprobante: detraccion.numero_comprobante,
+            numero_pago_detracciones: detraccion.numero_pago_detracciones,
+          };
+
+          // Crear en Supabase
+          const { data: createdDetraccion, error: errorCreacion } = await supabase
+            .from('detracciones')
+            .insert(detraccionData)
+            .select()
+            .single();
+
+          if (errorCreacion) {
+            console.error('Error al crear detracción:', errorCreacion);
+            setImportError(`Error al crear detracción: ${errorCreacion.message}`);
+            continue;
+          }
+
+          if (createdDetraccion) {
+            importedDetracciones.push({
+              ...createdDetraccion,
+              cliente: {
+                razon_social: detraccion.nombre_razon_social_adquiriente || 'Sin especificar',
+                ruc: detraccion.numero_documento_adquiriente || '',
+              },
+            });
+          }
         } catch (error) {
+          console.error('Error en el proceso de importación:', error);
           setImportError(
             `Error al procesar la línea ${i + 1}: ${error instanceof Error ? error.message : 'Error desconocido'}`
           );
+          continue;
         }
       }
 
@@ -1051,21 +857,16 @@ export default function DetraccionesPage() {
         setDetracciones([...detracciones, ...importedDetracciones]);
 
         // Actualizar la lista de orígenes CSV
-        // Actualizar orígenes CSV desde la base de datos en modo online
-        const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === 'true';
-        if (!isOfflineMode) {
-          await actualizarOrigenesCsvDesdeDB();
-        } else {
-          // En modo offline, actualizamos los orígenes basados en los datos locales
-          const nuevosOrigenes = [...new Set([...csvOrigenes, nombreArchivoCsv])];
-          setCsvOrigenes(nuevosOrigenes);
-        }
+        const nuevosOrigenes = [...new Set([...csvOrigenes, nombreArchivoCsv])];
+        setCsvOrigenes(nuevosOrigenes);
 
         // Cerrar el formulario de importación y limpiar
         setShowImportForm(false);
         setCsvData('');
         setNombreArchivoCsv('');
-        fileInputRef.current && (fileInputRef.current.value = '');
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
 
         // Mensaje de éxito
         toast({
@@ -1083,6 +884,8 @@ export default function DetraccionesPage() {
       setImportError(
         `Error al procesar el archivo CSV: ${error instanceof Error ? error.message : 'Error desconocido'}`
       );
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1141,97 +944,103 @@ export default function DetraccionesPage() {
           }
         }}
         title="Importar Detracciones desde CSV"
+        description="Importe un archivo CSV con las detracciones. El archivo debe seguir el formato especificado."
         size="lg"
       >
-        {importError && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
-            <p>{importError}</p>
-          </div>
-        )}
+        <Loading isLoading={isImporting} overlay message="Importando detracciones...">
+          {importError && (
+            <div
+              className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4"
+              role="alert"
+            >
+              <p>{importError}</p>
+            </div>
+          )}
 
-        <div className="mb-4">
-          <p className="text-sm text-gray-600 mb-2">
-            El archivo CSV debe incluir los siguientes campos con este orden específico (delimitados
-            por comas):
-          </p>
-          <div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
-            Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC
-            Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento
-            Adquiriente,Nombre/Razon Social del Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo
-            Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago
-            de Detracciones
-          </div>
-
-          <div className="text-sm text-gray-600 mb-2">
-            <p className="mb-1">
-              <span className="font-semibold">Importante:</span>
-            </p>
-            <ul className="list-disc pl-5 space-y-1">
-              <li>El delimitador debe ser la coma (,)</li>
-              <li>La codificación del archivo debe ser "1252: Europeo occidental Windows"</li>
-              <li>
-                La primera línea debe contener los nombres de los campos exactamente como se muestra
-                arriba
-              </li>
-              <li>El orden de los campos debe respetarse estrictamente</li>
-            </ul>
-          </div>
-
-          <p className="text-sm text-gray-600 mt-4 mb-2">Ejemplo:</p>
-          <div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
-            Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC
-            Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento
-            Adquiriente,Nombre/Razon Social del Adquiriente,Fecha Pago,Monto Deposito,Tipo Bien,Tipo
-            Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de Comprobante,Numero de pago
-            de Detracciones
-            <br />
-            D,00-741-171268,15-00005467,202401,20123456789,TRANSPORTES ABC
-            S.A.C.,6,20987654321,IMPORTADORA XYZ
-            S.A.C.,2025-01-15,1500.00,037,01,01,F001,000123,987654321
-            <br />
-            D,00-741-171269,15-00005468,202401,20123456789,TRANSPORTES ABC
-            S.A.C.,6,20987654321,IMPORTADORA XYZ
-            S.A.C.,2025-01-16,2300.50,037,01,01,F001,000124,987654322
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Seleccionar archivo CSV (Codificación Windows-1252)
-          </label>
-          <input
-            type="file"
-            accept=".csv"
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100"
-          />
-        </div>
-
-        {csvData && (
           <div className="mb-4">
-            <h3 className="text-md font-medium mb-2">Vista previa:</h3>
-            <div className="bg-gray-50 p-3 rounded border max-h-40 overflow-y-auto">
-              <pre className="text-xs">{csvData}</pre>
+            <p className="text-sm text-gray-600 mb-2">
+              El archivo CSV debe incluir los siguientes campos con este orden específico
+              (delimitados por comas):
+            </p>
+            <div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
+              Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC
+              Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento
+              Adquiriente,Nombre/Razon Social del Adquiriente,Fecha Pago,Monto Deposito,Tipo
+              Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de
+              Comprobante,Numero de pago de Detracciones
+            </div>
+
+            <div className="text-sm text-gray-600 mb-2">
+              <p className="mb-1">
+                <span className="font-semibold">Importante:</span>
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>El delimitador debe ser la coma (,)</li>
+                <li>La codificación del archivo debe ser "1252: Europeo occidental Windows"</li>
+                <li>
+                  La primera línea debe contener los nombres de los campos exactamente como se
+                  muestra arriba
+                </li>
+                <li>El orden de los campos debe respetarse estrictamente</li>
+              </ul>
+            </div>
+
+            <p className="text-sm text-gray-600 mt-4 mb-2">Ejemplo:</p>
+            <div className="bg-gray-100 p-3 rounded text-xs font-mono mb-4 overflow-x-auto">
+              Tipo de Cuenta,Numero de Cuenta,Numero Constancia,Periodo Tributario,RUC
+              Proveedor,Nombre Proveedor,Tipo de Documento Adquiriente,Numero de Documento
+              Adquiriente,Nombre/Razon Social del Adquiriente,Fecha Pago,Monto Deposito,Tipo
+              Bien,Tipo Operacion,Tipo de Comprobante,Serie de Comprobante,Numero de
+              Comprobante,Numero de pago de Detracciones
+              <br />
+              D,00-741-171268,15-00005467,202401,20123456789,TRANSPORTES ABC
+              S.A.C.,6,20987654321,IMPORTADORA XYZ
+              S.A.C.,2025-01-15,1500.00,037,01,01,F001,000123,987654321
+              <br />
+              D,00-741-171269,15-00005468,202401,20123456789,TRANSPORTES ABC
+              S.A.C.,6,20987654321,IMPORTADORA XYZ
+              S.A.C.,2025-01-16,2300.50,037,01,01,F001,000124,987654322
             </div>
           </div>
-        )}
 
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={processCSV}
-            disabled={!csvData}
-            className={`px-4 py-2 rounded-md ${csvData ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-          >
-            Importar
-          </button>
-        </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Seleccionar archivo CSV (Codificación Windows-1252)
+            </label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              ref={fileInputRef}
+              className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+            />
+          </div>
+
+          {csvData && (
+            <div className="mb-4">
+              <h3 className="text-md font-medium mb-2">Vista previa:</h3>
+              <div className="bg-gray-50 p-3 rounded border max-h-40 overflow-y-auto">
+                <pre className="text-xs">{csvData}</pre>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={processCSV}
+              disabled={!csvData || isImporting}
+              className={`px-4 py-2 rounded-md ${!csvData || isImporting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700'}`}
+            >
+              {isImporting ? 'Importando...' : 'Importar'}
+            </button>
+          </div>
+        </Loading>
       </Modal>
 
       {/* Modal para eliminar por CSV */}
@@ -1242,75 +1051,77 @@ export default function DetraccionesPage() {
           setSelectedCsvOrigen('');
         }}
         title="Eliminar Detracciones por CSV"
+        description="Seleccione el archivo CSV del que desea eliminar todas las detracciones."
         size="md"
       >
-        {csvOrigenes.length > 0 ? (
-          <>
-            <p className="text-sm text-gray-600 mb-4">
-              Seleccione el archivo CSV del que desea eliminar todas las detracciones:
-            </p>
+        <Loading isLoading={isDeleting} overlay message="Eliminando detracciones...">
+          {csvOrigenes.length > 0 ? (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                Seleccione el archivo CSV del que desea eliminar todas las detracciones:
+              </p>
 
-            <div className="mb-4">
-              <div className="flex space-x-2">
-                <select
-                  value={selectedCsvOrigen}
-                  onChange={(e) => setSelectedCsvOrigen(e.target.value)}
-                  className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Seleccione un archivo</option>
-                  {csvOrigenes.map((origen) => (
-                    <option key={origen} value={origen}>
-                      {origen}
-                    </option>
-                  ))}
-                </select>
+              <div className="mb-4">
+                <div className="flex space-x-2">
+                  <select
+                    value={selectedCsvOrigen}
+                    onChange={(e) => setSelectedCsvOrigen(e.target.value)}
+                    className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Seleccione un archivo</option>
+                    {csvOrigenes.map((origen) => (
+                      <option key={origen} value={origen}>
+                        {origen}
+                      </option>
+                    ))}
+                  </select>
 
+                  <button
+                    type="button"
+                    onClick={actualizarOrigenesCsvDesdeDB}
+                    className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
+                    title="Actualizar lista de orígenes CSV desde la base de datos"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={actualizarOrigenesCsvDesdeDB}
-                  className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
-                  title="Actualizar lista de orígenes CSV desde la base de datos"
+                  onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
+                  disabled={!selectedCsvOrigen || isDeleting}
+                  className={`px-4 py-2 rounded-md ${!selectedCsvOrigen || isDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  {isDeleting ? 'Eliminando...' : 'Eliminar'}
                 </button>
               </div>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
-                disabled={!selectedCsvOrigen}
-                className={`px-4 py-2 rounded-md ${selectedCsvOrigen ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-              >
-                Eliminar
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-gray-600 mb-4">
-              No hay archivos CSV registrados en el sistema.
-            </p>
-          </>
-        )}
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                No hay archivos CSV registrados en el sistema.
+              </p>
+            </>
+          )}
+        </Loading>
       </Modal>
 
       {/* Diálogos de confirmación */}
       <ConfirmDialog {...deleteConfirm.dialogProps} />
       <ConfirmDialog {...deleteCsvConfirm.dialogProps} />
-      <ConfirmDialog {...pagarConfirm.dialogProps} />
 
       <DataTable
         columns={columns}

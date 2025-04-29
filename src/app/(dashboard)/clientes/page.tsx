@@ -298,6 +298,33 @@ export default function ClientesPage() {
       processedValue = value === 'true';
     }
 
+    // Si el campo es RUC, verificar el primer dígito para asignar tipo de cliente
+    if (name === 'ruc' && value.length > 0) {
+      const primerDigito = value.charAt(0);
+      const tipoPersonaNatural = tiposCliente.find((tipo) =>
+        tipo.nombre.toLowerCase().includes('persona natural')
+      );
+      const tipoEmpresa = tiposCliente.find((tipo) =>
+        tipo.nombre.toLowerCase().includes('empresa')
+      );
+
+      if (primerDigito === '1' && tipoPersonaNatural) {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: processedValue,
+          tipo_cliente_id: tipoPersonaNatural.id,
+        }));
+        return;
+      } else if (primerDigito === '2' && tipoEmpresa) {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: processedValue,
+          tipo_cliente_id: tipoEmpresa.id,
+        }));
+        return;
+      }
+    }
+
     setFormData({
       ...formData,
       [name]: processedValue,
@@ -473,20 +500,12 @@ export default function ClientesPage() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Tipo de Cliente</label>
-              <select
-                name="tipo_cliente_id"
-                value={formData.tipo_cliente_id || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Seleccione tipo</option>
-                {tiposCliente.map((tipo) => (
-                  <option key={tipo.id} value={tipo.id}>
-                    {tipo.nombre} {tipo.descripcion ? `- ${tipo.descripcion}` : ''}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 bg-gray-50">
+                {formData.tipo_cliente_id
+                  ? tiposCliente.find((tipo) => tipo.id === formData.tipo_cliente_id)?.nombre ||
+                    'No seleccionado'
+                  : 'Seleccione un RUC para determinar el tipo de cliente'}
+              </div>
             </div>
 
             <div>

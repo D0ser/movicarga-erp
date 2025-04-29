@@ -33,55 +33,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
-
-interface Cliente {
-  id: string;
-  razon_social: string;
-  tipo: string;
-}
-
-interface Conductor {
-  id: string;
-  nombres: string;
-  apellidos: string;
-}
-
-interface Vehiculo {
-  id: string;
-  placa: string;
-  marca: string;
-  modelo: string;
-}
-
-interface Viaje {
-  id: string;
-  cliente_id: string;
-  cliente?: Cliente;
-  conductor_id: string;
-  conductor?: Conductor;
-  vehiculo_id: string;
-  vehiculo?: Vehiculo;
-  origen: string;
-  destino: string;
-  fecha_salida: string;
-  fecha_llegada: string | null;
-  estado: string;
-  tarifa: number;
-  adelanto: number;
-  saldo: number;
-  detraccion: boolean;
-  carga: string;
-  peso: number;
-  observaciones?: string;
-}
+import {
+  ClienteSimplificado,
+  ConductorSimplificado,
+  VehiculoSimplificado,
+  ViajeConRelaciones,
+} from '@/types';
 
 interface ViajesTableProps {
-  viajes: Viaje[];
-  clientes: Cliente[];
-  conductores: Conductor[];
-  vehiculos: Vehiculo[];
-  onViajeCreated?: (viaje: Viaje) => void;
-  onViajeEdited?: (viaje: Viaje) => void;
+  viajes: ViajeConRelaciones[];
+  clientes: ClienteSimplificado[];
+  conductores: ConductorSimplificado[];
+  vehiculos: VehiculoSimplificado[];
+  onViajeCreated?: (viaje: ViajeConRelaciones) => void;
+  onViajeEdited?: (viaje: ViajeConRelaciones) => void;
   onViajeDeleted?: (id: string) => void;
   loading?: boolean;
 }
@@ -98,10 +63,10 @@ export default function ViajesTable({
 }: ViajesTableProps) {
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-  const [filteredViajes, setFilteredViajes] = useState<Viaje[]>(viajes);
-  const [selectedViaje, setSelectedViaje] = useState<Viaje | null>(null);
+  const [filteredViajes, setFilteredViajes] = useState<ViajeConRelaciones[]>(viajes);
+  const [selectedViaje, setSelectedViaje] = useState<ViajeConRelaciones | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<Viaje>>({
+  const [formData, setFormData] = useState<Partial<ViajeConRelaciones>>({
     cliente_id: '',
     conductor_id: '',
     vehiculo_id: '',
@@ -221,7 +186,7 @@ export default function ViajesTable({
   };
 
   // Abrir el formulario para editar un viaje existente
-  const handleEditarViaje = (viaje: Viaje) => {
+  const handleEditarViaje = (viaje: ViajeConRelaciones) => {
     setSelectedViaje(viaje);
     setFormData({
       ...viaje,
@@ -274,7 +239,7 @@ export default function ViajesTable({
       if (onViajeEdited) {
         onViajeEdited({
           ...selectedViaje,
-          ...(formData as Viaje),
+          ...(formData as ViajeConRelaciones),
         });
         toast({
           title: 'Viaje actualizado',
@@ -285,8 +250,8 @@ export default function ViajesTable({
       // Crear nuevo viaje
       if (onViajeCreated) {
         // En una aplicación real, se generaría el ID en el backend
-        const newViaje: Viaje = {
-          ...(formData as Viaje),
+        const newViaje: ViajeConRelaciones = {
+          ...(formData as ViajeConRelaciones),
           id: `temp-${Date.now()}`,
         };
         onViajeCreated(newViaje);

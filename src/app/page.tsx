@@ -61,25 +61,9 @@ export default function Login() {
       }
     }
 
-    // Función para verificar el token y redireccionar si es necesario
-    const checkTokenAndRedirect = () => {
-      const token = localStorage.getItem('authToken');
-      // Solo redireccionar si hay un token y no estamos ya redireccionando
-      if (token && shouldProceed) {
-        // Marcamos que estamos en proceso de redirección
-        sessionStorage.setItem('isRedirecting', 'true');
-        console.log('Redireccionando al dashboard desde Login useEffect');
-        router.push('/dashboard');
-      }
-    };
-
-    // Ejecutar la verificación del token con un pequeño retraso para evitar conflictos
-    const redirectTimer = setTimeout(checkTokenAndRedirect, 100);
-
     // Limpieza: cancelar la redirección si el componente se desmonta
     return () => {
       shouldProceed = false;
-      clearTimeout(redirectTimer);
     };
   }, [router]);
 
