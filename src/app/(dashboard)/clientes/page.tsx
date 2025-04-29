@@ -16,6 +16,8 @@ import {
 import Modal from '@/components/Modal';
 import { Loading } from '@/components/ui/loading';
 import { usePermissions, PermissionType } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Interfaz para tipo de cliente
 interface TipoCliente {
@@ -39,6 +41,15 @@ export default function ClientesPage() {
   });
 
   const { hasPermission } = usePermissions();
+
+  // Diálogo de confirmación para eliminar
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Cliente',
+    description: '¿Está seguro de que desea eliminar este cliente?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
 
   // Cargar datos desde Supabase al iniciar
   useEffect(() => {
@@ -66,11 +77,16 @@ export default function ClientesPage() {
     try {
       // Utilizamos la nueva abstracción en lugar de supabase.from directamente
       const tiposData = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
-      setTiposCliente(tiposData);
 
-      // Si no hay tipos de cliente, crear los predeterminados
+      // Verificar si ya existen tipos de cliente
       if (tiposData.length === 0) {
+        // Si no hay tipos de cliente, crear los predeterminados
         await crearTiposClientePredeterminados();
+        // Recargar los tipos después de crearlos
+        const nuevosTipos = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
+        setTiposCliente(nuevosTipos);
+      } else {
+        setTiposCliente(tiposData);
       }
     } catch (error) {
       console.error('Error al cargar tipos de cliente:', error);
@@ -84,23 +100,32 @@ export default function ClientesPage() {
       // Datos predeterminados
       const tiposPredeterminados = [
         { nombre: 'Empresa', descripcion: 'Cliente empresarial o jurídico' },
-        { nombre: 'Persona', descripcion: 'Cliente natural o persona física' },
-        { nombre: 'Ocasional', descripcion: 'Cliente de una sola vez' },
+        { nombre: 'Persona Natural', descripcion: 'Cliente natural o persona física' },
       ];
 
-      // Utilizamos la nueva abstracción para insertar múltiples registros
-      // Nota: Para operaciones batch, usamos el cliente directo con db.from()
-      const { data, error } = await db.from('tipo_cliente').insert(tiposPredeterminados).select();
+      // Verificar si ya existen los tipos antes de insertar
+      const tiposExistentes = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
+      const nombresExistentes = new Set(tiposExistentes.map((t) => t.nombre.toLowerCase()));
 
-      if (error) throw error;
+      // Filtrar solo los tipos que no existen
+      const tiposAInsertar = tiposPredeterminados.filter(
+        (tipo) => !nombresExistentes.has(tipo.nombre.toLowerCase())
+      );
 
-      // Actualizar el estado
-      if (data) {
-        setTiposCliente(data);
-        notificationService.info('Se han creado los tipos de cliente predeterminados');
+      if (tiposAInsertar.length > 0) {
+        // Utilizamos la nueva abstracción para insertar múltiples registros
+        const { data, error } = await db.from('tipo_cliente').insert(tiposAInsertar).select();
+
+        if (error) throw error;
+
+        // Actualizar el estado
+        if (data) {
+          notificationService.info('Se han creado los tipos de cliente predeterminados');
+        }
       }
     } catch (error) {
       console.error('Error al crear tipos de cliente predeterminados:', error);
+      notificationService.error('Error al crear los tipos de cliente predeterminados');
     }
   };
 
@@ -336,8 +361,11 @@ export default function ClientesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este cliente?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         notificationService.loading('Eliminando cliente...');
         await clienteService.deleteCliente(id);
         notificationService.dismiss();
@@ -345,13 +373,13 @@ export default function ClientesPage() {
 
         // Actualizar la lista de clientes
         fetchClientes();
-      } catch (error) {
-        console.error('Error al eliminar cliente:', error);
-        notificationService.dismiss();
-        notificationService.error(
-          `Error al eliminar cliente: ${(error as Error).message || 'Intente nuevamente'}`
-        );
       }
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
+      notificationService.dismiss();
+      notificationService.error(
+        `Error al eliminar cliente: ${(error as Error).message || 'Intente nuevamente'}`
+      );
     }
   };
 
@@ -542,6 +570,9 @@ export default function ClientesPage() {
           }}
         />
       </Loading>
+
+      {/* Diálogo de confirmación */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
     </div>
   );
 }

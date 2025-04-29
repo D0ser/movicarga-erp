@@ -14,7 +14,9 @@ import {
 } from '@/components/ActionIcons';
 import Modal from '@/components/Modal';
 import { Loading } from '@/components/ui/loading';
-import { usePermissions, PermissionType } from '@/hooks/use-permissions';
+import { PermissionType, usePermissions } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Componente para la página de conductores
 export default function ConductoresPage() {
@@ -35,6 +37,15 @@ export default function ConductoresPage() {
   });
 
   const { hasPermission } = usePermissions();
+
+  // Diálogo de confirmación para eliminar
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Conductor',
+    description: '¿Está seguro de que desea eliminar este conductor?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
 
   // Cargar datos desde Supabase al iniciar
   useEffect(() => {
@@ -343,21 +354,24 @@ export default function ConductoresPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este conductor?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         notificationService.loading('Eliminando conductor...');
         await conductorService.deleteConductor(id);
         setConductores(conductores.filter((c) => c.id !== id));
         notificationService.dismiss();
         notificationService.success('Conductor eliminado correctamente');
         fetchConductores();
-      } catch (error) {
-        console.error('Error al eliminar conductor:', error);
-        notificationService.dismiss();
-        notificationService.error(
-          `Error al eliminar conductor: ${(error as Error).message || 'Intente nuevamente'}`
-        );
       }
+    } catch (error) {
+      console.error('Error al eliminar conductor:', error);
+      notificationService.dismiss();
+      notificationService.error(
+        `Error al eliminar conductor: ${(error as Error).message || 'Intente nuevamente'}`
+      );
     }
   };
 
@@ -621,7 +635,7 @@ export default function ConductoresPage() {
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="font-bold text-lg mb-2">Categorías de Licencia</h3>
           <div className="space-y-1">
-            {['A-I', 'A-II', 'A-III', 'A-IIIA', 'A-IIIB', 'A-IIIC'].map((categoria) => {
+            {['A-I', 'A-IIa', 'A-IIb', 'A-IIIa', 'A-IIIb', 'A-IIIc'].map((categoria) => {
               const cantidad = conductores.filter((c) => c.categoria_licencia === categoria).length;
               return (
                 <div key={categoria} className="flex justify-between">

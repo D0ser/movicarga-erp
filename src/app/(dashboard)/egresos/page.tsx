@@ -13,6 +13,9 @@ import { createClient } from '@supabase/supabase-js';
 import Modal from '@/components/Modal';
 import { usePermissions, PermissionType } from '@/hooks/use-permissions';
 import { Loading } from '@/components/ui/loading';
+import { useToast } from '@/hooks/use-toast';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -42,6 +45,18 @@ export default function EgresosPage() {
 
   // Hook para permisos de usuario
   const { hasPermission } = usePermissions();
+
+  // Toast para notificaciones
+  const { toast } = useToast();
+
+  // Diálogos de confirmación
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Egreso',
+    description: '¿Está seguro de que desea eliminar este egreso?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
 
   // Cargar datos desde Supabase al montar el componente
   useEffect(() => {
@@ -624,7 +639,11 @@ export default function EgresosPage() {
       setShowForm(false);
     } catch (error) {
       console.error('Error al guardar el egreso:', error);
-      alert('Error al guardar el egreso. Por favor, inténtalo de nuevo.');
+      toast({
+        title: 'Error',
+        description: 'Error al guardar el egreso. Por favor, inténtalo de nuevo.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -636,18 +655,32 @@ export default function EgresosPage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (confirm('¿Está seguro de que desea eliminar este egreso?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         // Intentar eliminar de ambas tablas
         await supabase.from('egresos').delete().eq('id', id);
         await supabase.from('egresos_sin_factura').delete().eq('id', id);
 
         // Actualizar la interfaz
         setEgresos(egresos.filter((eg) => eg.id !== id));
-      } catch (error) {
-        console.error('Error al eliminar el egreso:', error);
-        alert('Error al eliminar el egreso. Por favor, inténtalo de nuevo.');
+
+        toast({
+          title: 'Éxito',
+          description: 'Egreso eliminado correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       }
+    } catch (error) {
+      console.error('Error al eliminar el egreso:', error);
+      toast({
+        title: 'Error',
+        description: 'Error al eliminar el egreso. Por favor, inténtalo de nuevo.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -856,6 +889,9 @@ export default function EgresosPage() {
           }}
         />
       </Loading>
+
+      {/* Diálogo de confirmación */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DataTable, { Column, DataItem } from '@/components/DataTable';
-import { format } from 'date-fns';
+import { format, isBefore, parseISO, addDays } from 'date-fns';
 import { vehiculoService, Vehiculo } from '@/lib/supabaseServices';
 import notificationService from '@/components/notifications/NotificationService';
 import Modal from '@/components/Modal';
@@ -14,6 +14,8 @@ import {
 } from '@/components/ActionIcons';
 import { Loading } from '@/components/ui/loading';
 import { usePermissions, PermissionType } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Componente para la página de vehículos
 export default function VehiculosPage() {
@@ -40,6 +42,15 @@ export default function VehiculosPage() {
   });
 
   const { hasPermission } = usePermissions();
+
+  // Diálogo de confirmación para eliminar
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Vehículo',
+    description: '¿Está seguro de que desea eliminar este vehículo?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
 
   // Cargar datos desde Supabase al iniciar
   useEffect(() => {
@@ -697,8 +708,11 @@ export default function VehiculosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('¿Está seguro de que desea eliminar este vehículo?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         notificationService.loading('Eliminando vehículo...');
         await vehiculoService.deleteVehiculo(id);
         notificationService.dismiss();
@@ -706,13 +720,13 @@ export default function VehiculosPage() {
 
         // Actualizar la lista de vehículos
         fetchVehiculos();
-      } catch (error) {
-        console.error('Error al eliminar vehículo:', error);
-        notificationService.dismiss();
-        notificationService.error(
-          `Error al eliminar vehículo: ${(error as Error).message || 'Intente nuevamente'}`
-        );
       }
+    } catch (error) {
+      console.error('Error al eliminar vehículo:', error);
+      notificationService.dismiss();
+      notificationService.error(
+        `Error al eliminar vehículo: ${(error as Error).message || 'Intente nuevamente'}`
+      );
     }
   };
 
@@ -1067,6 +1081,9 @@ export default function VehiculosPage() {
           }}
         />
       </Loading>
+
+      {/* Diálogo de confirmación */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
     </div>
   );
 }

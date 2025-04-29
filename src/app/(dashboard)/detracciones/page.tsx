@@ -16,6 +16,9 @@ import supabase, { testSupabaseConnection as testConnection } from '@/lib/supaba
 import { clienteService } from '@/lib/supabaseServices';
 import Modal from '@/components/Modal';
 import { usePermissions, PermissionType } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -89,6 +92,32 @@ export default function DetraccionesPage() {
     success: boolean;
     message: string;
   } | null>(null);
+
+  // Toast para notificaciones
+  const { toast } = useToast();
+
+  // Hooks de confirmación
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Detracción',
+    description: '¿Está seguro de que desea eliminar esta detracción?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
+
+  const deleteCsvConfirm = useConfirmDialog({
+    title: 'Eliminar Detracciones',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
+
+  const pagarConfirm = useConfirmDialog({
+    title: 'Pagar Detracción',
+    description: '¿Está seguro de que desea marcar esta detracción como pagada?',
+    type: 'success',
+    confirmText: 'Marcar como Pagada',
+  });
 
   // Usar permisos
   const { hasPermission } = usePermissions();
@@ -562,15 +591,23 @@ export default function DetraccionesPage() {
       const detracionesAEliminar = detracciones.filter((d) => d.origen_csv === origen);
 
       if (detracionesAEliminar.length === 0) {
-        alert('No hay detracciones para eliminar con este origen.');
+        toast({
+          title: 'Información',
+          description: 'No hay detracciones para eliminar con este origen.',
+          variant: 'default',
+        });
         return;
       }
 
-      if (
-        confirm(
-          `¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}"?`
-        )
-      ) {
+      // Establecer descripción dinámica
+      deleteCsvConfirm.open({
+        description: `¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}"?`,
+      });
+
+      // Esperar por la confirmación
+      const confirmed = await deleteCsvConfirm.confirm();
+
+      if (confirmed) {
         const isOfflineMode = process.env.NEXT_PUBLIC_OFFLINE_MODE === 'true';
 
         if (isOfflineMode) {
@@ -598,16 +635,28 @@ export default function DetraccionesPage() {
 
         setShowDeleteModal(false);
         setSelectedCsvOrigen('');
-        alert(`Se eliminaron las detracciones del archivo "${origen}" con éxito.`);
+        toast({
+          title: 'Éxito',
+          description: `Se eliminaron las detracciones del archivo "${origen}" con éxito.`,
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       }
     } catch (error) {
-      alert('Error al eliminar las detracciones');
+      toast({
+        title: 'Error',
+        description: 'Error al eliminar las detracciones',
+        variant: 'destructive',
+      });
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('¿Está seguro de que desea eliminar esta detracción?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         // Eliminar de Supabase
         await detraccionService.deleteDetraccion(id);
         // Actualizar estado local
@@ -616,22 +665,49 @@ export default function DetraccionesPage() {
 
         // Actualizar orígenes CSV
         actualizarOrigenesCsv(nuevasDetracciones);
-      } catch (error) {
-        alert('Error al eliminar la detracción');
+
+        toast({
+          title: 'Éxito',
+          description: 'Detracción eliminada correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Error al eliminar la detracción',
+        variant: 'destructive',
+      });
     }
   };
 
   const handlePagar = async (id: string) => {
     try {
-      // Actualizar en Supabase
-      await detraccionService.updateDetraccion(id, { estado: 'Pagado' });
-      // Actualizar estado local
-      setDetracciones(
-        detracciones.map((det) => (det.id === id ? { ...det, estado: 'Pagado' } : det))
-      );
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await pagarConfirm.confirm();
+
+      if (confirmed) {
+        // Actualizar en Supabase
+        await detraccionService.updateDetraccion(id, { estado: 'Pagado' });
+        // Actualizar estado local
+        setDetracciones(
+          detracciones.map((det) => (det.id === id ? { ...det, estado: 'Pagado' } : det))
+        );
+
+        toast({
+          title: 'Éxito',
+          description: 'Estado de detracción actualizado correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
+      }
     } catch (error) {
-      alert('Error al actualizar el estado de la detracción');
+      toast({
+        title: 'Error',
+        description: 'Error al actualizar el estado de la detracción',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -992,7 +1068,12 @@ export default function DetraccionesPage() {
         fileInputRef.current && (fileInputRef.current.value = '');
 
         // Mensaje de éxito
-        alert(`Se importaron ${importedDetracciones.length} detracciones con éxito.`);
+        toast({
+          title: 'Éxito',
+          description: `Se importaron ${importedDetracciones.length} detracciones con éxito.`,
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       } else {
         setImportError(
           'No se pudo importar ninguna detracción. Verifique el formato del archivo CSV.'
@@ -1225,6 +1306,11 @@ export default function DetraccionesPage() {
           </>
         )}
       </Modal>
+
+      {/* Diálogos de confirmación */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
+      <ConfirmDialog {...deleteCsvConfirm.dialogProps} />
+      <ConfirmDialog {...pagarConfirm.dialogProps} />
 
       <DataTable
         columns={columns}

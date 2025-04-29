@@ -28,6 +28,8 @@ import {
   DeletePermission,
 } from '@/components/permission-guard';
 import { PermissionType, usePermissions } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Componente para la página de viajes
 export default function ViajesPage() {
@@ -65,6 +67,15 @@ export default function ViajesPage() {
     saldo: 0,
     detraccion: false,
     observaciones: '',
+  });
+
+  // Diálogo de confirmación para eliminar
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Viaje',
+    description: '¿Está seguro de que desea eliminar este viaje?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
   });
 
   // Cargar datos desde Supabase al iniciar
@@ -620,18 +631,21 @@ export default function ViajesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('¿Está seguro de que desea eliminar este viaje?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         setLoading(true);
         await viajeService.deleteViaje(id);
         setViajes(viajes.filter((v) => v.id !== id));
         notificationService.success('Viaje eliminado correctamente');
-      } catch (error) {
-        console.error('Error al eliminar viaje:', error);
-        notificationService.error('No se pudo eliminar el viaje');
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error al eliminar viaje:', error);
+      notificationService.error('No se pudo eliminar el viaje');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1241,6 +1255,7 @@ export default function ViajesPage() {
         isOpen={showForm}
         onClose={() => setShowForm(false)}
         title={formData.id ? 'Editar Viaje' : 'Nuevo Viaje'}
+        size="lg"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1446,6 +1461,9 @@ export default function ViajesPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Diálogo de confirmación */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
     </div>
   );
 }

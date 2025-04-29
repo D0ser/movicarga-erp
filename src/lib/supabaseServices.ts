@@ -1369,13 +1369,25 @@ export const empresaService = {
     try {
       const { data, error } = await supabase.from('empresas').select('*').order('nombre');
 
-      if (error) throw error;
+      if (error) {
+        // Si el error es que la tabla no existe, retornar un arreglo vacío sin lanzar error
+        if (error.code === '42P01') {
+          // código PostgreSQL para "relation does not exist"
+          console.warn(
+            'La tabla "empresas" no existe en la base de datos. Se creará cuando se agregue el primer registro.'
+          );
+          return [];
+        }
+        throw error;
+      }
+
       if (!data || data.length === 0) return [];
 
       return data;
     } catch (error) {
       console.error('Error en getEmpresas:', error);
-      throw error;
+      // En caso de error, retornar un arreglo vacío para evitar errores en la UI
+      return [];
     }
   },
 
@@ -1393,7 +1405,42 @@ export const empresaService = {
 
   async createEmpresa(empresa: Omit<Empresa, 'id'>): Promise<Empresa> {
     try {
+      // Intentar crear la empresa
       const { data, error } = await supabase.from('empresas').insert([empresa]).select();
+
+      // Si el error es que la tabla no existe, intentar crearla y luego insertar
+      if (error && error.code === '42P01') {
+        console.log('La tabla "empresas" no existe, intentando crearla...');
+
+        // Crear la tabla con estructura básica
+        const createTableQuery = `
+          CREATE TABLE IF NOT EXISTS public.empresas (
+            id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            ruc_dni TEXT NOT NULL,
+            cuenta_abonada TEXT,
+            fecha_creacion DATE NOT NULL DEFAULT CURRENT_DATE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          );
+          
+          -- Habilitar RLS
+          ALTER TABLE public.empresas ENABLE ROW LEVEL SECURITY;
+          
+          -- Política básica para usuarios autenticados
+          CREATE POLICY "Allow authenticated access" ON public.empresas
+            FOR ALL USING (auth.role() = 'authenticated');
+        `;
+
+        // Ejecutar la creación de tabla usando rpc
+        await supabase.rpc('execute_sql', { query: createTableQuery });
+
+        // Intentar insertar nuevamente
+        const retryResult = await supabase.from('empresas').insert([empresa]).select();
+
+        if (retryResult.error) throw retryResult.error;
+        return retryResult.data[0];
+      }
 
       if (error) throw error;
       return data[0];

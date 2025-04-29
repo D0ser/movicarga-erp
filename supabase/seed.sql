@@ -4,8 +4,7 @@
 -- Datos iniciales para tipos de cliente
 INSERT INTO tipo_cliente (nombre, descripcion) VALUES 
 ('Empresa', 'Empresas formalmente constituidas'),
-('Persona Natural', 'Personas naturales con RUC'),
-('Ocasional', 'Clientes de una sola vez')
+('Persona Natural', 'Personas naturales con RUC')
 ON CONFLICT DO NOTHING;
 
 -- Datos iniciales para categorías de egresos
