@@ -37,6 +37,7 @@ export default function ClientesPage() {
     razon_social: '',
     ruc: '',
     tipo_cliente_id: '',
+    tipo_cliente: 'Empresa',
     estado: true,
   });
 
@@ -76,18 +77,22 @@ export default function ClientesPage() {
   const fetchTiposCliente = async () => {
     try {
       // Utilizamos la nueva abstracción en lugar de supabase.from directamente
-      const tiposData = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
+      let tiposData = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
 
       // Verificar si ya existen tipos de cliente
       if (tiposData.length === 0) {
         // Si no hay tipos de cliente, crear los predeterminados
         await crearTiposClientePredeterminados();
         // Recargar los tipos después de crearlos
-        const nuevosTipos = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
-        setTiposCliente(nuevosTipos);
+        tiposData = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
       } else {
-        setTiposCliente(tiposData);
+        // Limpiar tipos no deseados si hay más de los 2 permitidos
+        await limpiarTiposNoPermitidos(tiposData);
+        // Recargar los tipos después de limpiar
+        tiposData = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
       }
+
+      setTiposCliente(tiposData);
     } catch (error) {
       console.error('Error al cargar tipos de cliente:', error);
       notificationService.error('No se pudieron cargar los tipos de cliente');
@@ -97,35 +102,96 @@ export default function ClientesPage() {
   // Función para crear tipos de cliente predeterminados
   const crearTiposClientePredeterminados = async () => {
     try {
-      // Datos predeterminados
+      // Datos predeterminados - SOLO estos dos tipos están permitidos con IDs específicos
       const tiposPredeterminados = [
-        { nombre: 'Empresa', descripcion: 'Cliente empresarial o jurídico' },
-        { nombre: 'Persona Natural', descripcion: 'Cliente natural o persona física' },
+        {
+          id: '9364d757-3db3-44ce-bfeb-3025df5673a4',
+          nombre: 'Empresa',
+          descripcion: 'Cliente empresarial o jurídico',
+        },
+        {
+          id: '4b7ee1fd-91c9-47b9-be10-8468a31f1f49',
+          nombre: 'Persona Natural',
+          descripcion: 'Cliente natural o persona física',
+        },
       ];
 
-      // Verificar si ya existen los tipos antes de insertar
-      const tiposExistentes = await db.getAll<TipoCliente>('tipo_cliente', 'nombre');
-      const nombresExistentes = new Set(tiposExistentes.map((t) => t.nombre.toLowerCase()));
+      // Verificar si ya existen los tipos con los IDs específicos
+      for (const tipo of tiposPredeterminados) {
+        // Verificar si existe el tipo con ese ID
+        const { data: tipoExistente, error: errorBusqueda } = await db
+          .from('tipo_cliente')
+          .select('*')
+          .eq('id', tipo.id)
+          .maybeSingle();
 
-      // Filtrar solo los tipos que no existen
-      const tiposAInsertar = tiposPredeterminados.filter(
-        (tipo) => !nombresExistentes.has(tipo.nombre.toLowerCase())
-      );
+        if (errorBusqueda) throw errorBusqueda;
 
-      if (tiposAInsertar.length > 0) {
-        // Utilizamos la nueva abstracción para insertar múltiples registros
-        const { data, error } = await db.from('tipo_cliente').insert(tiposAInsertar).select();
+        if (!tipoExistente) {
+          // Si no existe, insertar con el ID específico
+          const { error: errorInsercion } = await db.from('tipo_cliente').insert([tipo]);
 
-        if (error) throw error;
+          if (errorInsercion) throw errorInsercion;
 
-        // Actualizar el estado
-        if (data) {
-          notificationService.info('Se han creado los tipos de cliente predeterminados');
+          notificationService.info(`Se ha creado el tipo de cliente: ${tipo.nombre}`);
+        } else if (tipoExistente.nombre !== tipo.nombre) {
+          // Si existe pero tiene otro nombre, actualizar
+          const { error: errorActualizacion } = await db
+            .from('tipo_cliente')
+            .update({ nombre: tipo.nombre, descripcion: tipo.descripcion })
+            .eq('id', tipo.id);
+
+          if (errorActualizacion) throw errorActualizacion;
+
+          notificationService.info(`Se ha actualizado el tipo de cliente: ${tipo.nombre}`);
         }
       }
+
+      // Ahora eliminamos cualquier otro tipo que no sea los dos específicos
+      const { error: errorEliminacion } = await db
+        .from('tipo_cliente')
+        .delete()
+        .not(
+          'id',
+          'in',
+          tiposPredeterminados.map((t) => t.id)
+        );
+
+      if (errorEliminacion) throw errorEliminacion;
     } catch (error) {
       console.error('Error al crear tipos de cliente predeterminados:', error);
       notificationService.error('Error al crear los tipos de cliente predeterminados');
+    }
+  };
+
+  // Función para limpiar tipos no permitidos
+  const limpiarTiposNoPermitidos = async (tipos: TipoCliente[]) => {
+    try {
+      // Solo permitimos los dos tipos con IDs específicos
+      const idsPermitidos = [
+        '9364d757-3db3-44ce-bfeb-3025df5673a4', // Empresa
+        '4b7ee1fd-91c9-47b9-be10-8468a31f1f49', // Persona Natural
+      ];
+
+      // Identificar tipos no permitidos para eliminar
+      const tiposAEliminar = tipos.filter((tipo) => !idsPermitidos.includes(tipo.id));
+
+      if (tiposAEliminar.length > 0) {
+        // Eliminar tipos no permitidos
+        for (const tipo of tiposAEliminar) {
+          const { error } = await db.from('tipo_cliente').delete().eq('id', tipo.id);
+
+          if (error) throw error;
+        }
+
+        notificationService.info('Se han eliminado tipos de cliente no permitidos');
+
+        // Asegurar que los tipos permitidos existan
+        await crearTiposClientePredeterminados();
+      }
+    } catch (error) {
+      console.error('Error al limpiar tipos de cliente no permitidos:', error);
+      notificationService.error('Error al limpiar los tipos de cliente no permitidos');
     }
   };
 
@@ -142,8 +208,6 @@ export default function ClientesPage() {
         let inicialClass = 'bg-blue-100 text-blue-800';
         if (tipoNombre.includes('persona')) {
           inicialClass = 'bg-green-100 text-green-800';
-        } else if (tipoNombre.includes('ocasional')) {
-          inicialClass = 'bg-yellow-100 text-yellow-800';
         }
 
         // Obtener la primera letra para el avatar
@@ -218,25 +282,6 @@ export default function ClientesPage() {
                 strokeLinejoin="round"
                 strokeWidth={1.5}
                 d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
-          );
-        } else if (nombre.toLowerCase().includes('ocasional')) {
-          bgColor = 'bg-yellow-100';
-          textColor = 'text-yellow-800';
-          icono = (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
           );
@@ -345,14 +390,17 @@ export default function ClientesPage() {
         return;
       }
 
+      // Omitir el campo tipo_cliente del formData
+      const { tipo_cliente, ...clienteData } = formData;
+
       if (formData.id) {
         // Actualizar cliente existente
-        await clienteService.updateCliente(formData.id, formData);
+        await clienteService.updateCliente(formData.id, clienteData);
         notificationService.dismiss();
         notificationService.success(`Cliente ${formData.razon_social} actualizado correctamente`);
       } else {
         // Agregar nuevo cliente
-        await clienteService.createCliente(formData as Omit<Cliente, 'id'>);
+        await clienteService.createCliente(clienteData as Omit<Cliente, 'id'>);
         notificationService.dismiss();
         notificationService.success(`Cliente ${formData.razon_social} creado correctamente`);
       }
@@ -362,6 +410,7 @@ export default function ClientesPage() {
         razon_social: '',
         ruc: '',
         tipo_cliente_id: tiposCliente.length > 0 ? tiposCliente[0].id : '',
+        tipo_cliente: 'Empresa',
         estado: true,
       });
 
@@ -436,6 +485,13 @@ export default function ClientesPage() {
   // Estadísticas de clientes
   const clientesActivos = clientes.filter((c) => c.estado).length;
   const clientesInactivos = clientes.filter((c) => !c.estado).length;
+  const tiposClienteStats = tiposCliente.map((tipo) => {
+    return {
+      id: tipo.id,
+      nombre: tipo.nombre,
+      cantidad: clientes.filter((c) => c.tipo_cliente_id === tipo.id).length,
+    };
+  });
 
   if (loading && clientes.length === 0) {
     return <div className="flex justify-center items-center h-64">Cargando clientes...</div>;
@@ -452,6 +508,7 @@ export default function ClientesPage() {
                 razon_social: '',
                 ruc: '',
                 tipo_cliente_id: '',
+                tipo_cliente: 'Empresa',
                 estado: true,
               });
               setShowForm(true);
@@ -558,6 +615,63 @@ export default function ClientesPage() {
           </form>
         </Loading>
       </Modal>
+
+      {/* Estadísticas rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="font-bold text-lg mb-2">Resumen de Clientes</h3>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span>Total de clientes:</span>
+              <span className="font-medium">{clientes.length}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Clientes activos:</span>
+              <span className="font-medium text-green-600">{clientesActivos}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Clientes inactivos:</span>
+              <span className="font-medium text-red-600">{clientesInactivos}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="font-bold text-lg mb-2">Documentación</h3>
+          <div className="space-y-1">
+            <div className="flex justify-between">
+              <span>Con RUC completo:</span>
+              <span className="font-medium">
+                {clientes.filter((c) => c.ruc && c.ruc.length === 11).length}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Sin RUC/Incompleto:</span>
+              <span className="font-medium text-yellow-600">
+                {clientes.filter((c) => !c.ruc || c.ruc.length !== 11).length}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h3 className="font-bold text-lg mb-2">Tipos de Cliente</h3>
+          <div className="space-y-1">
+            {tiposClienteStats.map((tipo) => (
+              <div key={tipo.id} className="flex justify-between">
+                <span>{tipo.nombre}:</span>
+                <span className="font-medium">{tipo.cantidad}</span>
+              </div>
+            ))}
+            <div className="flex justify-between">
+              <span>Sin tipo asignado:</span>
+              <span className="font-medium text-red-600">
+                {clientes.filter((c) => !c.tipo_cliente_id).length}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Tabla de clientes */}
       <Loading isLoading={loading}>

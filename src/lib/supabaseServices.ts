@@ -15,6 +15,7 @@ export interface Cliente extends DataItem, RelatedEntities {
   razon_social: string;
   ruc: string;
   tipo_cliente_id: string;
+  tipo_cliente: string;
   fecha_registro: string;
   estado: boolean;
   created_at?: string;
@@ -121,24 +122,16 @@ export interface Egreso extends DataItem, RelatedEntities {
   conductor?: Conductor;
 }
 
-export interface EgresoSinFactura extends DataItem, RelatedEntities {
+export interface EgresoSinFactura extends DataItem {
   id: string;
-  fecha: string;
-  beneficiario: string;
-  concepto: string;
-  viaje_id: string | null;
-  vehiculo_id: string | null;
-  conductor_id: string | null;
   monto: number;
-  metodo_pago: string;
-  comprobante: string;
+  moneda: string;
+  numero_cheque: string | null;
+  numero_liquidacion: string | null;
+  tipo_egreso: string;
   categoria: string;
-  observaciones: string;
   created_at?: string;
   updated_at?: string;
-  viaje?: Viaje;
-  vehiculo?: Vehiculo;
-  conductor?: Conductor;
 }
 
 export interface Detraccion extends DataItem, RelatedEntities {
@@ -206,9 +199,7 @@ export interface CuentaBanco extends DataItem {
 export interface Empresa extends DataItem {
   id: string;
   nombre: string;
-  ruc_dni: string;
   cuenta_abonada: string;
-  fecha_creacion: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -216,7 +207,10 @@ export interface Empresa extends DataItem {
 // Servicios para clientes
 export const clienteService = {
   getClientes: async (): Promise<Cliente[]> => {
-    const { data, error } = await supabase.from('clientes').select('*').order('razon_social');
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*, tipo_cliente(nombre)')
+      .order('razon_social');
     if (error) throw error;
     return data;
   },
@@ -224,15 +218,17 @@ export const clienteService = {
   createCliente: async (
     cliente: Omit<Cliente, 'id' | 'created_at' | 'updated_at'>
   ): Promise<Cliente> => {
-    const { data, error } = await supabase.from('clientes').insert(cliente).select().single();
+    const { tipo_cliente, ...clienteData } = cliente;
+    const { data, error } = await supabase.from('clientes').insert(clienteData).select().single();
     if (error) throw error;
     return data;
   },
 
   updateCliente: async (id: string, cliente: Partial<Cliente>): Promise<Cliente> => {
+    const { tipo_cliente, ...clienteData } = cliente;
     const { data, error } = await supabase
       .from('clientes')
-      .update(cliente)
+      .update(clienteData)
       .eq('id', id)
       .select()
       .single();
@@ -327,6 +323,29 @@ export const viajeService = {
       )
       .order('fecha_salida', { ascending: false });
     if (error) throw error;
+    return data;
+  },
+
+  getViajeById: async (id: string): Promise<Viaje | null> => {
+    const { data, error } = await supabase
+      .from('viajes')
+      .select(
+        `
+        *,
+        cliente:clientes(*),
+        conductor:conductores(*),
+        vehiculo:vehiculos(*)
+      `
+      )
+      .eq('id', id)
+      .single();
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No se encontró el viaje
+        return null;
+      }
+      throw error;
+    }
     return data;
   },
 
@@ -443,15 +462,8 @@ export const egresoSinFacturaService = {
   getEgresosSinFactura: async (): Promise<EgresoSinFactura[]> => {
     const { data, error } = await supabase
       .from('egresos_sin_factura')
-      .select(
-        `
-        *,
-        viaje:viajes(*),
-        vehiculo:vehiculos(*),
-        conductor:conductores(*)
-      `
-      )
-      .order('fecha', { ascending: false });
+      .select('*')
+      .order('created_at', { ascending: false });
     if (error) throw error;
     return data;
   },

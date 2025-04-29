@@ -16,6 +16,15 @@ import { Loading } from '@/components/ui/loading';
 import { useToast } from '@/hooks/use-toast';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import {
+  empresaService,
+  Empresa,
+  tipoEgresoService,
+  TipoEgreso,
+  cuentaBancoService,
+  CuentaBanco,
+} from '@/lib/supabaseServices';
+import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -35,13 +44,30 @@ interface Egreso extends DataItem {
   tipoEgreso: string;
   moneda: string;
   monto: number;
-  aprobado: boolean;
+  estado: string;
+  observacion?: string;
 }
 
 export default function EgresosPage() {
   // Estado para almacenar los egresos
   const [egresos, setEgresos] = useState<Egreso[]>([]);
   const [loading, setLoading] = useState(true);
+  // Estado para almacenar las empresas
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  // Estado para almacenar los tipos de egreso
+  const [tiposEgreso, setTiposEgreso] = useState<TipoEgreso[]>([]);
+  // Estado para almacenar las cuentas bancarias
+  const [cuentasBanco, setCuentasBanco] = useState<CuentaBanco[]>([]);
+
+  // Tipos de operaciones (usado en el formulario)
+  const tiposOperaciones = [
+    'Transferencia',
+    'Efectivo',
+    'Cheque',
+    'Tarjeta de Crédito',
+    'Tarjeta de Débito',
+    'Depósito',
+  ];
 
   // Hook para permisos de usuario
   const { hasPermission } = usePermissions();
@@ -58,68 +84,134 @@ export default function EgresosPage() {
     confirmText: 'Eliminar',
   });
 
-  // Cargar datos desde Supabase al montar el componente
-  useEffect(() => {
-    const cargarEgresos = async () => {
-      try {
-        setLoading(true);
+  // Función para cargar egresos
+  const cargarEgresos = async () => {
+    try {
+      setLoading(true);
 
-        // Consultar egresos con factura
-        const { data: egresosConFactura, error: errorEgresos } = await supabase
-          .from('egresos')
-          .select('*');
+      // Consultar egresos con factura
+      const { data: egresosConFactura, error: errorEgresos } = await supabase
+        .from('egresos')
+        .select('*');
 
-        // Consultar egresos sin factura
-        const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase
-          .from('egresos_sin_factura')
-          .select('*');
+      // Consultar egresos sin factura
+      const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase
+        .from('egresos_sin_factura')
+        .select('*');
 
-        if (errorEgresos || errorEgresosSinFactura) {
-          console.error('Error al cargar egresos:', errorEgresos || errorEgresosSinFactura);
-          return;
-        }
+      if (errorEgresos || errorEgresosSinFactura) {
+        console.error('Error al cargar egresos:', errorEgresos || errorEgresosSinFactura);
+        return;
+      }
 
-        // Transformar los datos al formato esperado por la interfaz
-        const egresosFormateados = [
-          ...(egresosConFactura || []).map((eg) => ({
+      // Transformar los datos al formato esperado por la interfaz
+      const egresosFormateados = [
+        ...(egresosConFactura || []).map((eg) => {
+          // Buscar la empresa correspondiente
+          const empresaCorrespondiente = empresas.find(
+            (empresa) => empresa.nombre === eg.proveedor
+          );
+
+          return {
             id: eg.id,
             fecha: eg.fecha,
             hora: new Date(eg.created_at).toTimeString().slice(0, 5),
             factura: eg.numero_factura || '',
-            cuentaEgreso: 'Cuenta Principal',
+            cuentaEgreso: eg.cuenta_egreso || 'Cuenta Principal',
             operacion: eg.metodo_pago || 'Efectivo',
             destino: eg.proveedor,
-            cuentaAbonada: '',
+            cuentaAbonada: empresaCorrespondiente?.cuenta_abonada || '',
             tipoEgreso: eg.categoria || 'Operativo',
             moneda: 'PEN',
             monto: eg.monto,
-            aprobado: true,
-          })),
-          ...(egresosSinFactura || []).map((eg) => ({
+            estado: eg.estado
+              ? eg.estado.charAt(0).toUpperCase() + eg.estado.slice(1)
+              : 'Pendiente',
+            observacion: eg.observacion || '',
+          };
+        }),
+        ...(egresosSinFactura || []).map((eg) => {
+          // Buscar la empresa correspondiente
+          const empresaCorrespondiente = empresas.find((empresa) => empresa.nombre === eg.concepto);
+
+          return {
             id: eg.id,
             fecha: eg.fecha,
             hora: new Date(eg.created_at).toTimeString().slice(0, 5),
             factura: '',
-            cuentaEgreso: 'Caja Chica',
+            cuentaEgreso: eg.cuenta_egreso || 'Caja Chica',
             operacion: eg.metodo_pago || 'Efectivo',
             destino: eg.concepto,
-            cuentaAbonada: '',
+            cuentaAbonada: empresaCorrespondiente?.cuenta_abonada || '',
             tipoEgreso: eg.categoria || 'Operativo',
             moneda: 'PEN',
             monto: eg.monto,
-            aprobado: true,
-          })),
-        ];
+            estado: eg.estado
+              ? eg.estado.charAt(0).toUpperCase() + eg.estado.slice(1)
+              : 'Pendiente',
+            observacion: eg.observacion || '',
+          };
+        }),
+      ];
 
-        setEgresos(egresosFormateados);
+      setEgresos(egresosFormateados);
+    } catch (error) {
+      console.error('Error inesperado:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar datos desde Supabase al montar el componente
+  useEffect(() => {
+    const cargarEmpresas = async () => {
+      try {
+        const data = await empresaService.getEmpresas();
+        setEmpresas(data);
+        // Una vez cargadas las empresas, cargamos los egresos
+        await cargarEgresos();
       } catch (error) {
-        console.error('Error inesperado:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error al cargar empresas:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar las empresas',
+          variant: 'destructive',
+        });
       }
     };
 
-    cargarEgresos();
+    const cargarTiposEgreso = async () => {
+      try {
+        const data = await tipoEgresoService.getTiposEgreso();
+        setTiposEgreso(data);
+      } catch (error) {
+        console.error('Error al cargar tipos de egreso:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los tipos de egreso',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    const cargarCuentasBanco = async () => {
+      try {
+        const data = await cuentaBancoService.getCuentasBanco();
+        setCuentasBanco(data);
+      } catch (error) {
+        console.error('Error al cargar cuentas bancarias:', error);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar las cuentas bancarias',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    // Cargar empresas, tipos de egreso y cuentas bancarias
+    cargarEmpresas();
+    cargarTiposEgreso();
+    cargarCuentasBanco();
   }, []);
 
   const [showForm, setShowForm] = useState(false);
@@ -134,7 +226,8 @@ export default function EgresosPage() {
     tipoEgreso: '',
     moneda: 'PEN',
     monto: 0,
-    aprobado: false,
+    estado: 'Pendiente',
+    observacion: '',
   });
 
   // Columnas para la tabla de egresos
@@ -142,27 +235,43 @@ export default function EgresosPage() {
     {
       header: 'Fecha',
       accessor: 'fecha',
-      cell: (value) => (
-        <div className="flex justify-center">
-          <span className="text-sm font-medium flex items-center text-gray-700">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-blue-500 mr-1.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            {format(new Date(value as string), 'dd/MM/yyyy')}
-          </span>
-        </div>
-      ),
+      cell: (value) => {
+        // Verificar que el valor existe y es una fecha válida
+        if (!value) {
+          return <div className="flex justify-center">-</div>;
+        }
+
+        try {
+          const date = new Date(value as string);
+          if (isNaN(date.getTime())) {
+            return <div className="flex justify-center">Fecha inválida</div>;
+          }
+
+          return (
+            <div className="flex justify-center">
+              <span className="text-sm font-medium flex items-center text-gray-700">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 text-blue-500 mr-1.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                {format(date, 'dd/MM/yyyy')}
+              </span>
+            </div>
+          );
+        } catch (error) {
+          return <div className="flex justify-center">Error de formato</div>;
+        }
+      },
     },
     {
       header: 'Hora',
@@ -348,6 +457,11 @@ export default function EgresosPage() {
       header: 'Destino',
       accessor: 'destino',
       cell: (value) => {
+        // Verificar que el valor existe
+        if (!value) {
+          return <div className="flex justify-center">-</div>;
+        }
+
         // Primera letra para crear el avatar
         const inicial = (value as string).charAt(0).toUpperCase();
 
@@ -446,54 +560,38 @@ export default function EgresosPage() {
       ),
     },
     {
+      header: 'Observación',
+      accessor: 'observacion',
+      cell: (value) => (
+        <div className="flex justify-center">
+          {value ? (
+            <span className="text-sm text-gray-600 truncate max-w-[200px]" title={value as string}>
+              {value as string}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      ),
+    },
+    {
       header: 'Estado',
-      accessor: 'aprobado',
-      cell: (value) => {
-        const aprobado = value as boolean;
+      accessor: 'estado',
+      cell: (value, row) => {
+        const estado = value as string;
 
         return (
           <div className="flex justify-center">
-            <span
-              className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${aprobado ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
+            <select
+              value={estado}
+              onChange={(e) => handleChangeEstado(row.id, e.target.value)}
+              className={`px-2 py-1 rounded-full text-xs font-medium border-0 ${
+                estado === 'Aprobado' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+              }`}
             >
-              {aprobado ? (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Aprobado
-                </>
-              ) : (
-                <>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                  Pendiente
-                </>
-              )}
-            </span>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Aprobado">Aprobado</option>
+            </select>
           </div>
         );
       },
@@ -503,16 +601,26 @@ export default function EgresosPage() {
       accessor: 'id',
       cell: (value, row) => (
         <ActionButtonGroup>
-          <EditButton onClick={() => handleEdit(row)} />
-          <DeleteButton onClick={() => handleDelete(value as number)} />
-          {!row.aprobado && <ActivateButton onClick={() => handleApprove(value as number)} />}
+          <EditPermission>
+            <EditButton onClick={() => handleEdit(row)} />
+          </EditPermission>
+          <DeletePermission>
+            <DeleteButton onClick={() => handleDelete(value as number)} />
+          </DeletePermission>
+          <EditPermission>
+            {row.estado !== 'Aprobado' && (
+              <ActivateButton onClick={() => handleApprove(value as number)} />
+            )}
+          </EditPermission>
         </ActionButtonGroup>
       ),
     },
   ];
 
   // Funciones para manejo de formulario
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => {
     const { name, value, type } = e.target as HTMLInputElement;
     setFormData({
       ...formData,
@@ -546,6 +654,9 @@ export default function EgresosPage() {
             numero_factura: formData.factura,
             fecha_factura: formData.fecha,
             categoria: formData.tipoEgreso,
+            observacion: formData.observacion,
+            estado: formData.estado?.toLowerCase(),
+            cuenta_egreso: formData.cuentaEgreso,
           })
           .select();
 
@@ -561,6 +672,9 @@ export default function EgresosPage() {
             monto: formData.monto,
             metodo_pago: formData.operacion,
             categoria: formData.tipoEgreso,
+            observacion: formData.observacion,
+            estado: formData.estado?.toLowerCase(),
+            cuenta_egreso: formData.cuentaEgreso,
           })
           .select();
 
@@ -568,57 +682,6 @@ export default function EgresosPage() {
       }
 
       // Recargar los datos
-      const cargarEgresos = async () => {
-        // Consultar egresos con factura
-        const { data: egresosConFactura, error: errorEgresos } = await supabase
-          .from('egresos')
-          .select('*');
-
-        // Consultar egresos sin factura
-        const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase
-          .from('egresos_sin_factura')
-          .select('*');
-
-        if (errorEgresos || errorEgresosSinFactura) {
-          console.error('Error al cargar egresos:', errorEgresos || errorEgresosSinFactura);
-          return;
-        }
-
-        // Transformar los datos al formato esperado por la interfaz
-        const egresosFormateados = [
-          ...(egresosConFactura || []).map((eg) => ({
-            id: eg.id,
-            fecha: eg.fecha,
-            hora: new Date(eg.created_at).toTimeString().slice(0, 5),
-            factura: eg.numero_factura || '',
-            cuentaEgreso: 'Cuenta Principal',
-            operacion: eg.metodo_pago || 'Efectivo',
-            destino: eg.proveedor,
-            cuentaAbonada: '',
-            tipoEgreso: eg.categoria || 'Operativo',
-            moneda: 'PEN',
-            monto: eg.monto,
-            aprobado: true,
-          })),
-          ...(egresosSinFactura || []).map((eg) => ({
-            id: eg.id,
-            fecha: eg.fecha,
-            hora: new Date(eg.created_at).toTimeString().slice(0, 5),
-            factura: '',
-            cuentaEgreso: 'Caja Chica',
-            operacion: eg.metodo_pago || 'Efectivo',
-            destino: eg.concepto,
-            cuentaAbonada: '',
-            tipoEgreso: eg.categoria || 'Operativo',
-            moneda: 'PEN',
-            monto: eg.monto,
-            aprobado: true,
-          })),
-        ];
-
-        setEgresos(egresosFormateados);
-      };
-
       await cargarEgresos();
 
       // Limpiar formulario
@@ -633,7 +696,8 @@ export default function EgresosPage() {
         tipoEgreso: '',
         moneda: 'PEN',
         monto: 0,
-        aprobado: false,
+        estado: 'Pendiente',
+        observacion: '',
       });
 
       setShowForm(false);
@@ -684,46 +748,68 @@ export default function EgresosPage() {
     }
   };
 
-  const handleApprove = (id: number) => {
-    setEgresos(egresos.map((eg) => (eg.id === id ? { ...eg, aprobado: true } : eg)));
+  const handleChangeEstado = async (id: number, nuevoEstado: string) => {
+    try {
+      // Actualizar en la interfaz
+      setEgresos(egresos.map((eg) => (eg.id === id ? { ...eg, estado: nuevoEstado } : eg)));
+
+      // Actualizar en Supabase - intentar en ambas tablas
+      await supabase.from('egresos').update({ estado: nuevoEstado.toLowerCase() }).eq('id', id);
+
+      await supabase
+        .from('egresos_sin_factura')
+        .update({ estado: nuevoEstado.toLowerCase() })
+        .eq('id', id);
+
+      toast({
+        title: 'Éxito',
+        description: `Estado cambiado a ${nuevoEstado}`,
+        variant: 'default',
+        className: 'bg-green-600 text-white',
+      });
+    } catch (error) {
+      console.error('Error al cambiar el estado:', error);
+      toast({
+        title: 'Error',
+        description: 'Error al cambiar el estado. Por favor, inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  // Tipos de egresos predefinidos
-  const tiposEgresos = [
-    'Combustible',
-    'Mantenimiento',
-    'Repuestos',
-    'Peajes',
-    'Viáticos',
-    'Seguros',
-    'Salarios',
-    'Impuestos',
-    'Administrativo',
-    'Otro',
-  ];
-
-  // Tipos de operaciones (usado en el formulario)
-  const tiposOperaciones = [
-    'Transferencia',
-    'Efectivo',
-    'Cheque',
-    'Tarjeta de Crédito',
-    'Tarjeta de Débito',
-    'Depósito',
-  ];
+  const handleApprove = (id: number) => {
+    handleChangeEstado(id, 'Aprobado');
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Gestión de Egresos</h1>
-        {hasPermission(PermissionType.CREATE) && (
+        <CreatePermission>
           <button
-            onClick={() => setShowForm(!showForm)}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            onClick={() => {
+              setFormData({
+                id: 0,
+                fecha: new Date().toISOString().split('T')[0],
+                hora: new Date().toTimeString().slice(0, 5),
+                factura: '',
+                cuentaEgreso: '',
+                operacion: '',
+                destino: '',
+                cuentaAbonada: '',
+                tipoEgreso: '',
+                moneda: 'PEN',
+                monto: 0,
+                estado: 'Pendiente',
+                observacion: '',
+              });
+              setShowForm(true);
+            }}
           >
             Nuevo Egreso
           </button>
-        )}
+        </CreatePermission>
       </div>
 
       {/* Modal para formulario de egreso */}
@@ -771,42 +857,63 @@ export default function EgresosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Cuenta Egreso</label>
-            <input
-              type="text"
+            <select
               name="cuentaEgreso"
               value={formData.cuentaEgreso}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Operación</label>
-            <select
-              name="operacion"
-              value={formData.operacion}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+              required
             >
-              <option value="">Seleccione operación</option>
-              {tiposOperaciones.map((tipo, index) => (
-                <option key={index} value={tipo}>
-                  {tipo}
+              <option value="">Seleccione cuenta</option>
+              {cuentasBanco.map((cuenta) => (
+                <option
+                  key={cuenta.id}
+                  value={`${cuenta.banco}-${cuenta.moneda}-${cuenta.numero_cuenta}`}
+                >
+                  {`${cuenta.banco}-${cuenta.moneda}-${cuenta.numero_cuenta}`}
                 </option>
               ))}
+              <option value="Caja Chica">Caja Chica</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Destino</label>
+            <label className="block text-sm font-medium text-gray-700">Operación</label>
             <input
               type="text"
-              name="destino"
-              value={formData.destino}
+              name="operacion"
+              value={formData.operacion}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
-              required
+              placeholder="Ingrese tipo de operación"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Destino</label>
+            <select
+              name="destino"
+              value={formData.destino}
+              onChange={(e) => {
+                const empresaSeleccionada = empresas.find(
+                  (empresa) => empresa.nombre === e.target.value
+                );
+                setFormData({
+                  ...formData,
+                  destino: e.target.value,
+                  cuentaAbonada: empresaSeleccionada?.cuenta_abonada || '',
+                });
+              }}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+              required
+            >
+              <option value="">Seleccione una empresa</option>
+              {empresas.map((empresa) => (
+                <option key={empresa.id} value={empresa.nombre}>
+                  {empresa.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -815,8 +922,8 @@ export default function EgresosPage() {
               type="text"
               name="cuentaAbonada"
               value={formData.cuentaAbonada}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+              readOnly
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary bg-gray-100"
             />
           </div>
 
@@ -830,9 +937,9 @@ export default function EgresosPage() {
               required
             >
               <option value="">Seleccione tipo</option>
-              {tiposEgresos.map((tipo, index) => (
-                <option key={index} value={tipo}>
-                  {tipo}
+              {tiposEgreso.map((tipoEgreso) => (
+                <option key={tipoEgreso.id} value={tipoEgreso.tipo}>
+                  {tipoEgreso.tipo}
                 </option>
               ))}
             </select>
@@ -857,18 +964,51 @@ export default function EgresosPage() {
             <input
               type="number"
               name="monto"
-              value={formData.monto}
+              value={formData.monto === 0 ? '' : formData.monto}
               onChange={handleInputChange}
-              step="0.01"
+              step="1"
+              placeholder="0"
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
               required
             />
           </div>
 
-          <div className="md:col-span-3 flex justify-end space-x-2">
+          <div className="md:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Observación</label>
+            <input
+              type="text"
+              name="observacion"
+              value={formData.observacion || ''}
+              onChange={handleInputChange}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+              placeholder="Ingrese alguna observación sobre este egreso..."
+            />
+          </div>
+
+          <div className="md:col-span-3">
+            <label className="block text-sm font-medium text-gray-700">Estado</label>
+            <select
+              name="estado"
+              value={formData.estado}
+              onChange={handleInputChange}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary focus:border-primary"
+            >
+              <option value="Pendiente">Pendiente</option>
+              <option value="Aprobado">Aprobado</option>
+            </select>
+          </div>
+
+          <div className="md:col-span-3 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="bg-gray-300 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
+            >
+              Cancelar
+            </button>
             <button
               type="submit"
-              className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-dark"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
             >
               {formData.id ? 'Actualizar' : 'Guardar'}
             </button>

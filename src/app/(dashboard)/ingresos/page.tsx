@@ -240,6 +240,186 @@ export default function IngresosPage() {
           let placaTracto = '';
           let placaCarreta = '';
 
+          // Extraer serie y número de factura del formato "SERIE-NUMERO"
+          let serie = '';
+          let numeroFactura = ing.numero_factura || '';
+
+          if (numeroFactura && numeroFactura.includes('-')) {
+            const partes = numeroFactura.split('-');
+            serie = partes[0];
+            numeroFactura = partes.length > 1 ? partes[1] : '';
+          }
+
+          // Extraer información de las observaciones
+          let documentoGuiaRemit = '';
+          let guiaTransp = '';
+          let diasCredito = 0;
+          let primeraCuota = ing.monto / 2; // Valor por defecto
+          let segundaCuota = ing.monto / 2; // Valor por defecto
+          let detraccion = ing.monto * 0.04; // 4% por defecto
+          let totalMonto = ing.monto;
+          let totalDeber = 0;
+          let fechaVencimiento = ing.fecha;
+          let observacionUsuario = '';
+          let montoFlete = ing.monto || 0;
+
+          // Para extraer datos de conductor y vehículos desde observaciones
+          let conductorId = '';
+          let tractoId = '';
+          let carretaId = '';
+
+          // Analizar observaciones para extraer información
+          if (ing.observaciones) {
+            const observaciones = ing.observaciones;
+
+            // Verificar si el contenido tiene el formato nuevo con JSON
+            if (observaciones.includes('|||')) {
+              // Dividir la cadena en la parte de observación del usuario y los datos JSON
+              const parts = observaciones.split('|||');
+              observacionUsuario = parts[0];
+
+              try {
+                // Intentar parsear los datos JSON
+                const datosJSON = JSON.parse(parts[1]);
+
+                // Extraer datos financieros
+                primeraCuota = datosJSON.primeraCuota || ing.monto / 2;
+                segundaCuota = datosJSON.segundaCuota || ing.monto / 2;
+                montoFlete = datosJSON.montoFlete || ing.monto;
+                detraccion = datosJSON.detraccion || ing.monto * 0.04;
+                totalMonto = datosJSON.totalMonto || ing.monto;
+                totalDeber = datosJSON.totalDeber || 0;
+
+                // Extraer datos de transporte
+                conductor = datosJSON.conductor || '';
+                conductorId = datosJSON.conductorId || '';
+                placaTracto = datosJSON.placaTracto || '';
+                tractoId = datosJSON.tractoId || '';
+                placaCarreta = datosJSON.placaCarreta || '';
+                carretaId = datosJSON.carretaId || '';
+
+                // Extraer documentos
+                documentoGuiaRemit = datosJSON.documentoGuiaRemit || '';
+                guiaTransp = datosJSON.guiaTransp || '';
+
+                // Extraer otros datos
+                diasCredito = datosJSON.diasCredito || 0;
+                fechaVencimiento = datosJSON.fechaVencimiento || ing.fecha;
+              } catch (error) {
+                console.error('Error al parsear datos JSON de observaciones:', error);
+                // Si hay error de parseo, intentar con el método antiguo
+                extractDataWithRegex(observaciones);
+              }
+            } else {
+              // Método antiguo con expresiones regulares
+              extractDataWithRegex(observaciones);
+            }
+          }
+
+          // Función para extraer datos usando expresiones regulares (método antiguo)
+          function extractDataWithRegex(texto: string) {
+            // Extraer Guía Remitente
+            const guiaRemitRegex = /Guía Remitente: ([^\.]+)/;
+            const guiaRemitMatch = texto.match(guiaRemitRegex);
+            if (guiaRemitMatch && guiaRemitMatch[1]) {
+              documentoGuiaRemit = guiaRemitMatch[1].trim();
+            }
+
+            // Extraer Guía Transportista
+            const guiaTranspRegex = /Guía Transportista: ([^\.]+)/;
+            const guiaTranspMatch = texto.match(guiaTranspRegex);
+            if (guiaTranspMatch && guiaTranspMatch[1]) {
+              guiaTransp = guiaTranspMatch[1].trim();
+            }
+
+            // Extraer Días de crédito
+            const diasCreditoRegex = /Días de crédito: (\d+)/;
+            const diasCreditoMatch = texto.match(diasCreditoRegex);
+            if (diasCreditoMatch && diasCreditoMatch[1]) {
+              diasCredito = parseInt(diasCreditoMatch[1], 10);
+            }
+
+            // Extraer Primera cuota
+            const primeraCuotaRegex = /Primera cuota: S\/\. ([0-9\.]+)/;
+            const primeraCuotaMatch = texto.match(primeraCuotaRegex);
+            if (primeraCuotaMatch && primeraCuotaMatch[1]) {
+              primeraCuota = parseFloat(primeraCuotaMatch[1]);
+            }
+
+            // Extraer Segunda cuota
+            const segundaCuotaRegex = /Segunda cuota: S\/\. ([0-9\.]+)/;
+            const segundaCuotaMatch = texto.match(segundaCuotaRegex);
+            if (segundaCuotaMatch && segundaCuotaMatch[1]) {
+              segundaCuota = parseFloat(segundaCuotaMatch[1]);
+            }
+
+            // Extraer Detracción
+            const detraccionRegex = /Detracción: S\/\. ([0-9\.]+)/;
+            const detraccionMatch = texto.match(detraccionRegex);
+            if (detraccionMatch && detraccionMatch[1]) {
+              detraccion = parseFloat(detraccionMatch[1]);
+            }
+
+            // Extraer Total
+            const totalMontoRegex = /Total: S\/\. ([0-9\.]+)/;
+            const totalMontoMatch = texto.match(totalMontoRegex);
+            if (totalMontoMatch && totalMontoMatch[1]) {
+              totalMonto = parseFloat(totalMontoMatch[1]);
+            }
+
+            // Extraer Total a deber
+            const totalDeberRegex = /Total a deber: S\/\. ([-0-9\.]+)/;
+            const totalDeberMatch = texto.match(totalDeberRegex);
+            if (totalDeberMatch && totalDeberMatch[1]) {
+              totalDeber = parseFloat(totalDeberMatch[1]);
+            }
+
+            // Extraer Fecha vencimiento
+            const fechaVencimientoRegex = /Fecha vencimiento: ([0-9\-]+)/;
+            const fechaVencimientoMatch = texto.match(fechaVencimientoRegex);
+            if (fechaVencimientoMatch && fechaVencimientoMatch[1]) {
+              fechaVencimiento = fechaVencimientoMatch[1].trim();
+            }
+
+            // Extraer Conductor ID
+            const conductorIdRegex = /Conductor ID: ([a-zA-Z0-9-]+)/;
+            const conductorIdMatch = texto.match(conductorIdRegex);
+            if (conductorIdMatch && conductorIdMatch[1]) {
+              conductorId = conductorIdMatch[1].trim();
+            }
+
+            // Extraer Tracto ID
+            const tractoIdRegex = /Tracto ID: ([a-zA-Z0-9-]+)/;
+            const tractoIdMatch = texto.match(tractoIdRegex);
+            if (tractoIdMatch && tractoIdMatch[1]) {
+              tractoId = tractoIdMatch[1].trim();
+            }
+
+            // Extraer Placa Tracto
+            const placaTractoRegex = /Placa Tracto: ([a-zA-Z0-9-]+)/;
+            const placaTractoMatch = texto.match(placaTractoRegex);
+            if (placaTractoMatch && placaTractoMatch[1]) {
+              placaTracto = placaTractoMatch[1].trim();
+            }
+
+            // Extraer Carreta ID
+            const carretaIdRegex = /Carreta ID: ([a-zA-Z0-9-]+)/;
+            const carretaIdMatch = texto.match(carretaIdRegex);
+            if (carretaIdMatch && carretaIdMatch[1]) {
+              carretaId = carretaIdMatch[1].trim();
+            }
+
+            // Extraer Placa Carreta
+            const placaCarretaRegex = /Placa Carreta: ([a-zA-Z0-9-]+)/;
+            const placaCarretaMatch = texto.match(placaCarretaRegex);
+            if (placaCarretaMatch && placaCarretaMatch[1]) {
+              placaCarreta = placaCarretaMatch[1].trim();
+            }
+
+            // Si no encontramos observación específica, usar todo el texto
+            observacionUsuario = texto;
+          }
+
           // Si hay viaje asociado, obtener datos de conductor y vehículos
           if (ing.viaje_id) {
             try {
@@ -264,27 +444,70 @@ export default function IngresosPage() {
             }
           }
 
+          // Si no tenemos información del conductor desde el viaje, intentar obtenerla de los datos extraídos
+          if (!conductor && conductorId) {
+            try {
+              // Buscar el conductor por ID
+              const conductores = await conductorService.getConductores();
+              const conductorEncontrado = conductores.find((c) => c.id === conductorId);
+
+              if (conductorEncontrado) {
+                conductor = `${conductorEncontrado.nombres} ${conductorEncontrado.apellidos}`;
+              }
+            } catch (error) {
+              console.error('Error al buscar conductor por ID:', error);
+            }
+          }
+
+          // Si no tenemos placa de tracto pero tenemos el ID, intentar obtenerla
+          if (!placaTracto && tractoId) {
+            try {
+              const vehiculos = await vehiculoService.getVehiculos();
+              const tractoEncontrado = vehiculos.find((v) => v.id === tractoId);
+
+              if (tractoEncontrado) {
+                placaTracto = tractoEncontrado.placa;
+              }
+            } catch (error) {
+              console.error('Error al buscar tracto por ID:', error);
+            }
+          }
+
+          // Si no tenemos placa de carreta pero tenemos el ID, intentar obtenerla
+          if (!placaCarreta && carretaId) {
+            try {
+              const vehiculos = await vehiculoService.getVehiculos();
+              const carretaEncontrada = vehiculos.find((v) => v.id === carretaId);
+
+              if (carretaEncontrada) {
+                placaCarreta = carretaEncontrada.placa;
+              }
+            } catch (error) {
+              console.error('Error al buscar carreta por ID:', error);
+            }
+          }
+
           return {
             id: ing.id,
             fecha: ing.fecha,
-            serie: ing.numero_factura ? ing.numero_factura.split('-')[0] : '',
-            numeroFactura: ing.numero_factura || '',
-            montoFlete: ing.monto || 0,
-            primeraCuota: ing.monto / 2, // Dividimos el monto en dos cuotas por defecto
-            segundaCuota: ing.monto / 2,
-            detraccion: ing.monto * 0.04, // 4% de detracción por defecto
-            totalDeber: ing.monto,
-            totalMonto: ing.monto,
+            serie: serie,
+            numeroFactura: numeroFactura,
+            montoFlete: montoFlete,
+            primeraCuota: primeraCuota,
+            segundaCuota: segundaCuota,
+            detraccion: detraccion,
+            totalDeber: totalDeber,
+            totalMonto: totalMonto,
             empresa: cliente.razon_social || '',
             ruc: cliente.ruc || '',
             conductor: conductor,
             placaTracto: placaTracto,
             placaCarreta: placaCarreta,
-            observacion: ing.observaciones || '',
-            documentoGuiaRemit: '',
-            guiaTransp: '',
-            diasCredito: 0,
-            fechaVencimiento: ing.fecha,
+            observacion: observacionUsuario,
+            documentoGuiaRemit: documentoGuiaRemit,
+            guiaTransp: guiaTransp,
+            diasCredito: diasCredito,
+            fechaVencimiento: fechaVencimiento,
             estado: ing.estado_factura || 'Pendiente',
           };
         })
@@ -322,27 +545,43 @@ export default function IngresosPage() {
     {
       header: 'Fecha',
       accessor: 'fecha',
-      cell: (value) => (
-        <div className="flex justify-center">
-          <span className="text-sm font-medium flex items-center text-gray-700">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-blue-500 mr-1.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            {format(new Date(value as string), 'dd/MM/yyyy')}
-          </span>
-        </div>
-      ),
+      cell: (value) => {
+        // Verificar que el valor existe y es una fecha válida
+        if (!value) {
+          return <div className="flex justify-center">-</div>;
+        }
+
+        try {
+          const date = new Date(value as string);
+          if (isNaN(date.getTime())) {
+            return <div className="flex justify-center">Fecha inválida</div>;
+          }
+
+          return (
+            <div className="flex justify-center">
+              <span className="text-sm font-medium flex items-center text-gray-700">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 text-blue-500 mr-1.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                {format(date, 'dd/MM/yyyy')}
+              </span>
+            </div>
+          );
+        } catch (error) {
+          return <div className="flex justify-center">Error de formato</div>;
+        }
+      },
     },
     {
       header: 'Serie',
@@ -394,9 +633,81 @@ export default function IngresosPage() {
       ),
     },
     {
+      header: 'Monto Flete',
+      accessor: 'montoFlete',
+      cell: (value) => (
+        <div className="flex justify-end">
+          <span className="font-mono text-green-700 font-medium">
+            S/.{' '}
+            {(value as number).toLocaleString('es-PE', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Detracción',
+      accessor: 'detraccion',
+      cell: (value) => (
+        <div className="flex justify-end">
+          <span className="font-mono text-gray-700">
+            S/.{' '}
+            {(value as number).toLocaleString('es-PE', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+      ),
+    },
+    {
+      header: 'Total a Deber',
+      accessor: 'totalDeber',
+      cell: (value) => {
+        const totalDeber = value as number;
+        const esNegativo = totalDeber < 0;
+        const esPositivo = totalDeber > 0;
+        const textColor = esNegativo ? 'text-red-600' : esPositivo ? 'text-green-600' : '';
+
+        return (
+          <div className="flex justify-end">
+            <span className={`font-mono ${textColor} font-medium`}>
+              S/.{' '}
+              {Math.abs(totalDeber).toLocaleString('es-PE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Total Monto',
+      accessor: 'totalMonto',
+      cell: (value) => (
+        <div className="flex justify-end">
+          <span className="font-mono text-blue-700 font-semibold">
+            S/.{' '}
+            {(value as number).toLocaleString('es-PE', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}
+          </span>
+        </div>
+      ),
+    },
+    {
       header: 'Empresa',
       accessor: 'empresa',
       cell: (value, row) => {
+        // Verificar que el valor existe
+        if (!value) {
+          return <div className="flex justify-center">-</div>;
+        }
+
         // Crear un avatar con la primera letra del nombre
         const inicial = (value as string).charAt(0).toUpperCase();
 
@@ -433,51 +744,6 @@ export default function IngresosPage() {
               />
             </svg>
             {value as string}
-          </span>
-        </div>
-      ),
-    },
-    {
-      header: 'Monto Flete',
-      accessor: 'montoFlete',
-      cell: (value) => (
-        <div className="flex justify-end">
-          <span className="font-mono text-green-700 font-medium">
-            S/.{' '}
-            {(value as number).toLocaleString('es-PE', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-      ),
-    },
-    {
-      header: 'Detracción',
-      accessor: 'detraccion',
-      cell: (value) => (
-        <div className="flex justify-end">
-          <span className="font-mono text-gray-700">
-            S/.{' '}
-            {(value as number).toLocaleString('es-PE', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-      ),
-    },
-    {
-      header: 'Total Monto',
-      accessor: 'totalMonto',
-      cell: (value) => (
-        <div className="flex justify-end">
-          <span className="font-mono text-blue-700 font-semibold">
-            S/.{' '}
-            {(value as number).toLocaleString('es-PE', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
           </span>
         </div>
       ),
@@ -831,6 +1097,21 @@ export default function IngresosPage() {
             : value,
       };
 
+      // Si cambia la serie, actualizar el formato del numeroFactura
+      if (name === 'serie') {
+        // Actualizar serie
+        newData.serie = value;
+
+        // Si ya hay un número de factura ingresado, actualizamos solo la parte numérica
+        if (prev.numeroFactura) {
+          const numeroActual = prev.numeroFactura.includes('-')
+            ? prev.numeroFactura.split('-')[1]
+            : prev.numeroFactura;
+
+          newData.numeroFactura = value ? `${value}-${numeroActual}` : numeroActual;
+        }
+      }
+
       // Si se actualiza primeraCuota o segundaCuota, recalcular montoFlete
       if (name === 'primeraCuota' || name === 'segundaCuota') {
         const primeraCuota =
@@ -885,6 +1166,45 @@ export default function IngresosPage() {
 
       return newData;
     });
+  };
+
+  // Función para buscar un viaje relacionado con los datos del ingreso
+  const buscarViajeRelacionado = async (
+    cliente_id: string | undefined,
+    conductor_id: string | undefined,
+    vehiculo_id: string | undefined
+  ): Promise<string | null> => {
+    try {
+      // Si no tenemos cliente, conductor o vehículo, no podemos relacionarlo con un viaje
+      if (!cliente_id || (!conductor_id && !vehiculo_id)) {
+        return null;
+      }
+
+      // Obtener todos los viajes
+      const viajes = await viajeService.getViajes();
+
+      // Filtrar viajes por cliente y conductor/vehículo
+      let viajesRelacionados = viajes.filter(
+        (viaje) =>
+          viaje.cliente_id === cliente_id &&
+          (viaje.conductor_id === conductor_id || viaje.vehiculo_id === vehiculo_id)
+      );
+
+      // Ordenar por fecha más reciente
+      viajesRelacionados.sort(
+        (a, b) => new Date(b.fecha_salida).getTime() - new Date(a.fecha_salida).getTime()
+      );
+
+      // Devolver el ID del viaje más reciente si existe
+      if (viajesRelacionados.length > 0) {
+        return viajesRelacionados[0].id;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error al buscar viaje relacionado:', error);
+      return null;
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -948,37 +1268,68 @@ export default function IngresosPage() {
         ? vehiculos.find((v) => v.placa === formData.placaCarreta)
         : null;
 
-      // Generar observación adicional para vehículos
-      let observacionVehiculos = '';
-      if (tracto && carreta) {
-        observacionVehiculos = `Tracto: ${tracto.placa}, Carreta: ${carreta.placa}`;
-      } else if (tracto) {
-        observacionVehiculos = `Tracto: ${tracto.placa}`;
-      } else if (carreta) {
-        observacionVehiculos = `Carreta: ${carreta.placa}`;
-      }
+      // Capturar la observación original del usuario
+      const observacionUsuario = formData.observacion || '';
 
-      // Combinar observaciones
-      const observacionFinal = formData.observacion
-        ? `${formData.observacion}${observacionVehiculos ? '. ' + observacionVehiculos : ''}`
-        : observacionVehiculos;
+      // Crear un objeto con datos estructurados para guardar en la base de datos
+      const datosEstructurados = {
+        // Datos financieros
+        montoFlete: formData.montoFlete || 0,
+        primeraCuota: formData.primeraCuota || 0,
+        segundaCuota: formData.segundaCuota || 0,
+        detraccion: formData.detraccion || 0,
+        totalDeber: formData.totalDeber || 0,
+        totalMonto: formData.totalMonto || 0,
+
+        // Datos de transporte
+        conductor: formData.conductor || '',
+        conductorId: conductor?.id || '',
+        placaTracto: formData.placaTracto || '',
+        tractoId: tracto?.id || '',
+        placaCarreta: formData.placaCarreta || '',
+        carretaId: carreta?.id || '',
+
+        // Documentos
+        documentoGuiaRemit: formData.documentoGuiaRemit || '',
+        guiaTransp: formData.guiaTransp || '',
+
+        // Otros datos
+        diasCredito: formData.diasCredito || 0,
+        fechaVencimiento: formData.fechaVencimiento || '',
+      };
+
+      // Convertir a JSON para guardar en el campo observaciones
+      const datosJSON = JSON.stringify(datosEstructurados);
+
+      // Crear la cadena de observaciones final con un separador claro
+      // Formato: ObservacionUsuario||| + JSON
+      const observacionesCompletas = observacionUsuario
+        ? `${observacionUsuario}|||${datosJSON}`
+        : datosJSON;
+
+      // Buscar un viaje relacionado
+      const viaje_id = await buscarViajeRelacionado(
+        cliente?.id,
+        conductor?.id,
+        tracto?.id || carreta?.id
+      );
 
       // Datos para Supabase
       const ingresoData: Partial<IngresoType> = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
         cliente_id: cliente?.id,
-        concepto: formData.observacion || 'Ingreso por flete',
+        concepto: observacionUsuario || 'Ingreso por flete',
         monto: formData.montoFlete || 0,
         metodo_pago: 'Transferencia',
-        numero_factura: formData.numeroFactura,
+        numero_factura: `${formData.serie}-${formData.numeroFactura}`,
         fecha_factura: formData.fecha || new Date().toISOString().split('T')[0],
         estado_factura: formData.estado || 'Pendiente',
-        observaciones: observacionFinal,
+        observaciones: observacionesCompletas,
       };
 
-      // Agregar datos adicionales en las observaciones para mantener referencia
-      if (conductor) {
-        ingresoData.observaciones = `${ingresoData.observaciones || ''}${ingresoData.observaciones ? '. ' : ''}Conductor: ${conductor.nombres} ${conductor.apellidos}`;
+      // Agregar viaje_id si existe
+      if (viaje_id) {
+        ingresoData.viaje_id = viaje_id;
       }
 
       if (formData.id && typeof formData.id === 'string') {
@@ -1159,6 +1510,18 @@ export default function IngresosPage() {
               type="text"
               name="numeroFactura"
               value={formData.numeroFactura}
+              onChange={handleInputChange}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Observación</label>
+            <input
+              type="text"
+              name="observacion"
+              value={formData.observacion}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               required
@@ -1397,17 +1760,6 @@ export default function IngresosPage() {
               name="guiaTransp"
               value={formData.guiaTransp}
               onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <label className="block text-sm font-medium text-gray-700">Observación</label>
-            <textarea
-              name="observacion"
-              value={formData.observacion}
-              onChange={handleInputChange}
-              rows={2}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
           </div>

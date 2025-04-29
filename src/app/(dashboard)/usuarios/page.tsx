@@ -22,6 +22,13 @@ import { toast } from '@/hooks/use-toast';
 import supabase from '@/lib/supabase';
 import { UserRole, User } from '@/types/users';
 import { hashPassword, validatePasswordComplexity } from '@/lib/authUtils';
+import {
+  ActionButtonGroup,
+  EditButton,
+  DeleteButton,
+  ActivateButton,
+  DeactivateButton,
+} from '@/components/ActionIcons';
 
 export default function UsuariosPage() {
   // Estados
@@ -428,23 +435,34 @@ export default function UsuariosPage() {
         return;
       }
 
-      // Eliminar de Supabase
-      const { error } = await supabase.from('usuarios').delete().eq('id', userId);
+      // Usar la función RPC para eliminar el usuario y sus relaciones
+      const { data, error } = await supabase.rpc('eliminar_usuario_completo', {
+        id_usuario: userId,
+      });
 
       if (error) throw error;
 
-      // Actualizar estado local
-      setUsers((prev) => prev.filter((user) => user.id !== userId));
+      if (data) {
+        // Actualizar estado local
+        setUsers((prev) => prev.filter((user) => user.id !== userId));
 
-      toast({
-        title: 'Usuario eliminado',
-        description: 'El usuario ha sido eliminado correctamente',
-      });
+        toast({
+          title: 'Usuario eliminado',
+          description: 'El usuario ha sido eliminado correctamente',
+        });
+      } else {
+        toast({
+          title: 'Aviso',
+          description: 'No se encontró el usuario para eliminar',
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
       console.error('Error al eliminar usuario:', error);
       toast({
         title: 'Error',
-        description: 'No se pudo eliminar el usuario',
+        description:
+          'No se pudo eliminar el usuario. Verifica que no tenga registros relacionados.',
         variant: 'destructive',
       });
     }
@@ -558,31 +576,36 @@ export default function UsuariosPage() {
                         })
                       : 'N/A'}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    <button
-                      onClick={() => handleOpenDialog(user)}
-                      className="text-indigo-600 hover:text-indigo-900"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleOpenPasswordDialog(user)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      Cambiar Contraseña
-                    </button>
-                    <button
-                      onClick={() => handleToggleActive(user.id)}
-                      className={`${user.active ? 'text-orange-600 hover:text-orange-900' : 'text-green-600 hover:text-green-900'}`}
-                    >
-                      {user.active ? 'Desactivar' : 'Activar'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Eliminar
-                    </button>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <ActionButtonGroup>
+                      <EditButton onClick={() => handleOpenDialog(user)} />
+                      <DeleteButton onClick={() => handleDeleteUser(user.id)} />
+                      {user.active ? (
+                        <DeactivateButton onClick={() => handleToggleActive(user.id)} />
+                      ) : (
+                        <ActivateButton onClick={() => handleToggleActive(user.id)} />
+                      )}
+                      <CustomButton
+                        onClick={() => handleOpenPasswordDialog(user)}
+                        className="bg-blue-100 text-blue-700 hover:bg-blue-200 px-2 py-1 rounded-md"
+                        size="sm"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                          />
+                        </svg>
+                      </CustomButton>
+                    </ActionButtonGroup>
                   </td>
                 </tr>
               ))}

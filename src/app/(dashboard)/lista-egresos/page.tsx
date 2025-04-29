@@ -137,9 +137,7 @@ export default function ListaEgresosPage() {
   const [showFormEmpresas, setShowFormEmpresas] = useState(false);
   const [formDataEmpresas, setFormDataEmpresas] = useState<Partial<Empresa>>({
     nombre: '',
-    ruc_dni: '',
     cuenta_abonada: '',
-    fecha_creacion: new Date().toISOString().split('T')[0],
   });
 
   // Estado para el formulario de Tipos de Egreso
@@ -183,9 +181,23 @@ export default function ListaEgresosPage() {
     {
       header: 'Fecha Creación',
       accessor: 'fecha_creacion',
-      cell: (value: unknown) => (
-        <div className="text-center">{format(new Date(value as string), 'dd/MM/yyyy')}</div>
-      ),
+      cell: (value: unknown) => {
+        // Verificar que el valor existe y es una fecha válida
+        if (!value) {
+          return <div className="text-center">-</div>;
+        }
+
+        try {
+          const date = new Date(value as string);
+          if (isNaN(date.getTime())) {
+            return <div className="text-center">Fecha inválida</div>;
+          }
+
+          return <div className="text-center">{format(date, 'dd/MM/yyyy')}</div>;
+        } catch (error) {
+          return <div className="text-center">Error de formato</div>;
+        }
+      },
     },
     {
       header: 'Acciones',
@@ -207,21 +219,9 @@ export default function ListaEgresosPage() {
       cell: (value: unknown) => <div className="text-center">{value as string}</div>,
     },
     {
-      header: 'RUC/DNI',
-      accessor: 'ruc_dni',
-      cell: (value: unknown) => <div className="text-center">{value as string}</div>,
-    },
-    {
       header: 'Cuenta Abonada',
       accessor: 'cuenta_abonada',
       cell: (value: unknown) => <div className="text-center">{value as string}</div>,
-    },
-    {
-      header: 'Fecha Creación',
-      accessor: 'fecha_creacion',
-      cell: (value: unknown) => (
-        <div className="text-center">{format(new Date(value as string), 'dd/MM/yyyy')}</div>
-      ),
     },
     {
       header: 'Acciones',
@@ -245,9 +245,23 @@ export default function ListaEgresosPage() {
     {
       header: 'Fecha Creación',
       accessor: 'fecha_creacion',
-      cell: (value: unknown) => (
-        <div className="text-center">{format(new Date(value as string), 'dd/MM/yyyy')}</div>
-      ),
+      cell: (value: unknown) => {
+        // Verificar que el valor existe y es una fecha válida
+        if (!value) {
+          return <div className="text-center">-</div>;
+        }
+
+        try {
+          const date = new Date(value as string);
+          if (isNaN(date.getTime())) {
+            return <div className="text-center">Fecha inválida</div>;
+          }
+
+          return <div className="text-center">{format(date, 'dd/MM/yyyy')}</div>;
+        } catch (error) {
+          return <div className="text-center">Error de formato</div>;
+        }
+      },
     },
     {
       header: 'Acciones',
@@ -271,9 +285,23 @@ export default function ListaEgresosPage() {
     {
       header: 'Fecha Creación',
       accessor: 'fecha_creacion',
-      cell: (value: unknown) => (
-        <div className="text-center">{format(new Date(value as string), 'dd/MM/yyyy')}</div>
-      ),
+      cell: (value: unknown) => {
+        // Verificar que el valor existe y es una fecha válida
+        if (!value) {
+          return <div className="text-center">-</div>;
+        }
+
+        try {
+          const date = new Date(value as string);
+          if (isNaN(date.getTime())) {
+            return <div className="text-center">Fecha inválida</div>;
+          }
+
+          return <div className="text-center">{format(date, 'dd/MM/yyyy')}</div>;
+        } catch (error) {
+          return <div className="text-center">Error de formato</div>;
+        }
+      },
     },
     {
       header: 'Acciones',
@@ -390,9 +418,7 @@ export default function ListaEgresosPage() {
     try {
       const empresaDatos = {
         nombre: formDataEmpresas.nombre || '',
-        ruc_dni: formDataEmpresas.ruc_dni || '',
         cuenta_abonada: formDataEmpresas.cuenta_abonada || '',
-        fecha_creacion: formDataEmpresas.fecha_creacion || new Date().toISOString().split('T')[0],
       };
 
       if (formDataEmpresas.id) {
@@ -412,9 +438,7 @@ export default function ListaEgresosPage() {
       // Limpiar formulario
       setFormDataEmpresas({
         nombre: '',
-        ruc_dni: '',
         cuenta_abonada: '',
-        fecha_creacion: new Date().toISOString().split('T')[0],
       });
 
       setShowFormEmpresas(false);
@@ -797,9 +821,7 @@ export default function ListaEgresosPage() {
               onClick={() => {
                 setFormDataEmpresas({
                   nombre: '',
-                  ruc_dni: '',
                   cuenta_abonada: '',
-                  fecha_creacion: new Date().toISOString().split('T')[0],
                 });
                 setShowFormEmpresas(true);
               }}
@@ -830,35 +852,11 @@ export default function ListaEgresosPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700">RUC/DNI</label>
-                <input
-                  type="text"
-                  name="ruc_dni"
-                  value={formDataEmpresas.ruc_dni || ''}
-                  onChange={handleInputChangeEmpresas}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
                 <label className="block text-sm font-medium text-gray-700">Cuenta Abonada</label>
                 <input
                   type="text"
                   name="cuenta_abonada"
                   value={formDataEmpresas.cuenta_abonada || ''}
-                  onChange={handleInputChangeEmpresas}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Fecha de Creación</label>
-                <input
-                  type="date"
-                  name="fecha_creacion"
-                  value={formDataEmpresas.fecha_creacion || ''}
                   onChange={handleInputChangeEmpresas}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   required

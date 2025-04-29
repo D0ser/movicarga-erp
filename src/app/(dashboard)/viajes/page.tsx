@@ -494,32 +494,38 @@ export default function ViajesPage() {
     {
       header: 'Acciones',
       accessor: 'id',
-      cell: (value: unknown, row: Viaje) => (
+      cell: (_, row) => (
         <ActionButtonGroup>
-          <EditButton onClick={() => handleEdit(row)} />
-          <DeleteButton onClick={() => handleDelete(row.id)} />
-          <ActionButton
-            onClick={() => handleChangeStatus(row.id)}
-            title="Cambiar estado"
-            bgColor="bg-purple-100"
-            textColor="text-purple-700"
-            hoverColor="bg-purple-200"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          <EditPermission>
+            <EditButton onClick={() => handleEdit(row)} />
+          </EditPermission>
+          <DeletePermission>
+            <DeleteButton onClick={() => handleDelete(row.id)} />
+          </DeletePermission>
+          <EditPermission>
+            <ActionButton
+              onClick={() => handleChangeStatus(row.id)}
+              title="Cambiar estado"
+              bgColor="bg-purple-100"
+              textColor="text-purple-700"
+              hoverColor="bg-purple-200"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-              />
-            </svg>
-          </ActionButton>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                />
+              </svg>
+            </ActionButton>
+          </EditPermission>
         </ActionButtonGroup>
       ),
     },

@@ -20,6 +20,7 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Loading } from '@/components/ui/loading';
+import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -73,14 +74,21 @@ interface Detraccion extends DataItem {
   };
 }
 
+interface TipoCliente {
+  id: string;
+  nombre: string;
+  descripcion?: string;
+}
+
 export default function DetraccionesPage() {
   // Usar datos de Supabase
   const [detracciones, setDetracciones] = useState<Detraccion[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [csvOrigenes, setCsvOrigenes] = useState<string[]>([]);
+  const [csvOrigenes, setCsvOrigenes] = useState<{ origen: string; año: number }[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [selectedCsvOrigen, setSelectedCsvOrigen] = useState<string>('');
+  const [tiposCliente, setTiposCliente] = useState<TipoCliente[]>([]);
 
   // Estado para el formulario de importación CSV
   const [showImportForm, setShowImportForm] = useState(false);
@@ -119,110 +127,33 @@ export default function DetraccionesPage() {
 
   // Cargar datos de detracciones desde Supabase
   useEffect(() => {
-    const fetchDetracciones = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Verificar primero la conexión a Supabase
-        const connectionResult = await testConnection();
-        if (!connectionResult.success) {
-          setError(
-            `Error de conexión a Supabase: ${connectionResult.message}. Verifique su conexión a internet o contacte al administrador.`
-          );
-
-          // Cargar datos de respaldo solo en caso de error
-          setDetracciones([
-            {
-              id: '1',
-              cliente_id: '1',
-              fecha_deposito: '2025-03-05',
-              numero_constancia: 'DET-001-2025',
-              monto: 250.5,
-              porcentaje: 4.0,
-              estado: 'Pendiente',
-              observaciones: 'Detracción por servicio de transporte',
-              ruc_proveedor: '20123456789',
-              nombre_proveedor: 'Transportes S.A.',
-              tipo_comprobante: 'Factura',
-              cliente: {
-                razon_social: 'Transportes S.A.',
-                ruc: '20123456789',
-              },
-            },
-            {
-              id: '2',
-              cliente_id: '2',
-              fecha_deposito: '2025-03-12',
-              numero_constancia: 'DET-002-2025',
-              monto: 320.0,
-              porcentaje: 4.0,
-              estado: 'Pendiente',
-              observaciones: 'Detracción por flete Lima-Arequipa',
-              ruc_proveedor: '20987654321',
-              nombre_proveedor: 'Logística Express',
-              tipo_comprobante: 'Factura',
-              cliente: {
-                razon_social: 'Logística Express',
-                ruc: '20987654321',
-              },
-            },
-          ]);
-          return;
-        }
-
-        // Si la conexión es exitosa, cargar datos reales
+        // Cargar detracciones
         const data = await detraccionService.getDetracciones();
         setDetracciones(data);
-        setError(null);
 
-        // Cargar orígenes CSV
-        const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
-        setCsvOrigenes(origenes as string[]);
+        // Cargar tipos de cliente
+        const { data: tiposClienteData, error: tiposError } = await supabase
+          .from('tipo_cliente')
+          .select('*')
+          .order('nombre');
+
+        if (tiposError) throw tiposError;
+        setTiposCliente(tiposClienteData);
+
+        // Actualizar orígenes CSV con años
+        actualizarOrigenesCsv(data);
       } catch (err) {
-        setError('Error al cargar las detracciones. Por favor, inténtelo de nuevo.');
-        // Datos de respaldo en caso de error
-        setDetracciones([
-          {
-            id: '1',
-            cliente_id: '1',
-            fecha_deposito: '2025-03-05',
-            numero_constancia: 'DET-001-2025',
-            monto: 250.5,
-            porcentaje: 4.0,
-            estado: 'Pendiente',
-            observaciones: 'Detracción por servicio de transporte',
-            ruc_proveedor: '20123456789',
-            nombre_proveedor: 'Transportes S.A.',
-            tipo_comprobante: 'Factura',
-            cliente: {
-              razon_social: 'Transportes S.A.',
-              ruc: '20123456789',
-            },
-          },
-          {
-            id: '2',
-            cliente_id: '2',
-            fecha_deposito: '2025-03-12',
-            numero_constancia: 'DET-002-2025',
-            monto: 320.0,
-            porcentaje: 4.0,
-            estado: 'Pendiente',
-            observaciones: 'Detracción por flete Lima-Arequipa',
-            ruc_proveedor: '20987654321',
-            nombre_proveedor: 'Logística Express',
-            tipo_comprobante: 'Factura',
-            cliente: {
-              razon_social: 'Logística Express',
-              ruc: '20987654321',
-            },
-          },
-        ]);
+        setError('Error al cargar los datos. Por favor, inténtelo de nuevo.');
+        console.error('Error:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDetracciones();
+    fetchData();
   }, []);
 
   // Columnas para la tabla de detracciones
@@ -491,15 +422,49 @@ export default function DetraccionesPage() {
       accessor: 'id',
       cell: (value: unknown, row: Detraccion) => (
         <ActionButtonGroup>
-          <DeleteButton onClick={() => handleDelete(value as string)} />
+          <DeletePermission>
+            <DeleteButton onClick={() => handleDelete(value as string)} />
+          </DeletePermission>
         </ActionButtonGroup>
       ),
     },
   ];
 
+  // Función para actualizar la lista de orígenes CSV desde la base de datos
+  const actualizarOrigenesCsvDesdeDB = async () => {
+    try {
+      const data = await detraccionService.getDetracciones();
+      if (data && data.length > 0) {
+        actualizarOrigenesCsv(data);
+      }
+    } catch (error) {
+      // Manejar silenciosamente, no interrumpir la UI por esto
+    }
+  };
+
   // Función para actualizar la lista de orígenes CSV según las detracciones existentes
   const actualizarOrigenesCsv = (listaDetracciones: Detraccion[]) => {
-    const origenes = [...new Set(listaDetracciones.map((d) => d.origen_csv).filter(Boolean))];
+    // Agrupar detracciones por origen_csv y obtener el año más reciente para cada grupo
+    const origenesConAño = listaDetracciones
+      .filter((d) => d.origen_csv)
+      .reduce(
+        (acc, det) => {
+          const origen = det.origen_csv as string;
+          if (!acc[origen]) {
+            // Obtener el año de la fecha de pago o depósito
+            const fecha = new Date(det.fecha_pago || det.fecha_deposito);
+            acc[origen] = fecha.getFullYear();
+          }
+          return acc;
+        },
+        {} as { [key: string]: number }
+      );
+
+    // Convertir a array y ordenar por año descendente
+    const origenes = Object.entries(origenesConAño)
+      .sort((a, b) => b[1] - a[1]) // Ordenar por año descendente
+      .map(([origen, año]) => ({ origen, año }));
+
     setCsvOrigenes(origenes);
   };
 
@@ -553,9 +518,19 @@ export default function DetraccionesPage() {
         return;
       }
 
-      // Establecer descripción dinámica
+      // Obtener la fecha más reciente de las detracciones
+      const fechaMasReciente = detracionesAEliminar.reduce((fechaMax, det) => {
+        const fechaDet = new Date(det.fecha_pago || det.fecha_deposito);
+        return fechaDet > fechaMax ? fechaDet : fechaMax;
+      }, new Date(0));
+
+      // Formatear la fecha para mostrar año y mes
+      const año = fechaMasReciente.getFullYear();
+      const mes = fechaMasReciente.toLocaleString('es-ES', { month: 'long' });
+
+      // Establecer descripción dinámica con la fecha
       deleteCsvConfirm.open({
-        description: `¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}"?`,
+        description: `¿Está seguro de que desea eliminar las ${detracionesAEliminar.length} detracciones del archivo "${origen}" correspondientes a ${mes} ${año}?`,
       });
 
       // Esperar por la confirmación
@@ -591,7 +566,7 @@ export default function DetraccionesPage() {
         setSelectedCsvOrigen('');
         toast({
           title: 'Éxito',
-          description: `Se eliminaron las detracciones del archivo "${origen}" con éxito.`,
+          description: `Se eliminaron las detracciones del archivo "${origen}" correspondientes a ${mes} ${año} con éxito.`,
           variant: 'default',
           className: 'bg-green-600 text-white',
         });
@@ -707,24 +682,29 @@ export default function DetraccionesPage() {
           // Formatear fechas
           if (detraccion.fecha_pago) {
             try {
-              const fechaPago = new Date(detraccion.fecha_pago);
+              // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD
+              const [day, month, year] = detraccion.fecha_pago.split('/');
+              const fechaPago = new Date(`${year}-${month}-${day}`);
               if (!isNaN(fechaPago.getTime())) {
                 detraccion.fecha_pago = fechaPago.toISOString().split('T')[0];
               }
             } catch (e) {
-              detraccion.fecha_pago = null as any;
+              console.error('Error al formatear fecha_pago:', e);
             }
           }
 
           if (detraccion.fecha_deposito) {
             try {
-              const fechaDeposito = new Date(detraccion.fecha_deposito);
+              // Convertir fecha de DD/MM/YYYY a YYYY-MM-DD
+              const [day, month, year] = detraccion.fecha_deposito.split('/');
+              const fechaDeposito = new Date(`${year}-${month}-${day}`);
               if (!isNaN(fechaDeposito.getTime())) {
                 detraccion.fecha_deposito = fechaDeposito.toISOString().split('T')[0];
               } else {
                 detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
               }
             } catch (e) {
+              console.error('Error al formatear fecha_deposito:', e);
               detraccion.fecha_deposito = new Date().toISOString().split('T')[0];
             }
           }
@@ -747,17 +727,19 @@ export default function DetraccionesPage() {
                 // Crear un nuevo cliente si no existe
                 try {
                   // Determinar el tipo de cliente según el RUC
-                  const tipoCliente = detraccion.numero_documento_adquiriente.startsWith('1')
-                    ? 'Persona Natural'
-                    : detraccion.numero_documento_adquiriente.startsWith('2')
-                      ? 'Empresa'
-                      : 'Sin especificar';
+                  const tipoClienteId = detraccion.numero_documento_adquiriente?.startsWith('1')
+                    ? tiposCliente.find((t: TipoCliente) => t.nombre === 'Persona Natural')?.id
+                    : tiposCliente.find((t: TipoCliente) => t.nombre === 'Empresa')?.id;
+
+                  if (!tipoClienteId) {
+                    throw new Error('No se pudo determinar el tipo de cliente');
+                  }
 
                   // Preparar datos del nuevo cliente
                   const nuevoClienteData = {
                     razon_social: detraccion.nombre_razon_social_adquiriente || 'Sin especificar',
                     ruc: detraccion.numero_documento_adquiriente,
-                    tipo_cliente: tipoCliente,
+                    tipo_cliente_id: tipoClienteId,
                     fecha_registro: new Date().toISOString().split('T')[0],
                     estado: true,
                   };
@@ -775,7 +757,7 @@ export default function DetraccionesPage() {
                     clienteId = nuevoCliente.id;
                     toast({
                       title: 'Cliente creado',
-                      description: `Se ha creado automáticamente el cliente ${nuevoClienteData.razon_social} (${tipoCliente})`,
+                      description: `Se ha creado automáticamente el cliente ${nuevoClienteData.razon_social}`,
                       variant: 'default',
                       className: 'bg-green-600 text-white',
                     });
@@ -854,11 +836,11 @@ export default function DetraccionesPage() {
 
       if (importedDetracciones.length > 0) {
         // Actualizar el estado con las nuevas detracciones
-        setDetracciones([...detracciones, ...importedDetracciones]);
+        const nuevasDetracciones = [...detracciones, ...importedDetracciones];
+        setDetracciones(nuevasDetracciones);
 
         // Actualizar la lista de orígenes CSV
-        const nuevosOrigenes = [...new Set([...csvOrigenes, nombreArchivoCsv])];
-        setCsvOrigenes(nuevosOrigenes);
+        actualizarOrigenesCsv(nuevasDetracciones);
 
         // Cerrar el formulario de importación y limpiar
         setShowImportForm(false);
@@ -889,19 +871,6 @@ export default function DetraccionesPage() {
     }
   };
 
-  // Función para actualizar la lista de orígenes CSV desde la base de datos
-  const actualizarOrigenesCsvDesdeDB = async () => {
-    try {
-      const data = await detraccionService.getDetracciones();
-      if (data && data.length > 0) {
-        const origenes = [...new Set(data.filter((d) => d.origen_csv).map((d) => d.origen_csv))];
-        setCsvOrigenes(origenes as string[]);
-      }
-    } catch (error) {
-      // Manejar silenciosamente, no interrumpir la UI por esto
-    }
-  };
-
   return (
     <div className="p-4 space-y-6">
       {error && (
@@ -912,23 +881,25 @@ export default function DetraccionesPage() {
 
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Gestión de Detracciones</h1>
-        {hasPermission(PermissionType.CREATE) && (
-          <div className="flex space-x-2">
+        <div className="flex space-x-2">
+          <CreatePermission>
             <button
               onClick={() => setShowImportForm(!showImportForm)}
               className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
             >
               Importar CSV
             </button>
+          </CreatePermission>
 
+          <DeletePermission>
             <button
               onClick={() => setShowDeleteModal(true)}
               className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
             >
               Eliminar por CSV
             </button>
-          </div>
-        )}
+          </DeletePermission>
+        </div>
       </div>
 
       {/* Modal para importación CSV */}
@@ -1069,9 +1040,9 @@ export default function DetraccionesPage() {
                     className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Seleccione un archivo</option>
-                    {csvOrigenes.map((origen) => (
-                      <option key={origen} value={origen}>
-                        {origen}
+                    {csvOrigenes.map((item) => (
+                      <option key={item.origen} value={item.origen}>
+                        {item.origen} ({item.año})
                       </option>
                     ))}
                   </select>

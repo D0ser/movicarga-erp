@@ -4,61 +4,114 @@ import { useState, useEffect } from 'react';
 import DataTable, { DataItem, Column } from '@/components/DataTable';
 import { format } from 'date-fns';
 import { egresoSinFacturaService, EgresoSinFactura } from '@/lib/supabaseServices';
+import { tipoEgresoSFService, TipoEgresoSF } from '@/lib/supabaseServices';
 import notificationService from '@/components/notifications/NotificationService';
 import { EditButton, DeleteButton, ActionButtonGroup } from '@/components/ActionIcons';
 import Modal from '@/components/Modal';
 import { usePermissions, PermissionType } from '@/hooks/use-permissions';
 import { Loading } from '@/components/ui/loading';
+import supabase from '@/lib/supabase';
+import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
 
 export default function EgresosSinFacturaPage() {
   // Cargar datos de Supabase
   const [egresosSinFactura, setEgresosSinFactura] = useState<EgresoSinFactura[]>([]);
+  const [tiposEgresoSF, setTiposEgresoSF] = useState<TipoEgresoSF[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estado para permisos
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole, isLoading } = usePermissions();
 
   const [formLoading, setFormLoading] = useState(false);
 
+  // Estado para autenticación
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authDebugInfo, setAuthDebugInfo] = useState<any>(null);
+
+  // Verificar autenticación al cargar el componente
   useEffect(() => {
-    async function cargarEgresos() {
+    const checkAuth = async () => {
+      // Obtener sesión de Supabase
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      // Obtener información del usuario desde localStorage
+      let userFromLocalStorage = null;
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          userFromLocalStorage = JSON.parse(userStr);
+        }
+      } catch (error) {
+        console.error('Error al leer datos de usuario:', error);
+      }
+
+      // Considerar autenticado si hay sesión de Supabase O si hay un usuario en localStorage
+      const isAuth = !!session || !!userFromLocalStorage;
+      setIsAuthenticated(isAuth);
+
+      // Guardar información de depuración (solo para referencia, no se muestra)
+      setAuthDebugInfo({
+        session: session ? 'Existe' : 'No existe',
+        userRole,
+        userFromLocalStorage: userFromLocalStorage
+          ? JSON.stringify(userFromLocalStorage)
+          : 'No existe',
+        hasPermissionView: hasPermission(PermissionType.VIEW),
+        hasPermissionCreate: hasPermission(PermissionType.CREATE),
+        isAuthenticatedFinal: isAuth,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Suscribirse a cambios en la autenticación
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange((_event, newSession) => {
+        setIsAuthenticated(!!newSession || !!userFromLocalStorage);
+      });
+
+      return () => subscription.unsubscribe();
+    };
+
+    checkAuth();
+  }, [hasPermission, userRole]);
+
+  useEffect(() => {
+    async function cargarDatos() {
       try {
         setLoading(true);
-        const data = await egresoSinFacturaService.getEgresosSinFactura();
-        setEgresosSinFactura(data);
+        const [egresosData, tiposData] = await Promise.all([
+          egresoSinFacturaService.getEgresosSinFactura(),
+          tipoEgresoSFService.getTiposEgresoSF(),
+        ]);
+        setEgresosSinFactura(egresosData);
+        setTiposEgresoSF(tiposData);
       } catch (error) {
-        console.error('Error al cargar egresos sin factura:', error);
-        notificationService.error(
-          'No se pudieron cargar los egresos sin factura. Inténtelo de nuevo más tarde.'
-        );
+        console.error('Error al cargar datos:', error);
+        notificationService.error('No se pudieron cargar los datos. Inténtelo de nuevo más tarde.');
       } finally {
         setLoading(false);
       }
     }
 
-    cargarEgresos();
+    cargarDatos();
   }, []);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<EgresoSinFactura>>({
-    fecha: new Date().toISOString().split('T')[0],
-    beneficiario: '',
-    concepto: '',
     monto: 0,
-    metodo_pago: 'Efectivo',
-    observaciones: '',
     moneda: 'PEN',
-    numeroCheque: '',
-    numeroLiquidacion: '',
-    tipoEgreso: '',
-    comprobante: '',
+    numero_cheque: '',
+    numero_liquidacion: '',
+    tipo_egreso: '',
   });
 
   // Columnas para la tabla de egresos sin factura
   const columns: Column<EgresoSinFactura>[] = [
     {
       header: 'N° Cheque',
-      accessor: 'numeroCheque',
+      accessor: 'numero_cheque',
       cell: (value) => (
         <div className="flex justify-center">
           {value ? (
@@ -87,7 +140,7 @@ export default function EgresosSinFacturaPage() {
     },
     {
       header: 'N° Liquidación',
-      accessor: 'numeroLiquidacion',
+      accessor: 'numero_liquidacion',
       cell: (value) => (
         <div className="flex justify-center">
           {value ? (
@@ -116,7 +169,7 @@ export default function EgresosSinFacturaPage() {
     },
     {
       header: 'Tipo de Egreso',
-      accessor: 'tipoEgreso',
+      accessor: 'tipo_egreso',
       cell: (value) => {
         const tipoEgreso = value as string;
 
@@ -236,66 +289,16 @@ export default function EgresosSinFacturaPage() {
       ),
     },
     {
-      header: 'Fecha',
-      accessor: 'fecha',
-      cell: (value) => (
-        <div className="flex justify-center">
-          <span className="text-sm font-medium flex items-center text-gray-700">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 text-blue-500 mr-1.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              />
-            </svg>
-            {format(new Date(value as string), 'dd/MM/yyyy')}
-          </span>
-        </div>
-      ),
-    },
-    {
-      header: 'Observación',
-      accessor: 'observacion',
-      cell: (value) => (
-        <div className="flex justify-center">
-          {(value as string) ? (
-            <div className="max-w-xs truncate text-sm text-gray-600">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 inline text-gray-400 mr-1"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                />
-              </svg>
-              {value as string}
-            </div>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </div>
-      ),
-    },
-    {
       header: 'Acciones',
       accessor: 'id',
       cell: (value, row) => (
         <ActionButtonGroup>
-          <EditButton onClick={() => handleEdit(row)} />
-          <DeleteButton onClick={() => handleDelete(value as string)} />
+          <EditPermission>
+            <EditButton onClick={() => handleEdit(row)} />
+          </EditPermission>
+          <DeletePermission>
+            <DeleteButton onClick={() => handleDelete(value as string)} />
+          </DeletePermission>
         </ActionButtonGroup>
       ),
     },
@@ -314,6 +317,12 @@ export default function EgresosSinFacturaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Aún verificamos autenticación pero consideramos localStorage también
+    if (!isAuthenticated) {
+      notificationService.error('Debe iniciar sesión para realizar esta operación');
+      return;
+    }
+
     try {
       setFormLoading(true);
       notificationService.loading('Guardando egreso sin factura...');
@@ -323,18 +332,12 @@ export default function EgresosSinFacturaPage() {
         const egresoActualizado = await egresoSinFacturaService.updateEgresoSinFactura(
           formData.id.toString(),
           {
-            fecha: formData.fecha || new Date().toISOString().split('T')[0],
-            beneficiario: formData.beneficiario || '',
-            concepto: formData.concepto || '',
             monto: formData.monto || 0,
-            metodo_pago: formData.metodo_pago || 'Efectivo',
-            observaciones: formData.observaciones || '',
             moneda: formData.moneda || 'PEN',
-            numeroCheque: formData.numeroCheque || '',
-            numeroLiquidacion: formData.numeroLiquidacion || '',
-            tipoEgreso: formData.tipoEgreso || '',
-            categoria: formData.tipoEgreso || 'Operativo',
-            comprobante: formData.comprobante || '',
+            numero_cheque: formData.numero_cheque || '',
+            numero_liquidacion: formData.numero_liquidacion || '',
+            tipo_egreso: formData.tipo_egreso || '',
+            categoria: formData.tipo_egreso || 'Operativo',
           }
         );
 
@@ -346,18 +349,12 @@ export default function EgresosSinFacturaPage() {
       } else {
         // Crear nuevo egreso
         const nuevoEgreso = await egresoSinFacturaService.createEgresoSinFactura({
-          fecha: formData.fecha || new Date().toISOString().split('T')[0],
-          beneficiario: formData.beneficiario || '',
-          concepto: formData.concepto || '',
           monto: formData.monto || 0,
-          metodo_pago: formData.metodo_pago || 'Efectivo',
-          observaciones: formData.observaciones || '',
           moneda: formData.moneda || 'PEN',
-          numeroCheque: formData.numeroCheque || '',
-          numeroLiquidacion: formData.numeroLiquidacion || '',
-          tipoEgreso: formData.tipoEgreso || '',
-          categoria: formData.tipoEgreso || 'Operativo',
-          comprobante: formData.comprobante || '',
+          numero_cheque: formData.numero_cheque || '',
+          numero_liquidacion: formData.numero_liquidacion || '',
+          tipo_egreso: formData.tipo_egreso || '',
+          categoria: formData.tipo_egreso || 'Operativo',
         });
 
         setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);
@@ -365,17 +362,11 @@ export default function EgresosSinFacturaPage() {
 
       // Limpiar formulario
       setFormData({
-        fecha: new Date().toISOString().split('T')[0],
-        beneficiario: '',
-        concepto: '',
         monto: 0,
-        metodo_pago: 'Efectivo',
-        observaciones: '',
         moneda: 'PEN',
-        numeroCheque: '',
-        numeroLiquidacion: '',
-        tipoEgreso: '',
-        comprobante: '',
+        numero_cheque: '',
+        numero_liquidacion: '',
+        tipo_egreso: '',
       });
 
       setShowForm(false);
@@ -424,14 +415,14 @@ export default function EgresosSinFacturaPage() {
   const resumen = egresosSinFactura.reduce(
     (acc, egreso) => {
       // Agrupar por número de liquidación si existe
-      const numeroLiquidacion = egreso.numeroLiquidacion || 'Sin liquidación';
+      const numeroLiquidacion = egreso.numero_liquidacion || 'Sin liquidación';
       if (!acc.porLiquidacion[numeroLiquidacion]) {
         acc.porLiquidacion[numeroLiquidacion] = 0;
       }
       acc.porLiquidacion[numeroLiquidacion] += egreso.monto;
 
       // Agrupar por número de cheque si existe
-      const numeroCheque = egreso.numeroCheque || 'Sin cheque';
+      const numeroCheque = egreso.numero_cheque || 'Sin cheque';
       if (!acc.porCheque[numeroCheque]) {
         acc.porCheque[numeroCheque] = 0;
       }
@@ -465,294 +456,249 @@ export default function EgresosSinFacturaPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Egresos sin Factura</h1>
-        {hasPermission(PermissionType.CREATE) && (
-          <button
-            onClick={() => {
-              setFormData({
-                fecha: new Date().toISOString().split('T')[0],
-                beneficiario: '',
-                concepto: '',
-                monto: 0,
-                metodo_pago: 'Efectivo',
-                observaciones: '',
-                moneda: 'PEN',
-                numeroCheque: '',
-                numeroLiquidacion: '',
-                tipoEgreso: '',
-                comprobante: '',
-              });
-              setShowForm(true);
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-          >
-            Nuevo Egreso
-          </button>
-        )}
-      </div>
-
-      {/* Usar el componente Modal para el formulario */}
-      <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title={formData.id ? 'Editar Egreso sin Factura' : 'Nuevo Egreso sin Factura'}
-        size="lg"
-      >
-        <Loading isLoading={formLoading} overlay>
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Fecha</label>
-              <input
-                type="date"
-                name="fecha"
-                value={formData.fecha || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
+      {!isAuthenticated ? (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path
+                  fillRule="evenodd"
+                  d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Beneficiario</label>
-              <input
-                type="text"
-                name="beneficiario"
-                value={formData.beneficiario || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
+            <div className="ml-3">
+              <p className="text-sm text-yellow-700">
+                Debe iniciar sesión para acceder a esta funcionalidad
+              </p>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Método de Pago</label>
-              <select
-                name="metodo_pago"
-                value={formData.metodo_pago || 'Efectivo'}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="Efectivo">Efectivo</option>
-                <option value="Transferencia">Transferencia</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Tarjeta">Tarjeta</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Moneda</label>
-              <select
-                name="moneda"
-                value={formData.moneda || 'PEN'}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="PEN">Soles (PEN)</option>
-                <option value="USD">Dólares (USD)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Monto</label>
-              <input
-                type="number"
-                name="monto"
-                value={formData.monto || ''}
-                onChange={handleInputChange}
-                step="0.01"
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
-              <select
-                name="tipoEgreso"
-                value={formData.tipoEgreso || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Seleccione un tipo</option>
-                <option value="Viáticos">Viáticos</option>
-                <option value="Combustible">Combustible</option>
-                <option value="Mantenimiento">Mantenimiento</option>
-                <option value="Administrativo">Administrativo</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Número de Cheque</label>
-              <input
-                type="text"
-                name="numeroCheque"
-                value={formData.numeroCheque || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Número de Liquidación
-              </label>
-              <input
-                type="text"
-                name="numeroLiquidacion"
-                value={formData.numeroLiquidacion || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Comprobante</label>
-              <input
-                type="text"
-                name="comprobante"
-                value={formData.comprobante || ''}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div className="md:col-span-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Concepto/Observaciones
-              </label>
-              <textarea
-                name="concepto"
-                value={formData.concepto || ''}
-                onChange={handleInputChange}
-                rows={3}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              />
-            </div>
-
-            <div className="col-span-full mt-4 flex justify-end">
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Egresos sin Factura</h1>
+            <CreatePermission>
               <button
-                type="button"
-                onClick={() => setShowForm(false)}
-                className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
+                onClick={() => {
+                  setFormData({
+                    monto: 0,
+                    moneda: 'PEN',
+                    numero_cheque: '',
+                    numero_liquidacion: '',
+                    tipo_egreso: '',
+                  });
+                  setShowForm(true);
+                }}
                 className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
               >
-                {formData.id ? 'Actualizar' : 'Guardar'}
+                Nuevo Egreso
               </button>
-            </div>
-          </form>
-        </Loading>
-      </Modal>
+            </CreatePermission>
+          </div>
 
-      {/* Resumen de egresos sin factura */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-bold mb-3">Resumen por Liquidación</h2>
-          <div className="divide-y">
-            {Object.entries(resumen.porLiquidacion).length > 0 ? (
-              Object.entries(resumen.porLiquidacion).map(([liquidacion, monto]) => (
-                <div key={liquidacion} className="py-2 flex justify-between">
-                  <span className="font-medium">{liquidacion}</span>
-                  <span className="font-mono text-gray-700">
-                    S/.{' '}
-                    {monto.toLocaleString('es-PE', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
+          {/* Usar el componente Modal para el formulario */}
+          <Modal
+            isOpen={showForm}
+            onClose={() => setShowForm(false)}
+            title={formData.id ? 'Editar Egreso sin Factura' : 'Nuevo Egreso sin Factura'}
+            size="lg"
+          >
+            <Loading isLoading={formLoading} overlay>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Moneda</label>
+                  <select
+                    name="moneda"
+                    value={formData.moneda || 'PEN'}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="PEN">Soles (PEN)</option>
+                    <option value="USD">Dólares (USD)</option>
+                  </select>
                 </div>
-              ))
-            ) : (
-              <div className="py-2 text-gray-500 italic">
-                No hay datos de liquidación disponibles
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Monto</label>
+                  <input
+                    type="number"
+                    name="monto"
+                    value={formData.monto || ''}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Tipo de Egreso</label>
+                  <select
+                    name="tipo_egreso"
+                    value={formData.tipo_egreso || ''}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  >
+                    <option value="">Seleccione un tipo</option>
+                    {tiposEgresoSF.map((tipo) => (
+                      <option key={tipo.id} value={tipo.tipo}>
+                        {tipo.tipo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Número de Cheque
+                  </label>
+                  <input
+                    type="text"
+                    name="numero_cheque"
+                    value={formData.numero_cheque || ''}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Número de Liquidación
+                  </label>
+                  <input
+                    type="text"
+                    name="numero_liquidacion"
+                    value={formData.numero_liquidacion || ''}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="col-span-full mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowForm(false)}
+                    className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md mr-2 hover:bg-gray-400"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    {formData.id ? 'Actualizar' : 'Guardar'}
+                  </button>
+                </div>
+              </form>
+            </Loading>
+          </Modal>
+
+          {/* Resumen de egresos sin factura */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-bold mb-3">Resumen por Liquidación</h2>
+              <div className="divide-y">
+                {Object.entries(resumen.porLiquidacion).length > 0 ? (
+                  Object.entries(resumen.porLiquidacion).map(([liquidacion, monto]) => (
+                    <div key={liquidacion} className="py-2 flex justify-between">
+                      <span className="font-medium">{liquidacion}</span>
+                      <span className="font-mono text-gray-700">
+                        S/.{' '}
+                        {monto.toLocaleString('es-PE', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-2 text-gray-500 italic">
+                    No hay datos de liquidación disponibles
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-bold mb-3">Resumen por Cheque</h2>
-          <div className="divide-y">
-            {Object.entries(resumen.porCheque).length > 0 ? (
-              Object.entries(resumen.porCheque).map(([cheque, monto]) => (
-                <div key={cheque} className="py-2 flex justify-between">
-                  <span className="font-medium">{cheque}</span>
-                  <span className="font-mono text-gray-700">
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-bold mb-3">Resumen por Cheque</h2>
+              <div className="divide-y">
+                {Object.entries(resumen.porCheque).length > 0 ? (
+                  Object.entries(resumen.porCheque).map(([cheque, monto]) => (
+                    <div key={cheque} className="py-2 flex justify-between">
+                      <span className="font-medium">{cheque}</span>
+                      <span className="font-mono text-gray-700">
+                        S/.{' '}
+                        {monto.toLocaleString('es-PE', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-2 text-gray-500 italic">
+                    No hay datos de cheques disponibles
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow-md">
+              <h2 className="text-lg font-bold mb-3">Totales</h2>
+              <div className="divide-y">
+                <div className="py-2 flex justify-between">
+                  <span>Total:</span>
+                  <span className="font-mono font-medium">
                     S/.{' '}
-                    {monto.toLocaleString('es-PE', {
+                    {resumen.total.toLocaleString('es-PE', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </span>
                 </div>
-              ))
-            ) : (
-              <div className="py-2 text-gray-500 italic">No hay datos de cheques disponibles</div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-lg font-bold mb-3">Totales</h2>
-          <div className="divide-y">
-            <div className="py-2 flex justify-between">
-              <span>Total:</span>
-              <span className="font-mono font-medium">
-                S/.{' '}
-                {resumen.total.toLocaleString('es-PE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-            </div>
-            <div className="py-2 flex justify-between">
-              <span>IGV (18%):</span>
-              <span className="font-mono font-medium">
-                S/.{' '}
-                {igv.toLocaleString('es-PE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-            </div>
-            <div className="py-2 flex justify-between">
-              <span className="font-bold">Total con IGV:</span>
-              <span className="font-mono font-bold">
-                S/.{' '}
-                {(resumen.total + igv).toLocaleString('es-PE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
+                <div className="py-2 flex justify-between">
+                  <span>IGV (18%):</span>
+                  <span className="font-mono font-medium">
+                    S/.{' '}
+                    {igv.toLocaleString('es-PE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+                <div className="py-2 flex justify-between">
+                  <span className="font-bold">Total con IGV:</span>
+                  <span className="font-mono font-bold">
+                    S/.{' '}
+                    {(resumen.total + igv).toLocaleString('es-PE', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <Loading isLoading={loading}>
-        <DataTable
-          columns={columns}
-          data={egresosSinFactura}
-          title="Registro de Egresos sin Factura"
-          defaultSort="fecha"
-          filters={{
-            year: true,
-            month: true,
-            searchField: 'concepto',
-          }}
-        />
-      </Loading>
+          <Loading isLoading={loading}>
+            <DataTable
+              columns={columns}
+              data={egresosSinFactura}
+              title="Registro de Egresos sin Factura"
+              defaultSort="fecha"
+              filters={{
+                year: true,
+                month: true,
+                searchField: 'concepto',
+              }}
+            />
+          </Loading>
+        </>
+      )}
     </div>
   );
 }

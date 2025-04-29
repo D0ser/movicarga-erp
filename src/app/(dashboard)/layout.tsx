@@ -580,37 +580,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </li>
 
                   {/* Lista de Egresos */}
-                  <li
-                    className={`nav-item ${pathname.includes('/lista-egresos') ? 'nav-item-active' : ''}`}
-                  >
-                    <div className="nav-indicator"></div>
-                    <Link
-                      href="/lista-egresos"
-                      className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/lista-egresos') ? 'text-white' : 'text-gray-300'}`}
+                  {userRole !== UserRole.VIEWER && (
+                    <li
+                      className={`nav-item ${pathname.includes('/lista-egresos') ? 'nav-item-active' : ''}`}
                     >
-                      <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                          />
-                        </svg>
-                      </span>
-                      {isSidebarOpen && (
-                        <span className="ml-3 transition-opacity duration-200 font-medium">
-                          Lista de Egresos
+                      <div className="nav-indicator"></div>
+                      <Link
+                        href="/lista-egresos"
+                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/lista-egresos') ? 'text-white' : 'text-gray-300'}`}
+                      >
+                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                            />
+                          </svg>
                         </span>
-                      )}
-                    </Link>
-                  </li>
+                        {isSidebarOpen && (
+                          <span className="ml-3 transition-opacity duration-200 font-medium">
+                            Lista de Egresos
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  )}
 
                   {/* Egresos Sin Factura */}
                   <li
@@ -713,70 +715,74 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   </li>
 
                   {/* Vehículos */}
-                  <li
-                    className={`nav-item ${pathname.includes('/vehiculos') ? 'nav-item-active' : ''}`}
-                  >
-                    <div className="nav-indicator"></div>
-                    <Link
-                      href="/vehiculos"
-                      className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/vehiculos') ? 'text-white' : 'text-gray-300'}`}
+                  {userRole !== UserRole.VIEWER && (
+                    <li
+                      className={`nav-item ${pathname.includes('/vehiculos') ? 'nav-item-active' : ''}`}
                     >
-                      <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                          />
-                        </svg>
-                      </span>
-                      {isSidebarOpen && (
-                        <span className="ml-3 transition-opacity duration-200 font-medium">
-                          Vehículos
+                      <div className="nav-indicator"></div>
+                      <Link
+                        href="/vehiculos"
+                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/vehiculos') ? 'text-white' : 'text-gray-300'}`}
+                      >
+                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                            />
+                          </svg>
                         </span>
-                      )}
-                    </Link>
-                  </li>
+                        {isSidebarOpen && (
+                          <span className="ml-3 transition-opacity duration-200 font-medium">
+                            Vehículos
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  )}
 
                   {/* Otras Listas */}
-                  <li
-                    className={`nav-item ${pathname.includes('/otras-listas') ? 'nav-item-active' : ''}`}
-                  >
-                    <div className="nav-indicator"></div>
-                    <Link
-                      href="/otras-listas"
-                      className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/otras-listas') ? 'text-white' : 'text-gray-300'}`}
+                  {userRole !== UserRole.VIEWER && (
+                    <li
+                      className={`nav-item ${pathname.includes('/otras-listas') ? 'nav-item-active' : ''}`}
                     >
-                      <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                          />
-                        </svg>
-                      </span>
-                      {isSidebarOpen && (
-                        <span className="ml-3 transition-opacity duration-200 font-medium">
-                          Otras Listas
+                      <div className="nav-indicator"></div>
+                      <Link
+                        href="/otras-listas"
+                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/otras-listas') ? 'text-white' : 'text-gray-300'}`}
+                      >
+                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                            />
+                          </svg>
                         </span>
-                      )}
-                    </Link>
-                  </li>
+                        {isSidebarOpen && (
+                          <span className="ml-3 transition-opacity duration-200 font-medium">
+                            Otras Listas
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  )}
 
                   {/* Solo mostrar estas opciones si el usuario no es visualizador */}
                   {userRole !== UserRole.VIEWER && (
