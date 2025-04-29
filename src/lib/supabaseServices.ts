@@ -204,6 +204,17 @@ export interface Empresa extends DataItem {
   updated_at?: string;
 }
 
+export interface CajaChica extends DataItem {
+  id: string;
+  fecha: string;
+  tipo: 'ingreso' | 'egreso';
+  importe: number;
+  concepto: string;
+  observaciones: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Servicios para clientes
 export const clienteService = {
   getClientes: async (): Promise<Cliente[]> => {
@@ -768,5 +779,102 @@ export const empresaService = {
   deleteEmpresa: async (id: string): Promise<void> => {
     const { error } = await supabase.from('empresas').delete().eq('id', id);
     if (error) throw error;
+  },
+};
+
+// Servicio para Caja Chica
+export const cajaChicaService = {
+  async getMovimientos() {
+    try {
+      const { data, error } = await supabase
+        .from('caja_chica')
+        .select('*')
+        .order('fecha', { ascending: false });
+
+      if (error) throw error;
+      return data as CajaChica[];
+    } catch (error) {
+      console.error('Error al obtener movimientos de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async getMovimientoById(id: string) {
+    try {
+      const { data, error } = await supabase.from('caja_chica').select('*').eq('id', id).single();
+
+      if (error) throw error;
+      return data as CajaChica;
+    } catch (error) {
+      console.error('Error al obtener movimiento de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async crearMovimiento(movimiento: Omit<CajaChica, 'id' | 'created_at' | 'updated_at'>) {
+    try {
+      const { data, error } = await supabase
+        .from('caja_chica')
+        .insert([movimiento])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as CajaChica;
+    } catch (error) {
+      console.error('Error al crear movimiento de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async actualizarMovimiento(id: string, movimiento: Partial<CajaChica>) {
+    try {
+      const { data, error } = await supabase
+        .from('caja_chica')
+        .update(movimiento)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as CajaChica;
+    } catch (error) {
+      console.error('Error al actualizar movimiento de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async eliminarMovimiento(id: string) {
+    try {
+      const { error } = await supabase.from('caja_chica').delete().eq('id', id);
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error al eliminar movimiento de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async calcularSaldo() {
+    try {
+      const { data, error } = await supabase.from('caja_chica').select('tipo, importe');
+
+      if (error) throw error;
+
+      // Calcular el saldo total de la caja chica
+      const saldo = (data as CajaChica[]).reduce((total, movimiento) => {
+        if (movimiento.tipo === 'ingreso') {
+          return total + movimiento.importe;
+        } else {
+          return total - movimiento.importe;
+        }
+      }, 0);
+
+      return saldo;
+    } catch (error) {
+      console.error('Error al calcular saldo de caja chica:', error);
+      throw error;
+    }
   },
 };

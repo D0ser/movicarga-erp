@@ -12,6 +12,7 @@ export const ROLE_ROUTE_MAP: Record<UserRole, string[]> = {
   [UserRole.MANAGER]: [
     '/dashboard',
     '/viajes',
+    '/caja-chica',
     '/ingresos',
     '/egresos',
     '/egresos-sin-factura',
@@ -26,6 +27,7 @@ export const ROLE_ROUTE_MAP: Record<UserRole, string[]> = {
   [UserRole.OPERATOR]: [
     '/dashboard',
     '/viajes',
+    '/caja-chica',
     '/ingresos',
     '/egresos',
     '/egresos-sin-factura',
@@ -39,6 +41,7 @@ export const ROLE_ROUTE_MAP: Record<UserRole, string[]> = {
   [UserRole.VIEWER]: [
     '/dashboard',
     '/viajes',
+    '/caja-chica',
     '/ingresos',
     '/egresos',
     '/egresos-sin-factura',
@@ -53,6 +56,7 @@ export const ROLE_ROUTE_MAP: Record<UserRole, string[]> = {
 export const ALL_ROUTES = [
   '/dashboard',
   '/viajes',
+  '/caja-chica',
   '/ingresos',
   '/egresos',
   '/egresos-sin-factura',

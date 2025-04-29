@@ -7,6 +7,7 @@ export enum PermissionType {
   CREATE = 'create',
   EDIT = 'edit',
   DELETE = 'delete',
+  CAJA_CHICA = 'caja_chica',
 }
 
 interface UsePermissionsReturn {
