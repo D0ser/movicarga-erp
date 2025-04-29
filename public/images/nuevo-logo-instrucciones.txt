@@ -1,0 +1,22 @@
+Instrucciones para crear el logo PNG:
+
+1. Abrir el archivo SVG actual (movicarga-logo.svg) en una aplicación de edición gráfica como Adobe Illustrator, Inkscape o Figma.
+
+2. Convertir todos los textos a trazados/contornos para evitar problemas con las fuentes:
+   - En Illustrator: Seleccionar todo el texto y usar "Crear contornos"
+   - En Inkscape: Seleccionar el texto y usar "Objeto a trazado"
+   - En Figma: "Texto a curvas"
+
+3. Exportar como PNG con las siguientes especificaciones:
+   - Resolución: 300 DPI 
+   - Dimensiones: 1068 x 220 píxeles (manteniendo las proporciones del original)
+   - Fondo transparente
+   - Nombre del archivo: movicarga-logo.png
+   - Guardar en la carpeta: public/images/
+
+4. Una vez creado el archivo PNG, verificar que:
+   - Los colores se mantienen correctos (naranja #f39200 y azul #2d2e83)
+   - El texto es nítido y legible
+   - No hay pixelación en los bordes
+
+Este cambio resolverá el problema de inconsistencia en la visualización del logo en diferentes dispositivos, ya que el PNG mantendrá su apariencia exacta independientemente de las fuentes disponibles en el sistema. 

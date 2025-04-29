@@ -11,6 +11,7 @@ import { CustomAlert } from '@/components/ui/custom-alert';
 import { RouteGuard } from '@/components/route-guard';
 import supabase from '@/lib/supabase';
 import { UserRole } from '@/types/users';
+import Image from 'next/image';
 
 // Componente de menú lateral deslizable
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -29,7 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        setIsSidebarOpen(false);
+        // No cerrar automáticamente en dispositivos móviles
+        // setIsSidebarOpen(false);
       } else {
         setIsSidebarOpen(true);
       }
@@ -280,34 +282,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           }
         }
 
-        @keyframes grow-width {
-          from {
-            width: 0;
-          }
-          to {
-            width: 3px;
-          }
-        }
-
         .animate-slide-in {
           animation: slide-in 0.3s ease-out;
-        }
-
-        .nav-indicator {
-          position: absolute;
-          left: 0;
-          top: 8px;
-          bottom: 8px;
-          width: 3px;
-          background-color: #ffffff;
-          border-radius: 0 4px 4px 0;
-          transition: all 0.2s;
-          opacity: 0;
-        }
-
-        .nav-item-active .nav-indicator {
-          opacity: 1;
-          animation: grow-width 0.2s ease-out;
         }
 
         .nav-item {
@@ -325,6 +301,97 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           background-color: rgba(255, 255, 255, 0.1);
         }
 
+        /* Estilos para grupos de navegación con diferentes colores */
+        .nav-item-primary {
+          border-left: 3px solid #34d399;
+          position: relative;
+        }
+
+        .nav-item-primary:before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 100%;
+          background-color: rgba(52, 211, 153, 0.1);
+          border-radius: 12px;
+          transition: width 0.3s ease;
+          z-index: -1;
+        }
+
+        .nav-item-primary:hover:before {
+          width: 100%;
+        }
+
+        .nav-item-primary:hover {
+          background-color: transparent;
+        }
+
+        .nav-item-primary.nav-item-active {
+          background-color: rgba(52, 211, 153, 0.2);
+        }
+
+        .nav-item-secondary {
+          border-left: 3px solid #1976d2;
+          position: relative;
+        }
+
+        .nav-item-secondary:before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 100%;
+          background-color: rgba(25, 118, 210, 0.1);
+          border-radius: 12px;
+          transition: width 0.3s ease;
+          z-index: -1;
+        }
+
+        .nav-item-secondary:hover:before {
+          width: 100%;
+        }
+
+        .nav-item-secondary:hover {
+          background-color: transparent;
+        }
+
+        .nav-item-secondary.nav-item-active {
+          background-color: rgba(25, 118, 210, 0.2);
+        }
+
+        .nav-item-tertiary {
+          border-left: 3px solid #ffa726;
+          position: relative;
+        }
+
+        .nav-item-tertiary:before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 0;
+          height: 100%;
+          background-color: rgba(255, 167, 38, 0.1);
+          border-radius: 12px;
+          transition: width 0.3s ease;
+          z-index: -1;
+        }
+
+        .nav-item-tertiary:hover:before {
+          width: 100%;
+        }
+
+        .nav-item-tertiary:hover {
+          background-color: transparent;
+        }
+
+        .nav-item-tertiary.nav-item-active {
+          background-color: rgba(255, 167, 38, 0.2);
+        }
+
         .sidebar-container {
           background: #262475;
           box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
@@ -332,12 +399,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         }
 
         .sidebar-header {
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          border-bottom: 1px solid rgba(243, 146, 0, 0.4);
+          background-color: #1a1a5c;
+        }
+
+        .sidebar-user-area {
+          background-color: #1a1a5c;
+          border-bottom: 2px solid rgba(243, 146, 0, 0.3);
         }
 
         .user-avatar {
-          background: #1976d2;
-          box-shadow: 0 2px 10px rgba(25, 118, 210, 0.3);
+          background: #f39200;
+          box-shadow: 0 2px 10px rgba(243, 146, 0, 0.3);
         }
 
         /* Ocultar scrollbar pero mantener funcionalidad */
@@ -383,6 +456,33 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .sidebar-container:not([class*='w-64']) .user-avatar {
           margin: 0 auto;
         }
+
+        /* Ajustes para modo móvil */
+        @media (max-width: 768px) {
+          .sidebar-container {
+            width: 100% !important;
+            max-width: 256px;
+          }
+
+          .sidebar-content .nav-item a,
+          .sidebar-content .nav-item button {
+            justify-content: flex-start;
+          }
+
+          .sidebar-content .nav-item a span.nav-icon {
+            margin: 0;
+          }
+        }
+
+        /* Estilo para el logo */
+        .logo-container {
+          position: relative;
+          padding: 8px;
+        }
+
+        .logo-container img {
+          filter: drop-shadow(0px 2px 3px rgba(0, 0, 0, 0.3));
+        }
       `}</style>
 
       <RouteGuard>
@@ -391,24 +491,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <aside
             id="sidebar"
             aria-label="Menú de navegación principal"
-            className={`sidebar-container text-white transition-all duration-300 ease-in-out fixed md:static top-0 bottom-0 left-0 z-40 ${isSidebarOpen ? 'w-64' : 'w-20'} ${
+            className={`sidebar-container text-white transition-all duration-300 ease-in-out fixed md:static top-0 bottom-0 left-0 z-40 ${
+              isMobileMenuOpen ? 'w-64' : isSidebarOpen ? 'w-64' : 'w-20'
+            } ${
               isMobileMenuOpen
-                ? 'translate-x-0 animate-slide-in'
+                ? 'translate-x-0 animate-slide-in shadow-lg'
                 : '-translate-x-full md:translate-x-0'
             }`}
           >
-            <div className="sidebar-header p-4 flex justify-between items-center">
-              {isSidebarOpen && (
-                <h2 className="text-xl font-bold truncate text-white">
-                  <Link
-                    href="/dashboard"
-                    className="focus:outline-none focus:ring-2 focus:ring-white/50 rounded-sm flex items-center"
-                  >
-                    <span className="text-white font-bold bg-white/10 p-1 rounded-md mr-2">M</span>
-                    MoviCarga
-                  </Link>
-                </h2>
-              )}
+            <div className="sidebar-header py-5 px-4 flex justify-between items-center">
+              <div className="flex items-center logo-container">
+                <Image
+                  src="/images/movicarga-logo.png"
+                  alt="MoviCarga Logo"
+                  width={isSidebarOpen || isMobileMenuOpen ? 180 : 30}
+                  height={40}
+                  priority
+                  className="object-contain brightness-110"
+                />
+              </div>
               <CustomButton
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 variant="ghost"
@@ -455,14 +556,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             {/* Usuario actual con diseño mejorado */}
-            <div className="px-4 py-4 border-b border-white/10">
-              <div className={`flex items-center ${!isSidebarOpen ? 'justify-center' : ''}`}>
+            <div className="px-4 py-4 border-b border-white/10 sidebar-user-area">
+              <div
+                className={`flex items-center ${!isSidebarOpen && !isMobileMenuOpen ? 'justify-center' : ''}`}
+              >
                 <div className="flex-shrink-0">
                   <div className="user-avatar w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg font-bold">
                     {userName.charAt(0).toUpperCase()}
                   </div>
                 </div>
-                {isSidebarOpen && (
+                {(isSidebarOpen || isMobileMenuOpen) && (
                   <div className="ml-3">
                     <p className="text-sm font-medium text-white">{userName}</p>
                     <p className="text-xs text-gray-300 opacity-75">
@@ -483,8 +586,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <nav className="px-2" aria-label="Menú principal">
                 <ul className="space-y-1">
                   {/* Dashboard */}
-                  <li className={`nav-item ${pathname === '/dashboard' ? 'nav-item-active' : ''}`}>
-                    <div className="nav-indicator"></div>
+                  <li
+                    className={`nav-item nav-item-primary ${pathname === '/dashboard' ? 'nav-item-active' : ''}`}
+                  >
                     <Link
                       href="/dashboard"
                       className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname === '/dashboard' ? 'text-white' : 'text-gray-300'}`}
@@ -505,19 +609,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           />
                         </svg>
                       </span>
-                      {isSidebarOpen && (
-                        <span className="ml-3 transition-opacity duration-200 font-medium">
-                          Dashboard
-                        </span>
+                      {(isSidebarOpen || isMobileMenuOpen) && (
+                        <span className="ml-3 transition-opacity duration-200">Dashboard</span>
                       )}
                     </Link>
                   </li>
 
                   {/* Ingresos */}
                   <li
-                    className={`nav-item ${pathname.includes('/ingresos') ? 'nav-item-active' : ''}`}
+                    className={`nav-item nav-item-primary ${pathname.includes('/ingresos') ? 'nav-item-active' : ''}`}
                   >
-                    <div className="nav-indicator"></div>
                     <Link
                       href="/ingresos"
                       className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/ingresos') ? 'text-white' : 'text-gray-300'}`}
@@ -548,9 +649,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                   {/* Egresos */}
                   <li
-                    className={`nav-item ${pathname.includes('/egresos') && !pathname.includes('/egresos-sin-factura') ? 'nav-item-active' : ''}`}
+                    className={`nav-item nav-item-primary ${pathname.includes('/egresos') && !pathname.includes('/egresos-sin-factura') ? 'nav-item-active' : ''}`}
                   >
-                    <div className="nav-indicator"></div>
                     <Link
                       href="/egresos"
                       className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/egresos') && !pathname.includes('/egresos-sin-factura') ? 'text-white' : 'text-gray-300'}`}
@@ -579,46 +679,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </Link>
                   </li>
 
-                  {/* Lista de Egresos */}
-                  {userRole !== UserRole.VIEWER && (
-                    <li
-                      className={`nav-item ${pathname.includes('/lista-egresos') ? 'nav-item-active' : ''}`}
-                    >
-                      <div className="nav-indicator"></div>
-                      <Link
-                        href="/lista-egresos"
-                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/lista-egresos') ? 'text-white' : 'text-gray-300'}`}
-                      >
-                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                            />
-                          </svg>
-                        </span>
-                        {isSidebarOpen && (
-                          <span className="ml-3 transition-opacity duration-200 font-medium">
-                            Lista de Egresos
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  )}
-
                   {/* Egresos Sin Factura */}
                   <li
-                    className={`nav-item ${pathname.includes('/egresos-sin-factura') ? 'nav-item-active' : ''}`}
+                    className={`nav-item nav-item-primary ${pathname.includes('/egresos-sin-factura') ? 'nav-item-active' : ''}`}
                   >
-                    <div className="nav-indicator"></div>
                     <Link
                       href="/egresos-sin-factura"
                       className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/egresos-sin-factura') ? 'text-white' : 'text-gray-300'}`}
@@ -647,44 +711,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </Link>
                   </li>
 
-                  {/* Detracciones */}
-                  <li
-                    className={`nav-item ${pathname.includes('/detracciones') ? 'nav-item-active' : ''}`}
-                  >
-                    <div className="nav-indicator"></div>
-                    <Link
-                      href="/detracciones"
-                      className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/detracciones') ? 'text-white' : 'text-gray-300'}`}
-                    >
-                      <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                          />
-                        </svg>
-                      </span>
-                      {isSidebarOpen && (
-                        <span className="ml-3 transition-opacity duration-200 font-medium">
-                          Detracciones
-                        </span>
-                      )}
-                    </Link>
-                  </li>
-
                   {/* Viajes */}
                   <li
-                    className={`nav-item ${pathname.includes('/viajes') ? 'nav-item-active' : ''}`}
+                    className={`nav-item nav-item-primary ${pathname.includes('/viajes') ? 'nav-item-active' : ''}`}
                   >
-                    <div className="nav-indicator"></div>
                     <Link
                       href="/viajes"
                       className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/viajes') ? 'text-white' : 'text-gray-300'}`}
@@ -714,84 +744,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </Link>
                   </li>
 
-                  {/* Vehículos */}
-                  {userRole !== UserRole.VIEWER && (
-                    <li
-                      className={`nav-item ${pathname.includes('/vehiculos') ? 'nav-item-active' : ''}`}
+                  {/* Detracciones */}
+                  <li
+                    className={`nav-item nav-item-secondary ${pathname.includes('/detracciones') ? 'nav-item-active' : ''}`}
+                  >
+                    <Link
+                      href="/detracciones"
+                      className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/detracciones') ? 'text-white' : 'text-gray-300'}`}
                     >
-                      <div className="nav-indicator"></div>
-                      <Link
-                        href="/vehiculos"
-                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/vehiculos') ? 'text-white' : 'text-gray-300'}`}
-                      >
-                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                            />
-                          </svg>
+                      <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                          />
+                        </svg>
+                      </span>
+                      {isSidebarOpen && (
+                        <span className="ml-3 transition-opacity duration-200 font-medium">
+                          Detracciones
                         </span>
-                        {isSidebarOpen && (
-                          <span className="ml-3 transition-opacity duration-200 font-medium">
-                            Vehículos
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  )}
-
-                  {/* Otras Listas */}
-                  {userRole !== UserRole.VIEWER && (
-                    <li
-                      className={`nav-item ${pathname.includes('/otras-listas') ? 'nav-item-active' : ''}`}
-                    >
-                      <div className="nav-indicator"></div>
-                      <Link
-                        href="/otras-listas"
-                        className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/otras-listas') ? 'text-white' : 'text-gray-300'}`}
-                      >
-                        <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-                            />
-                          </svg>
-                        </span>
-                        {isSidebarOpen && (
-                          <span className="ml-3 transition-opacity duration-200 font-medium">
-                            Otras Listas
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                  )}
+                      )}
+                    </Link>
+                  </li>
 
                   {/* Solo mostrar estas opciones si el usuario no es visualizador */}
                   {userRole !== UserRole.VIEWER && (
                     <>
                       {/* Clientes */}
                       <li
-                        className={`nav-item ${pathname.includes('/clientes') ? 'nav-item-active' : ''}`}
+                        className={`nav-item nav-item-secondary ${pathname.includes('/clientes') ? 'nav-item-active' : ''}`}
                       >
-                        <div className="nav-indicator"></div>
                         <Link
                           href="/clientes"
                           className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/clientes') ? 'text-white' : 'text-gray-300'}`}
@@ -812,7 +803,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               />
                             </svg>
                           </span>
-                          {isSidebarOpen && (
+                          {(isSidebarOpen || isMobileMenuOpen) && (
                             <span className="ml-3 transition-opacity duration-200 font-medium">
                               Clientes
                             </span>
@@ -820,11 +811,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         </Link>
                       </li>
 
+                      {/* Vehículos */}
+                      <li
+                        className={`nav-item nav-item-secondary ${pathname.includes('/vehiculos') ? 'nav-item-active' : ''}`}
+                      >
+                        <Link
+                          href="/vehiculos"
+                          className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/vehiculos') ? 'text-white' : 'text-gray-300'}`}
+                        >
+                          <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+                              />
+                            </svg>
+                          </span>
+                          {(isSidebarOpen || isMobileMenuOpen) && (
+                            <span className="ml-3 transition-opacity duration-200 font-medium">
+                              Vehículos
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+
                       {/* Conductores */}
                       <li
-                        className={`nav-item ${pathname.includes('/conductores') ? 'nav-item-active' : ''}`}
+                        className={`nav-item nav-item-secondary ${pathname.includes('/conductores') ? 'nav-item-active' : ''}`}
                       >
-                        <div className="nav-indicator"></div>
                         <Link
                           href="/conductores"
                           className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/conductores') ? 'text-white' : 'text-gray-300'}`}
@@ -845,9 +867,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               />
                             </svg>
                           </span>
-                          {isSidebarOpen && (
+                          {(isSidebarOpen || isMobileMenuOpen) && (
                             <span className="ml-3 transition-opacity duration-200 font-medium">
                               Conductores
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+
+                      {/* Lista de Egresos */}
+                      <li
+                        className={`nav-item nav-item-tertiary ${pathname.includes('/lista-egresos') ? 'nav-item-active' : ''}`}
+                      >
+                        <Link
+                          href="/lista-egresos"
+                          className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/lista-egresos') ? 'text-white' : 'text-gray-300'}`}
+                        >
+                          <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                              />
+                            </svg>
+                          </span>
+                          {(isSidebarOpen || isMobileMenuOpen) && (
+                            <span className="ml-3 transition-opacity duration-200 font-medium">
+                              Lista de Egresos
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+
+                      {/* Otras Listas */}
+                      <li
+                        className={`nav-item nav-item-tertiary ${pathname.includes('/otras-listas') ? 'nav-item-active' : ''}`}
+                      >
+                        <Link
+                          href="/otras-listas"
+                          className={`flex items-center py-3 px-4 rounded-xl transition-colors duration-200 ${pathname.includes('/otras-listas') ? 'text-white' : 'text-gray-300'}`}
+                        >
+                          <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                              />
+                            </svg>
+                          </span>
+                          {(isSidebarOpen || isMobileMenuOpen) && (
+                            <span className="ml-3 transition-opacity duration-200 font-medium">
+                              Otras Listas
                             </span>
                           )}
                         </Link>
@@ -897,7 +983,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           />
                         </svg>
                       </span>
-                      {isSidebarOpen && (
+                      {(isSidebarOpen || isMobileMenuOpen) && (
                         <span className="ml-3 transition-opacity duration-200 font-medium">
                           Cerrar Sesión
                         </span>
@@ -968,8 +1054,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                     ? 'Viajes'
                                     : pathname.includes('/otras-listas')
                                       ? 'Otras Listas'
-                                      : pathname.includes('/usuarios') &&
-                                          !pathname.includes('/usuarios/perfil')
+                                      : pathname.includes('/usuarios')
                                         ? 'Usuarios'
                                         : pathname.includes('/usuarios/perfil')
                                           ? 'Mi Perfil'
@@ -1056,21 +1141,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             href="/usuarios/perfil"
                             className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-[#2d2e83] hover:text-white rounded-md transition-colors"
                           >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5 mr-2"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span>Mi Perfil</span>
+                            <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                            </span>
+                            {(isSidebarOpen || isMobileMenuOpen) && (
+                              <span className="ml-3 transition-opacity duration-200 font-medium">
+                                Mi Perfil
+                              </span>
+                            )}
                           </Link>
                         </div>
                         <div className="py-1 border-t border-gray-100">
@@ -1078,21 +1169,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             onClick={handleLogout}
                             className="flex w-full items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
                           >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5 mr-2"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                              />
-                            </svg>
-                            <span>Cerrar Sesión</span>
+                            <span className="nav-icon flex items-center justify-center w-8 h-8 rounded-lg">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                                />
+                              </svg>
+                            </span>
+                            {(isSidebarOpen || isMobileMenuOpen) && (
+                              <span className="ml-3 transition-opacity duration-200 font-medium">
+                                Cerrar Sesión
+                              </span>
+                            )}
                           </button>
                         </div>
                       </div>

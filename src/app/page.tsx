@@ -322,7 +322,7 @@ export default function Login() {
         <CardHeader className="text-center space-y-2 pb-6">
           <div className="mx-auto">
             <Image
-              src="/images/movicarga-logo.svg"
+              src="/images/movicarga-logo.png"
               alt="MoviCarga Logo"
               width={300}
               height={100}

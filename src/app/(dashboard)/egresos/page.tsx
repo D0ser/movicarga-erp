@@ -873,7 +873,6 @@ export default function EgresosPage() {
                   {`${cuenta.banco}-${cuenta.moneda}-${cuenta.numero_cuenta}`}
                 </option>
               ))}
-              <option value="Caja Chica">Caja Chica</option>
             </select>
           </div>
 

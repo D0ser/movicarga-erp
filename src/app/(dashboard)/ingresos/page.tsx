@@ -211,8 +211,19 @@ export default function IngresosPage() {
 
         // Cargar ingresos desde Supabase
         const ingresosFromSupabase = await cargarIngresos();
-        setIngresos(ingresosFromSupabase);
-        setIngresosFiltrados(ingresosFromSupabase);
+
+        // Actualizar el estado de cada ingreso basado en la fecha de vencimiento
+        const ingresosConEstadoActualizado = ingresosFromSupabase.map((ingreso) => {
+          const fechaVencimiento = new Date(ingreso.fechaVencimiento);
+          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+          return {
+            ...ingreso,
+            estado: estadoAutomatico,
+          };
+        });
+
+        setIngresos(ingresosConEstadoActualizado);
+        setIngresosFiltrados(ingresosConEstadoActualizado);
       } catch (error) {
         console.error('Error al cargar datos:', error);
         showToast.error('Error al cargar los datos. Por favor, intente de nuevo.');
@@ -223,6 +234,27 @@ export default function IngresosPage() {
 
     cargarDatos();
   }, []);
+
+  // Función para calcular el estado automáticamente basado en la fecha de vencimiento
+  const calcularEstadoAutomatico = (fechaVencimiento: Date): string => {
+    const hoy = new Date();
+    // Resetear horas, minutos, segundos y milisegundos para comparar solo las fechas
+    hoy.setHours(0, 0, 0, 0);
+
+    // Calcular la diferencia en días
+    const tiempoRestante = fechaVencimiento.getTime() - hoy.getTime();
+    const diasRestantes = Math.ceil(tiempoRestante / (1000 * 60 * 60 * 24));
+
+    if (diasRestantes < 0) {
+      return 'Vencido';
+    } else if (diasRestantes === 0) {
+      return 'Vence hoy';
+    } else if (diasRestantes <= 3) {
+      return 'Próximo a vencerse';
+    } else {
+      return 'Vigente';
+    }
+  };
 
   // Función para cargar ingresos desde Supabase
   const cargarIngresos = async () => {
@@ -487,6 +519,10 @@ export default function IngresosPage() {
             }
           }
 
+          // Calcular el estado automáticamente basado en la fecha de vencimiento
+          const fechaVencimientoObj = new Date(fechaVencimiento);
+          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj);
+
           return {
             id: ing.id,
             fecha: ing.fecha,
@@ -508,7 +544,7 @@ export default function IngresosPage() {
             guiaTransp: guiaTransp,
             diasCredito: diasCredito,
             fechaVencimiento: fechaVencimiento,
-            estado: ing.estado_factura || 'Pendiente',
+            estado: estadoAutomatico,
           };
         })
       );
@@ -986,14 +1022,13 @@ export default function IngresosPage() {
       accessor: 'estado',
       cell: (value) => {
         const estado = value as string;
-        const isPagado = estado === 'Pagado';
-        const isPendiente = estado === 'Pendiente';
 
         let colorClass = 'bg-gray-100 text-gray-800';
         let icon = null;
 
-        if (isPagado) {
-          colorClass = 'bg-green-100 text-green-800';
+        // Asignar colores según el estado basado en la fecha de vencimiento
+        if (estado === 'Vencido') {
+          colorClass = 'bg-red-100 text-red-800';
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1006,11 +1041,29 @@ export default function IngresosPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M5 13l4 4L19 7"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
           );
-        } else if (isPendiente) {
+        } else if (estado === 'Vence hoy') {
+          colorClass = 'bg-orange-100 text-orange-800';
+          icon = (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 mr-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          );
+        } else if (estado === 'Próximo a vencerse') {
           colorClass = 'bg-yellow-100 text-yellow-800';
           icon = (
             <svg
@@ -1028,8 +1081,8 @@ export default function IngresosPage() {
               />
             </svg>
           );
-        } else {
-          colorClass = 'bg-red-100 text-red-800';
+        } else if (estado === 'Vigente') {
+          colorClass = 'bg-green-100 text-green-800';
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -1042,7 +1095,7 @@ export default function IngresosPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
+                d="M5 13l4 4L19 7"
               />
             </svg>
           );
@@ -1146,6 +1199,9 @@ export default function IngresosPage() {
           const fechaVencimiento = new Date(fecha);
           fechaVencimiento.setDate(fecha.getDate() + diasCredito);
           newData.fechaVencimiento = fechaVencimiento.toISOString().split('T')[0];
+
+          // Calcular el estado automáticamente basado en la fecha de vencimiento
+          newData.estado = calcularEstadoAutomatico(fechaVencimiento);
         }
       }
 
@@ -1314,6 +1370,10 @@ export default function IngresosPage() {
         tracto?.id || carreta?.id
       );
 
+      // Calcular el estado automáticamente basado en la fecha de vencimiento
+      const fechaVencimiento = new Date(formData.fechaVencimiento || new Date());
+      const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+
       // Datos para Supabase
       const ingresoData: Partial<IngresoType> = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
@@ -1323,7 +1383,7 @@ export default function IngresosPage() {
         metodo_pago: 'Transferencia',
         numero_factura: `${formData.serie}-${formData.numeroFactura}`,
         fecha_factura: formData.fecha || new Date().toISOString().split('T')[0],
-        estado_factura: formData.estado || 'Pendiente',
+        estado_factura: estadoAutomatico,
         observaciones: observacionesCompletas,
       };
 
@@ -1346,7 +1406,18 @@ export default function IngresosPage() {
 
       // Recargar los ingresos
       const ingresosActualizados = await cargarIngresos();
-      setIngresos(ingresosActualizados);
+
+      // Actualizar el estado de cada ingreso basado en la fecha de vencimiento
+      const ingresosConEstadoActualizado = ingresosActualizados.map((ingreso) => {
+        const fechaVencimiento = new Date(ingreso.fechaVencimiento);
+        const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+        return {
+          ...ingreso,
+          estado: estadoAutomatico,
+        };
+      });
+
+      setIngresos(ingresosConEstadoActualizado);
 
       // Limpiar formulario
       setFormData({
@@ -1368,7 +1439,7 @@ export default function IngresosPage() {
         documentoGuiaRemit: '',
         guiaTransp: '',
         diasCredito: 0,
-        estado: 'Pendiente',
+        estado: 'Vigente',
       });
 
       setShowForm(false);
@@ -1408,9 +1479,14 @@ export default function IngresosPage() {
     const diferencia = -ingreso.totalMonto + ingreso.montoFlete + ingreso.detraccion;
     const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
 
+    // Calcular el estado basado en la fecha de vencimiento
+    const fechaVencimiento = new Date(ingreso.fechaVencimiento);
+    const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+
     setFormData({
       ...ingreso,
       totalDeber: totalDeberFinal,
+      estado: estadoAutomatico,
     });
     setShowForm(true);
   };
@@ -1423,6 +1499,38 @@ export default function IngresosPage() {
     }
   };
 
+  // Resetear el formulario para un nuevo ingreso
+  const resetForm = () => {
+    const hoy = new Date().toISOString().split('T')[0];
+    const fechaVencimiento = new Date();
+    fechaVencimiento.setDate(fechaVencimiento.getDate() + 30); // 30 días por defecto
+
+    const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+
+    setFormData({
+      fecha: hoy,
+      serie: '',
+      numeroFactura: '',
+      montoFlete: 0,
+      primeraCuota: 0,
+      segundaCuota: 0,
+      detraccion: 0,
+      totalDeber: 0,
+      totalMonto: 0,
+      empresa: '',
+      ruc: '',
+      conductor: '',
+      placaTracto: '',
+      placaCarreta: '',
+      observacion: '',
+      documentoGuiaRemit: '',
+      guiaTransp: '',
+      diasCredito: 0,
+      fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
+      estado: estadoAutomatico,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1432,27 +1540,7 @@ export default function IngresosPage() {
             onClick={() => {
               // Resetear el formulario para un nuevo ingreso
               if (!showForm) {
-                setFormData({
-                  fecha: new Date().toISOString().split('T')[0],
-                  serie: '',
-                  numeroFactura: '',
-                  montoFlete: 0,
-                  primeraCuota: 0,
-                  segundaCuota: 0,
-                  detraccion: 0,
-                  totalDeber: 0,
-                  totalMonto: 0,
-                  empresa: '',
-                  ruc: '',
-                  conductor: '',
-                  placaTracto: '',
-                  placaCarreta: '',
-                  observacion: '',
-                  documentoGuiaRemit: '',
-                  guiaTransp: '',
-                  diasCredito: 0,
-                  estado: 'Pendiente',
-                });
+                resetForm();
               }
               setShowForm(!showForm);
             }}
@@ -1729,17 +1817,16 @@ export default function IngresosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Estado</label>
-            <select
+            <input
+              type="text"
               name="estado"
               value={formData.estado}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              required
-            >
-              <option value="Pendiente">Pendiente</option>
-              <option value="Pagado">Pagado</option>
-              <option value="Anulado">Anulado</option>
-            </select>
+              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
+              readOnly
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              El estado se determina automáticamente según la fecha de vencimiento
+            </p>
           </div>
 
           <div>
