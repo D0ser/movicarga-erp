@@ -55,7 +55,6 @@ interface Ingreso {
   diasCredito: number;
   fechaVencimiento: string;
   estado: string;
-  cuentaAbonada: string;
   numOperacionPrimeraCuota?: string;
   numOperacionSegundaCuota?: string;
 }
@@ -153,12 +152,12 @@ export default function IngresosPage() {
     fecha: new Date().toISOString().split('T')[0],
     serie: '',
     numeroFactura: '',
-    montoFlete: 0,
-    primeraCuota: 0,
-    segundaCuota: 0,
-    detraccion: 0,
-    totalDeber: 0,
-    totalMonto: 0,
+    montoFlete: undefined,
+    primeraCuota: undefined,
+    segundaCuota: undefined,
+    detraccion: undefined,
+    totalDeber: undefined,
+    totalMonto: undefined,
     empresa: '',
     ruc: '',
     conductor: '',
@@ -167,9 +166,8 @@ export default function IngresosPage() {
     observacion: '',
     documentoGuiaRemit: '',
     guiaTransp: '',
-    diasCredito: 0,
+    diasCredito: undefined,
     estado: 'Pendiente',
-    cuentaAbonada: '',
     numOperacionPrimeraCuota: '',
     numOperacionSegundaCuota: '',
   });
@@ -296,46 +294,37 @@ export default function IngresosPage() {
           // Buscar el cliente relacionado para obtener la razón social y RUC
           const cliente = ing.cliente || { razon_social: '', ruc: '' };
 
-          // Información sobre vehículos y conductor
-          let conductor = '';
-          let placaTracto = '';
-          let placaCarreta = '';
-
-          // Extraer serie y número de factura del formato "SERIE-NUMERO"
-          let serie = '';
-          let numeroFactura = ing.numero_factura || '';
-
-          if (numeroFactura && numeroFactura.includes('-')) {
-            const partes = numeroFactura.split('-');
-            serie = partes[0];
-            numeroFactura = partes.length > 1 ? partes[1] : '';
-          }
-
-          // Extraer información de las observaciones
-          let documentoGuiaRemit = '';
-          let guiaTransp = '';
-          let diasCredito = 0;
-          let primeraCuota = ing.monto / 2; // Valor por defecto
-          let segundaCuota = ing.monto / 2; // Valor por defecto
-          let detraccion = ing.monto * 0.04; // 4% por defecto
-          let totalMonto = ing.monto;
+          // Extraer o establecer valores por defecto para los campos nativos
+          const serie = ing.serie_factura || '';
+          const numeroFactura = ing.numero_factura || '';
+          const montoFlete = ing.monto || 0;
+          const primeraCuota = ing.primera_cuota || montoFlete / 2;
+          const segundaCuota = ing.segunda_cuota || montoFlete / 2;
+          const detraccion = ing.detraccion_monto || montoFlete * 0.04;
+          const diasCredito = ing.dias_credito || 0;
+          const fechaVencimiento = ing.fecha_vencimiento || ing.fecha;
+          let totalMonto = montoFlete;
           let totalDeber = 0;
-          let fechaVencimiento = ing.fecha;
-          let observacionUsuario = '';
-          let montoFlete = ing.monto || 0;
+
+          // Placa tracto y carreta
+          let placaTracto = ing.placa_tracto || '';
+          let placaCarreta = ing.placa_carreta || '';
+
+          // Documentos
+          let documentoGuiaRemit = ing.guia_remision || '';
+          let guiaTransp = ing.guia_transportista || '';
+
+          // Información del conductor
+          let conductor = '';
           let numOperacionPrimeraCuota = '';
           let numOperacionSegundaCuota = '';
+          let observacionUsuario = ing.observaciones || '';
 
-          // Para extraer datos de conductor y vehículos desde observaciones
-          let conductorId = '';
-          let tractoId = '';
-          let carretaId = '';
-
-          // Analizar observaciones para extraer información
+          // Para mantener compatibilidad con registros anteriores, también procesamos los datos de las observaciones
           if (ing.observaciones) {
             const observaciones = ing.observaciones;
 
-            // Verificar si el contenido tiene el formato nuevo con JSON
+            // Verificar si el contenido tiene el formato con JSON
             if (observaciones.includes('|||')) {
               // Dividir la cadena en la parte de observación del usuario y los datos JSON
               const parts = observaciones.split('|||');
@@ -345,158 +334,22 @@ export default function IngresosPage() {
                 // Intentar parsear los datos JSON
                 const datosJSON = JSON.parse(parts[1]);
 
-                // Extraer datos financieros
-                primeraCuota = datosJSON.primeraCuota || ing.monto / 2;
-                segundaCuota = datosJSON.segundaCuota || ing.monto / 2;
-                montoFlete = datosJSON.montoFlete || ing.monto;
-                detraccion = datosJSON.detraccion || ing.monto * 0.04;
-                totalMonto = datosJSON.totalMonto || ing.monto;
-                totalDeber = datosJSON.totalDeber || 0;
+                // Extraer operaciones bancarias que no están en la tabla
                 numOperacionPrimeraCuota = datosJSON.numOperacionPrimeraCuota || '';
                 numOperacionSegundaCuota = datosJSON.numOperacionSegundaCuota || '';
 
-                // Extraer datos de transporte
-                conductor = datosJSON.conductor || '';
-                conductorId = datosJSON.conductorId || '';
-                placaTracto = datosJSON.placaTracto || '';
-                tractoId = datosJSON.tractoId || '';
-                placaCarreta = datosJSON.placaCarreta || '';
-                carretaId = datosJSON.carretaId || '';
+                // Extraer datos del conductor si no existe en viaje
+                if (!conductor && datosJSON.conductor) {
+                  conductor = datosJSON.conductor || '';
+                }
 
-                // Extraer documentos
-                documentoGuiaRemit = datosJSON.documentoGuiaRemit || '';
-                guiaTransp = datosJSON.guiaTransp || '';
-
-                // Extraer otros datos
-                diasCredito = datosJSON.diasCredito || 0;
-                fechaVencimiento = datosJSON.fechaVencimiento || ing.fecha;
+                // Extraer datos de totalMonto y totalDeber que no existen en la tabla
+                totalMonto = datosJSON.totalMonto || montoFlete;
+                totalDeber = datosJSON.totalDeber || 0;
               } catch (error) {
                 console.error('Error al parsear datos JSON de observaciones:', error);
-                // Si hay error de parseo, intentar con el método antiguo
-                extractDataWithRegex(observaciones);
               }
-            } else {
-              // Método antiguo con expresiones regulares
-              extractDataWithRegex(observaciones);
             }
-          }
-
-          // Función para extraer datos usando expresiones regulares (método antiguo)
-          function extractDataWithRegex(texto: string) {
-            // Extraer Guía Remitente
-            const guiaRemitRegex = /Guía Remitente: ([^\.]+)/;
-            const guiaRemitMatch = texto.match(guiaRemitRegex);
-            if (guiaRemitMatch && guiaRemitMatch[1]) {
-              documentoGuiaRemit = guiaRemitMatch[1].trim();
-            }
-
-            // Extraer Guía Transportista
-            const guiaTranspRegex = /Guía Transportista: ([^\.]+)/;
-            const guiaTranspMatch = texto.match(guiaTranspRegex);
-            if (guiaTranspMatch && guiaTranspMatch[1]) {
-              guiaTransp = guiaTranspMatch[1].trim();
-            }
-
-            // Extraer Días de crédito
-            const diasCreditoRegex = /Días de crédito: (\d+)/;
-            const diasCreditoMatch = texto.match(diasCreditoRegex);
-            if (diasCreditoMatch && diasCreditoMatch[1]) {
-              diasCredito = parseInt(diasCreditoMatch[1], 10);
-            }
-
-            // Extraer Primera cuota
-            const primeraCuotaRegex = /Primera cuota: S\/\. ([0-9\.]+)/;
-            const primeraCuotaMatch = texto.match(primeraCuotaRegex);
-            if (primeraCuotaMatch && primeraCuotaMatch[1]) {
-              primeraCuota = parseFloat(primeraCuotaMatch[1]);
-            }
-
-            // Extraer Segunda cuota
-            const segundaCuotaRegex = /Segunda cuota: S\/\. ([0-9\.]+)/;
-            const segundaCuotaMatch = texto.match(segundaCuotaRegex);
-            if (segundaCuotaMatch && segundaCuotaMatch[1]) {
-              segundaCuota = parseFloat(segundaCuotaMatch[1]);
-            }
-
-            // Extraer Detracción
-            const detraccionRegex = /Detracción: S\/\. ([0-9\.]+)/;
-            const detraccionMatch = texto.match(detraccionRegex);
-            if (detraccionMatch && detraccionMatch[1]) {
-              detraccion = parseFloat(detraccionMatch[1]);
-            }
-
-            // Extraer Total
-            const totalMontoRegex = /Total: S\/\. ([0-9\.]+)/;
-            const totalMontoMatch = texto.match(totalMontoRegex);
-            if (totalMontoMatch && totalMontoMatch[1]) {
-              totalMonto = parseFloat(totalMontoMatch[1]);
-            }
-
-            // Extraer Total a deber
-            const totalDeberRegex = /Total a deber: S\/\. ([-0-9\.]+)/;
-            const totalDeberMatch = texto.match(totalDeberRegex);
-            if (totalDeberMatch && totalDeberMatch[1]) {
-              totalDeber = parseFloat(totalDeberMatch[1]);
-            }
-
-            // Extraer Fecha vencimiento
-            const fechaVencimientoRegex = /Fecha vencimiento: ([0-9\-]+)/;
-            const fechaVencimientoMatch = texto.match(fechaVencimientoRegex);
-            if (fechaVencimientoMatch && fechaVencimientoMatch[1]) {
-              fechaVencimiento = fechaVencimientoMatch[1].trim();
-            }
-
-            // Extraer Conductor ID
-            const conductorIdRegex = /Conductor ID: ([a-zA-Z0-9-]+)/;
-            const conductorIdMatch = texto.match(conductorIdRegex);
-            if (conductorIdMatch && conductorIdMatch[1]) {
-              conductorId = conductorIdMatch[1].trim();
-            }
-
-            // Extraer Tracto ID
-            const tractoIdRegex = /Tracto ID: ([a-zA-Z0-9-]+)/;
-            const tractoIdMatch = texto.match(tractoIdRegex);
-            if (tractoIdMatch && tractoIdMatch[1]) {
-              tractoId = tractoIdMatch[1].trim();
-            }
-
-            // Extraer Placa Tracto
-            const placaTractoRegex = /Placa Tracto: ([a-zA-Z0-9-]+)/;
-            const placaTractoMatch = texto.match(placaTractoRegex);
-            if (placaTractoMatch && placaTractoMatch[1]) {
-              placaTracto = placaTractoMatch[1].trim();
-            }
-
-            // Extraer Carreta ID
-            const carretaIdRegex = /Carreta ID: ([a-zA-Z0-9-]+)/;
-            const carretaIdMatch = texto.match(carretaIdRegex);
-            if (carretaIdMatch && carretaIdMatch[1]) {
-              carretaId = carretaIdMatch[1].trim();
-            }
-
-            // Extraer Placa Carreta
-            const placaCarretaRegex = /Placa Carreta: ([a-zA-Z0-9-]+)/;
-            const placaCarretaMatch = texto.match(placaCarretaRegex);
-            if (placaCarretaMatch && placaCarretaMatch[1]) {
-              placaCarreta = placaCarretaMatch[1].trim();
-            }
-
-            // Extraer Número de operación primera cuota
-            const numOpPrimeraRegex = /Num\. Operación 1era cuota: ([a-zA-Z0-9-]+)/;
-            const numOpPrimeraMatch = texto.match(numOpPrimeraRegex);
-            if (numOpPrimeraMatch && numOpPrimeraMatch[1]) {
-              numOperacionPrimeraCuota = numOpPrimeraMatch[1].trim();
-            }
-
-            // Extraer Número de operación segunda cuota
-            const numOpSegundaRegex = /Num\. Operación 2da cuota: ([a-zA-Z0-9-]+)/;
-            const numOpSegundaMatch = texto.match(numOpSegundaRegex);
-            if (numOpSegundaMatch && numOpSegundaMatch[1]) {
-              numOperacionSegundaCuota = numOpSegundaMatch[1].trim();
-            }
-
-            // Si no encontramos observación específica, usar todo el texto
-            observacionUsuario = texto;
           }
 
           // Si hay viaje asociado, obtener datos de conductor y vehículos
@@ -509,11 +362,11 @@ export default function IngresosPage() {
                   conductor = `${viajeData.conductor.nombres} ${viajeData.conductor.apellidos}`;
                 }
 
-                // Datos del vehículo
+                // Datos del vehículo si no existen ya
                 if (viajeData.vehiculo) {
-                  if (viajeData.vehiculo.tipo_vehiculo === 'Tracto') {
+                  if (viajeData.vehiculo.tipo_vehiculo === 'Tracto' && !placaTracto) {
                     placaTracto = viajeData.vehiculo.placa;
-                  } else if (viajeData.vehiculo.tipo_vehiculo === 'Carreta') {
+                  } else if (viajeData.vehiculo.tipo_vehiculo === 'Carreta' && !placaCarreta) {
                     placaCarreta = viajeData.vehiculo.placa;
                   }
                 }
@@ -523,58 +376,9 @@ export default function IngresosPage() {
             }
           }
 
-          // Si no tenemos información del conductor desde el viaje, intentar obtenerla de los datos extraídos
-          if (!conductor && conductorId) {
-            try {
-              // Buscar el conductor por ID
-              const conductores = await conductorService.getConductores();
-              const conductorEncontrado = conductores.find((c) => c.id === conductorId);
-
-              if (conductorEncontrado) {
-                conductor = `${conductorEncontrado.nombres} ${conductorEncontrado.apellidos}`;
-              }
-            } catch (error) {
-              console.error('Error al buscar conductor por ID:', error);
-            }
-          }
-
-          // Si no tenemos placa de tracto pero tenemos el ID, intentar obtenerla
-          if (!placaTracto && tractoId) {
-            try {
-              const vehiculos = await vehiculoService.getVehiculos();
-              const tractoEncontrado = vehiculos.find((v) => v.id === tractoId);
-
-              if (tractoEncontrado) {
-                placaTracto = tractoEncontrado.placa;
-              }
-            } catch (error) {
-              console.error('Error al buscar tracto por ID:', error);
-            }
-          }
-
-          // Si no tenemos placa de carreta pero tenemos el ID, intentar obtenerla
-          if (!placaCarreta && carretaId) {
-            try {
-              const vehiculos = await vehiculoService.getVehiculos();
-              const carretaEncontrada = vehiculos.find((v) => v.id === carretaId);
-
-              if (carretaEncontrada) {
-                placaCarreta = carretaEncontrada.placa;
-              }
-            } catch (error) {
-              console.error('Error al buscar carreta por ID:', error);
-            }
-          }
-
           // Calcular el estado automáticamente basado en la fecha de vencimiento
           const fechaVencimientoObj = new Date(fechaVencimiento);
           const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj);
-
-          // Obtener cuenta abonada del cliente si existe
-          let cuentaAbonada = '';
-          if (cliente && typeof cliente === 'object' && 'cuenta_abonada' in cliente) {
-            cuentaAbonada = cliente.cuenta_abonada || '';
-          }
 
           return {
             id: ing.id,
@@ -598,7 +402,6 @@ export default function IngresosPage() {
             diasCredito: diasCredito,
             fechaVencimiento: fechaVencimiento,
             estado: estadoAutomatico,
-            cuentaAbonada: cuentaAbonada,
             numOperacionPrimeraCuota: numOperacionPrimeraCuota,
             numOperacionSegundaCuota: numOperacionSegundaCuota,
           };
@@ -649,21 +452,21 @@ export default function IngresosPage() {
       cell: (value) => {
         // Verificar que el valor existe y es una fecha válida
         if (!value) {
-          return <div className="flex justify-center">-</div>;
+          return <div className="text-center">-</div>;
         }
 
         try {
           const date = new Date(value as string);
           if (isNaN(date.getTime())) {
-            return <div className="flex justify-center">Fecha inválida</div>;
+            return <div className="text-center">Fecha inválida</div>;
           }
 
           return (
-            <div className="flex justify-center">
-              <span className="text-sm font-medium flex items-center text-gray-700">
+            <div className="text-center whitespace-nowrap">
+              <span className="inline-flex items-center text-sm font-medium text-gray-700">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 text-blue-500 mr-1.5"
+                  className="h-3.5 w-3.5 text-blue-500 mr-1"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -680,7 +483,7 @@ export default function IngresosPage() {
             </div>
           );
         } catch (error) {
-          return <div className="flex justify-center">Error de formato</div>;
+          return <div className="text-center">Error de formato</div>;
         }
       },
     },
@@ -688,18 +491,13 @@ export default function IngresosPage() {
       header: 'Serie',
       accessor: 'serie',
       cell: (value, row) => {
-        // Determinar color de la serie (podría venir de serieColors si estuviera disponible)
-        const colores: Record<string, string> = {
-          F001: '#3b82f6', // Azul
-          B001: '#10b981', // Verde
-          T001: '#8b5cf6', // Púrpura
-        };
-        const color = colores[value as string] || '#6b7280'; // Gris por defecto
+        // Obtener el color de la serie del mapeo de colores
+        const color = serieColors[value as string] || '#6b7280'; // Gris por defecto
 
         return (
-          <div className="flex justify-center">
+          <div className="text-center whitespace-nowrap">
             <span
-              className="font-mono px-2 py-1 rounded text-white text-xs font-bold"
+              className="inline-flex px-2.5 py-0.5 rounded text-white text-xs font-bold"
               style={{ backgroundColor: color }}
             >
               {value as string}
@@ -712,11 +510,11 @@ export default function IngresosPage() {
       header: 'N° Factura',
       accessor: 'numeroFactura',
       cell: (value) => (
-        <div className="flex justify-center">
-          <span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm flex items-center">
+        <div className="text-center">
+          <span className="inline-flex items-center font-mono bg-purple-50 px-2 py-0.5 rounded text-purple-700 text-sm">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -750,7 +548,7 @@ export default function IngresosPage() {
         }
 
         return (
-          <div className="flex justify-end">
+          <div className="text-right whitespace-nowrap">
             <span
               className="font-mono text-green-700 font-medium cursor-help"
               title={tooltipContent}
@@ -769,7 +567,7 @@ export default function IngresosPage() {
       header: 'Detracción',
       accessor: 'detraccion',
       cell: (value) => (
-        <div className="flex justify-end">
+        <div className="text-right whitespace-nowrap">
           <span className="font-mono text-gray-700">
             S/.{' '}
             {(value as number).toLocaleString('es-PE', {
@@ -790,7 +588,7 @@ export default function IngresosPage() {
         const textColor = esNegativo ? 'text-red-600' : esPositivo ? 'text-green-600' : '';
 
         return (
-          <div className="flex justify-end">
+          <div className="text-right whitespace-nowrap">
             <span className={`font-mono ${textColor} font-medium`}>
               S/.{' '}
               {Math.abs(totalDeber).toLocaleString('es-PE', {
@@ -806,7 +604,7 @@ export default function IngresosPage() {
       header: 'Total Monto',
       accessor: 'totalMonto',
       cell: (value) => (
-        <div className="flex justify-end">
+        <div className="text-right whitespace-nowrap">
           <span className="font-mono text-blue-700 font-semibold">
             S/.{' '}
             {(value as number).toLocaleString('es-PE', {
@@ -823,48 +621,37 @@ export default function IngresosPage() {
       cell: (value, row) => {
         // Verificar que el valor existe
         if (!value) {
-          return <div className="flex justify-center">-</div>;
+          return <div className="text-center">-</div>;
         }
 
         // Crear un avatar con la primera letra del nombre
         const inicial = (value as string).charAt(0).toUpperCase();
+        const empresaName = value as string;
 
         return (
-          <div className="flex items-center px-2 justify-center">
-            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold mr-3">
+          <div className="flex items-center space-x-2 px-2">
+            <div className="flex-shrink-0 h-7 w-7 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs">
               {inicial}
             </div>
-            <div className="text-sm font-medium text-gray-900 truncate max-w-[150px]">
-              {value as string}
+            <div
+              className="text-sm font-medium text-gray-900 truncate max-w-[120px]"
+              title={empresaName}
+            >
+              {empresaName}
             </div>
           </div>
         );
       },
     },
     {
-      header: 'Cuenta Abonada',
-      accessor: 'cuentaAbonada',
-      cell: (value) => (
-        <div className="flex justify-center">
-          {(value as string) ? (
-            <span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 text-sm">
-              {value as string}
-            </span>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </div>
-      ),
-    },
-    {
       header: 'RUC',
       accessor: 'ruc',
       cell: (value) => (
-        <div className="flex justify-center">
-          <span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 flex items-center">
+        <div className="text-center whitespace-nowrap">
+          <span className="inline-flex items-center font-mono bg-gray-50 px-2 py-0.5 rounded text-gray-700 text-xs">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1 text-gray-500"
+              className="h-3.5 w-3.5 mr-1 text-gray-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -884,37 +671,43 @@ export default function IngresosPage() {
     {
       header: 'Conductor',
       accessor: 'conductor',
-      cell: (value) => (
-        <div className="flex justify-center">
-          <span className="px-2 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 flex items-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+      cell: (value) => {
+        const nombreConductor = value as string;
+        return (
+          <div className="text-center">
+            <span
+              className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 truncate max-w-[120px]"
+              title={nombreConductor}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-              />
-            </svg>
-            {value as string}
-          </span>
-        </div>
-      ),
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-3.5 w-3.5 mr-1 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+              <span className="truncate">{nombreConductor}</span>
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'Placa Tracto',
       accessor: 'placaTracto',
       cell: (value) => (
-        <div className="flex justify-center">
-          <span className="font-mono bg-blue-50 px-3 py-1.5 rounded-lg text-blue-700 font-semibold flex items-center">
+        <div className="text-center whitespace-nowrap">
+          <span className="inline-flex items-center font-mono bg-blue-50 px-2 py-0.5 rounded-lg text-blue-700 font-semibold text-xs">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1.5"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -935,11 +728,11 @@ export default function IngresosPage() {
       header: 'Placa Carreta',
       accessor: 'placaCarreta',
       cell: (value) => (
-        <div className="flex justify-center">
-          <span className="font-mono bg-purple-50 px-3 py-1.5 rounded-lg text-purple-700 font-semibold flex items-center">
+        <div className="text-center whitespace-nowrap">
+          <span className="inline-flex items-center font-mono bg-purple-50 px-2 py-0.5 rounded-lg text-purple-700 font-semibold text-xs">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1.5"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -959,39 +752,42 @@ export default function IngresosPage() {
     {
       header: 'Observación',
       accessor: 'observacion',
-      cell: (value) => (
-        <div className="flex justify-center">
-          {(value as string) ? (
-            <div className="max-w-xs truncate text-sm text-gray-600">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 inline text-gray-400 mr-1"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
-                />
-              </svg>
-              {value as string}
-            </div>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </div>
-      ),
+      cell: (value) => {
+        const texto = value as string;
+        return (
+          <div className="text-center">
+            {texto ? (
+              <div className="truncate text-sm text-gray-600 max-w-[150px]" title={texto}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="inline h-3.5 w-3.5 text-gray-400 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                  />
+                </svg>
+                {texto}
+              </div>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       header: 'Guía Remitente',
       accessor: 'documentoGuiaRemit',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="text-center whitespace-nowrap">
           {(value as string) ? (
-            <span className="font-mono bg-yellow-50 px-2 py-1 rounded text-yellow-700 text-xs">
+            <span className="inline-block font-mono bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 text-xs">
               {value as string}
             </span>
           ) : (
@@ -1004,9 +800,9 @@ export default function IngresosPage() {
       header: 'Guía Transportista',
       accessor: 'guiaTransp',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="text-center whitespace-nowrap">
           {(value as string) ? (
-            <span className="font-mono bg-orange-50 px-2 py-1 rounded text-orange-700 text-xs">
+            <span className="inline-block font-mono bg-orange-50 px-2 py-0.5 rounded text-orange-700 text-xs">
               {value as string}
             </span>
           ) : (
@@ -1028,8 +824,10 @@ export default function IngresosPage() {
               : 'bg-red-100 text-red-800';
 
         return (
-          <div className="flex justify-center">
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${colorClass}`}>
+          <div className="text-center whitespace-nowrap">
+            <span
+              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}
+            >
               {dias} {dias === 1 ? 'día' : 'días'}
             </span>
           </div>
@@ -1053,7 +851,7 @@ export default function IngresosPage() {
         let icon = (
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-4 w-4 mr-1"
+            className="h-3.5 w-3.5 mr-1"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -1068,7 +866,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1087,7 +885,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1103,9 +901,9 @@ export default function IngresosPage() {
         }
 
         return (
-          <div className="flex justify-center">
+          <div className="text-center whitespace-nowrap">
             <span
-              className={`px-2 py-1 rounded-md text-xs font-medium flex items-center ${colorClass}`}
+              className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${colorClass}`}
             >
               {icon}
               {format(fechaVencimiento, 'dd/MM/yyyy')}
@@ -1129,7 +927,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1147,7 +945,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1165,7 +963,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1183,7 +981,7 @@ export default function IngresosPage() {
           icon = (
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-4 w-4 mr-1"
+              className="h-3.5 w-3.5 mr-1"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -1199,9 +997,9 @@ export default function IngresosPage() {
         }
 
         return (
-          <div className="flex justify-center">
+          <div className="text-center">
             <span
-              className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}
             >
               {icon}
               {estado}
@@ -1247,18 +1045,14 @@ export default function IngresosPage() {
             : value,
       };
 
-      // Si cambia la serie, actualizar el formato del numeroFactura
+      // Si cambia la serie o el número de factura, actualizar el formato correcto
       if (name === 'serie') {
         // Actualizar serie
         newData.serie = value;
 
-        // Si ya hay un número de factura ingresado, actualizamos solo la parte numérica
+        // Si ya hay un número de factura ingresado, lo mantenemos
         if (prev.numeroFactura) {
-          const numeroActual = prev.numeroFactura.includes('-')
-            ? prev.numeroFactura.split('-')[1]
-            : prev.numeroFactura;
-
-          newData.numeroFactura = value ? `${value}-${numeroActual}` : numeroActual;
+          newData.numeroFactura = prev.numeroFactura;
         }
       }
 
@@ -1452,33 +1246,15 @@ export default function IngresosPage() {
       // Capturar la observación original del usuario
       const observacionUsuario = formData.observacion || '';
 
-      // Crear un objeto con datos estructurados para guardar en la base de datos
+      // Crear un objeto con datos que no son campos nativos en la tabla
       const datosEstructurados = {
-        // Datos financieros
-        montoFlete: formData.montoFlete || 0,
-        primeraCuota: formData.primeraCuota || 0,
-        segundaCuota: formData.segundaCuota || 0,
-        detraccion: formData.detraccion || 0,
-        totalDeber: formData.totalDeber || 0,
+        // Datos que no están en la tabla
         totalMonto: formData.totalMonto || 0,
+        totalDeber: formData.totalDeber || 0,
         numOperacionPrimeraCuota: formData.numOperacionPrimeraCuota || '',
         numOperacionSegundaCuota: formData.numOperacionSegundaCuota || '',
-
-        // Datos de transporte
         conductor: formData.conductor || '',
         conductorId: conductor?.id || '',
-        placaTracto: formData.placaTracto || '',
-        tractoId: tracto?.id || '',
-        placaCarreta: formData.placaCarreta || '',
-        carretaId: carreta?.id || '',
-
-        // Documentos
-        documentoGuiaRemit: formData.documentoGuiaRemit || '',
-        guiaTransp: formData.guiaTransp || '',
-
-        // Otros datos
-        diasCredito: formData.diasCredito || 0,
-        fechaVencimiento: formData.fechaVencimiento || '',
       };
 
       // Convertir a JSON para guardar en el campo observaciones
@@ -1488,7 +1264,7 @@ export default function IngresosPage() {
       // Formato: ObservacionUsuario||| + JSON
       const observacionesCompletas = observacionUsuario
         ? `${observacionUsuario}|||${datosJSON}`
-        : datosJSON;
+        : `|||${datosJSON}`;
 
       // Buscar un viaje relacionado
       const viaje_id = await buscarViajeRelacionado(
@@ -1507,11 +1283,20 @@ export default function IngresosPage() {
         cliente_id: cliente?.id,
         concepto: observacionUsuario || 'Ingreso por flete',
         monto: formData.montoFlete || 0,
-        metodo_pago: 'Transferencia',
-        numero_factura: `${formData.serie}-${formData.numeroFactura}`,
+        numero_factura: formData.numeroFactura || null,
         fecha_factura: formData.fecha || new Date().toISOString().split('T')[0],
         estado_factura: estadoAutomatico,
+        serie_factura: formData.serie || null,
         observaciones: observacionesCompletas,
+        dias_credito: formData.diasCredito || 0,
+        fecha_vencimiento: formData.fechaVencimiento || null,
+        guia_remision: formData.documentoGuiaRemit || null,
+        guia_transportista: formData.guiaTransp || null,
+        detraccion_monto: formData.detraccion || 0,
+        primera_cuota: formData.primeraCuota || 0,
+        segunda_cuota: formData.segundaCuota || 0,
+        placa_tracto: formData.placaTracto || null,
+        placa_carreta: formData.placaCarreta || null,
       };
 
       // Agregar viaje_id si existe
@@ -1561,12 +1346,12 @@ export default function IngresosPage() {
         fecha: new Date().toISOString().split('T')[0],
         serie: '',
         numeroFactura: '',
-        montoFlete: 0,
-        primeraCuota: 0,
-        segundaCuota: 0,
-        detraccion: 0,
-        totalDeber: 0,
-        totalMonto: 0,
+        montoFlete: undefined,
+        primeraCuota: undefined,
+        segundaCuota: undefined,
+        detraccion: undefined,
+        totalDeber: undefined,
+        totalMonto: undefined,
         empresa: '',
         ruc: '',
         conductor: '',
@@ -1575,9 +1360,8 @@ export default function IngresosPage() {
         observacion: '',
         documentoGuiaRemit: '',
         guiaTransp: '',
-        diasCredito: 0,
+        diasCredito: undefined,
         estado: 'Vigente',
-        cuentaAbonada: '',
         numOperacionPrimeraCuota: '',
         numOperacionSegundaCuota: '',
       });
@@ -1639,6 +1423,7 @@ export default function IngresosPage() {
     const fechaVencimiento = new Date(ingreso.fechaVencimiento);
     const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
 
+    // Ya tenemos la serie y número separados del objeto ingreso
     setFormData({
       ...ingreso,
       totalDeber: totalDeberFinal,
@@ -1667,12 +1452,12 @@ export default function IngresosPage() {
       fecha: hoy,
       serie: '',
       numeroFactura: '',
-      montoFlete: 0,
-      primeraCuota: 0,
-      segundaCuota: 0,
-      detraccion: 0,
-      totalDeber: 0,
-      totalMonto: 0,
+      montoFlete: undefined,
+      primeraCuota: undefined,
+      segundaCuota: undefined,
+      detraccion: undefined,
+      totalDeber: undefined,
+      totalMonto: undefined,
       empresa: '',
       ruc: '',
       conductor: '',
@@ -1681,10 +1466,9 @@ export default function IngresosPage() {
       observacion: '',
       documentoGuiaRemit: '',
       guiaTransp: '',
-      diasCredito: 0,
+      diasCredito: undefined,
       fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
       estado: estadoAutomatico,
-      cuentaAbonada: '',
       numOperacionPrimeraCuota: '',
       numOperacionSegundaCuota: '',
     });
@@ -1780,26 +1564,17 @@ export default function IngresosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">N° Factura</label>
-            <input
-              type="text"
-              name="numeroFactura"
-              value={formData.numeroFactura}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Observación</label>
-            <input
-              type="text"
-              name="observacion"
-              value={formData.observacion}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
+            <div className="relative">
+              <input
+                type="text"
+                name="numeroFactura"
+                value={formData.numeroFactura}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Número de factura"
+                required
+              />
+            </div>
           </div>
 
           <div>
@@ -1811,6 +1586,7 @@ export default function IngresosPage() {
                 name="primeraCuota"
                 value={formData.primeraCuota}
                 onChange={handleInputChange}
+                placeholder="0.00"
                 className="mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -1837,6 +1613,7 @@ export default function IngresosPage() {
                 name="segundaCuota"
                 value={formData.segundaCuota}
                 onChange={handleInputChange}
+                placeholder="0.00"
                 className="mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <button
@@ -1861,6 +1638,7 @@ export default function IngresosPage() {
               step="0.01"
               name="montoFlete"
               value={formData.montoFlete}
+              placeholder="0.00"
               className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
               readOnly
             />
@@ -1874,6 +1652,7 @@ export default function IngresosPage() {
               name="detraccion"
               value={formData.detraccion}
               onChange={handleInputChange}
+              placeholder="0.00"
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -1885,6 +1664,7 @@ export default function IngresosPage() {
               step="0.01"
               name="totalDeber"
               value={formData.totalDeber}
+              placeholder="0.00"
               className={`mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3 ${
                 formData.totalDeber && formData.totalDeber < 0
                   ? 'text-red-600'
@@ -1904,6 +1684,7 @@ export default function IngresosPage() {
               name="totalMonto"
               value={formData.totalMonto}
               onChange={handleInputChange}
+              placeholder="0.00"
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -1920,7 +1701,7 @@ export default function IngresosPage() {
                   empresa: e.target.value,
                   ruc: clienteSeleccionado?.ruc || '',
                   diasCredito: clienteSeleccionado?.dias_credito || 0,
-                  cuentaAbonada: clienteSeleccionado?.cuenta_abonada || '',
+                  numOperacionPrimeraCuota: clienteSeleccionado?.cuenta_abonada || '',
                 }));
               }}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -1941,17 +1722,6 @@ export default function IngresosPage() {
               type="text"
               name="ruc"
               value={formData.ruc}
-              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Cuenta Abonada</label>
-            <input
-              type="text"
-              name="cuentaAbonada"
-              value={formData.cuentaAbonada}
               className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
               readOnly
             />
@@ -2031,28 +1801,14 @@ export default function IngresosPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Días Crédito</label>
+            <label className="block text-sm font-medium text-gray-700">Observación</label>
             <input
-              type="number"
-              name="diasCredito"
-              value={formData.diasCredito}
+              type="text"
+              name="observacion"
+              value={formData.observacion}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Estado</label>
-            <input
-              type="text"
-              name="estado"
-              value={formData.estado}
-              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              El estado se determina automáticamente según la fecha de vencimiento
-            </p>
           </div>
 
           <div>
@@ -2074,6 +1830,40 @@ export default function IngresosPage() {
               value={formData.guiaTransp}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Días Crédito</label>
+            <input
+              type="number"
+              name="diasCredito"
+              value={formData.diasCredito}
+              onChange={handleInputChange}
+              placeholder="0"
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Fecha Vencimiento</label>
+            <input
+              type="date"
+              name="fechaVencimiento"
+              value={formData.fechaVencimiento}
+              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Estado</label>
+            <input
+              type="text"
+              name="estado"
+              value={formData.estado}
+              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
+              readOnly
             />
           </div>
 

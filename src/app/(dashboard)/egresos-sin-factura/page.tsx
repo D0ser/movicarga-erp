@@ -337,7 +337,6 @@ export default function EgresosSinFacturaPage() {
             numero_cheque: formData.numero_cheque || '',
             numero_liquidacion: formData.numero_liquidacion || '',
             tipo_egreso: formData.tipo_egreso || '',
-            categoria: formData.tipo_egreso || 'Operativo',
           }
         );
 
@@ -354,7 +353,6 @@ export default function EgresosSinFacturaPage() {
           numero_cheque: formData.numero_cheque || '',
           numero_liquidacion: formData.numero_liquidacion || '',
           tipo_egreso: formData.tipo_egreso || '',
-          categoria: formData.tipo_egreso || 'Operativo',
         });
 
         setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);

@@ -85,15 +85,25 @@ export interface Viaje extends DataItem, RelatedEntities {
 export interface Ingreso extends DataItem, RelatedEntities {
   id: string;
   fecha: string;
-  cliente_id: string;
+  cliente_id: string | null;
   viaje_id: string | null;
   concepto: string;
   monto: number;
   metodo_pago: string;
-  numero_factura: string;
-  fecha_factura: string;
-  estado_factura: string;
-  observaciones: string;
+  numero_factura: string | null;
+  fecha_factura: string | null;
+  estado_factura: string | null;
+  serie_factura: string | null;
+  observaciones: string | null;
+  dias_credito: number | null;
+  fecha_vencimiento: string | null;
+  guia_remision: string | null;
+  guia_transportista: string | null;
+  detraccion_monto: number | null;
+  primera_cuota: number | null;
+  segunda_cuota: number | null;
+  placa_tracto: string | null;
+  placa_carreta: string | null;
   created_at?: string;
   updated_at?: string;
   cliente?: Cliente;
@@ -129,7 +139,6 @@ export interface EgresoSinFactura extends DataItem {
   numero_cheque: string | null;
   numero_liquidacion: string | null;
   tipo_egreso: string;
-  categoria: string;
   created_at?: string;
   updated_at?: string;
 }

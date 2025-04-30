@@ -33,7 +33,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Definición de la estructura de datos de Egresos
 interface Egreso extends DataItem {
-  id: number;
+  id: string;
   fecha: string;
   hora: string;
   factura: string;
@@ -231,6 +231,7 @@ export default function EgresosPage() {
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<Egreso>>({
+    id: '',
     fecha: new Date().toISOString().split('T')[0],
     hora: new Date().toTimeString().slice(0, 5),
     factura: '',
@@ -620,11 +621,11 @@ export default function EgresosPage() {
             <EditButton onClick={() => handleEdit(row)} />
           </EditPermission>
           <DeletePermission>
-            <DeleteButton onClick={() => handleDelete(value as number)} />
+            <DeleteButton onClick={() => handleDelete(value as string)} />
           </DeletePermission>
           <EditPermission>
             {row.estado !== 'Aprobado' && (
-              <ActivateButton onClick={() => handleApprove(value as number)} />
+              <ActivateButton onClick={() => handleApprove(value as string)} />
             )}
           </EditPermission>
         </ActionButtonGroup>
@@ -657,7 +658,7 @@ export default function EgresosPage() {
 
       // Preparar los datos para enviar, excluyendo el ID cuando es un nuevo registro
       const datosParaEnviar = { ...formData };
-      if (datosParaEnviar.id === 0) {
+      if (datosParaEnviar.id === '') {
         delete datosParaEnviar.id; // Eliminar el ID para que Supabase genere un UUID automáticamente
       }
 
@@ -675,6 +676,7 @@ export default function EgresosPage() {
             numero_factura: datosParaEnviar.factura,
             fecha_factura: datosParaEnviar.fecha,
             categoria: datosParaEnviar.tipoEgreso,
+            categoria_id: tiposEgreso.find((tipo) => tipo.tipo === datosParaEnviar.tipoEgreso)?.id,
             observacion: datosParaEnviar.observacion,
             estado: datosParaEnviar.estado?.toLowerCase(),
             cuenta_egreso: datosParaEnviar.cuentaEgreso,
@@ -694,6 +696,7 @@ export default function EgresosPage() {
             monto: datosParaEnviar.monto,
             metodo_pago: datosParaEnviar.operacion,
             categoria: datosParaEnviar.tipoEgreso,
+            categoria_id: tiposEgreso.find((tipo) => tipo.tipo === datosParaEnviar.tipoEgreso)?.id,
             observacion: datosParaEnviar.observacion,
             estado: datosParaEnviar.estado?.toLowerCase(),
             cuenta_egreso: datosParaEnviar.cuentaEgreso,
@@ -709,6 +712,7 @@ export default function EgresosPage() {
 
       // Limpiar formulario
       setFormData({
+        id: '',
         fecha: new Date().toISOString().split('T')[0],
         hora: new Date().toTimeString().slice(0, 5),
         factura: '',
@@ -741,7 +745,7 @@ export default function EgresosPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     try {
       // Esperar confirmación mediante el diálogo
       const confirmed = await deleteConfirm.confirm();
@@ -771,7 +775,7 @@ export default function EgresosPage() {
     }
   };
 
-  const handleChangeEstado = async (id: number, nuevoEstado: string) => {
+  const handleChangeEstado = async (id: string, nuevoEstado: string) => {
     try {
       // Actualizar en la interfaz
       setEgresos(egresos.map((eg) => (eg.id === id ? { ...eg, estado: nuevoEstado } : eg)));
@@ -800,7 +804,7 @@ export default function EgresosPage() {
     }
   };
 
-  const handleApprove = (id: number) => {
+  const handleApprove = (id: string) => {
     handleChangeEstado(id, 'Aprobado');
   };
 
@@ -813,7 +817,7 @@ export default function EgresosPage() {
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
             onClick={() => {
               setFormData({
-                id: 0,
+                id: '',
                 fecha: new Date().toISOString().split('T')[0],
                 hora: new Date().toTimeString().slice(0, 5),
                 factura: '',
@@ -995,7 +999,7 @@ export default function EgresosPage() {
             />
           </div>
 
-          <div className="md:col-span-3">
+          <div>
             <label className="block text-sm font-medium text-gray-700">Observación</label>
             <input
               type="text"
@@ -1007,7 +1011,7 @@ export default function EgresosPage() {
             />
           </div>
 
-          <div className="md:col-span-3">
+          <div>
             <label className="block text-sm font-medium text-gray-700">Estado</label>
             <select
               name="estado"

@@ -54,6 +54,10 @@ interface EstadisticasDashboard {
   ingresosHoy: number;
   ingresosTotal: number;
   egresosTotal: number;
+  facturasTracto: Record<string, number>; // Conteo de facturas por tracto
+  facturasCarreta: Record<string, number>; // Conteo de facturas por carreta
+  ingresosTracto: Record<string, number>; // Suma de ingresos por tracto
+  ingresosCarreta: Record<string, number>; // Suma de ingresos por carreta
 }
 
 interface Ingreso extends DataItem {
@@ -136,6 +140,10 @@ export default function DashboardPage() {
     ingresosHoy: 0,
     ingresosTotal: 0,
     egresosTotal: 0,
+    facturasTracto: {},
+    facturasCarreta: {},
+    ingresosTracto: {},
+    ingresosCarreta: {},
   });
   const [loading, setLoading] = useState(true);
 
@@ -303,6 +311,37 @@ export default function DashboardPage() {
             0
           ) || 0;
 
+        // Obtener datos de facturas con placas de vehículos
+        const { data: facturasConVehiculos } = await supabase
+          .from('ingresos')
+          .select('placa_tracto, placa_carreta, monto, numero_factura');
+
+        // Inicializar objetos para conteo y suma
+        const facturasTracto: Record<string, number> = {};
+        const facturasCarreta: Record<string, number> = {};
+        const ingresosTracto: Record<string, number> = {};
+        const ingresosCarreta: Record<string, number> = {};
+
+        // Procesar datos de facturas
+        facturasConVehiculos?.forEach((factura) => {
+          const monto = parseFloat(factura.monto) || 0;
+
+          // Contar facturas por tracto
+          if (factura.placa_tracto) {
+            facturasTracto[factura.placa_tracto] = (facturasTracto[factura.placa_tracto] || 0) + 1;
+            ingresosTracto[factura.placa_tracto] =
+              (ingresosTracto[factura.placa_tracto] || 0) + monto;
+          }
+
+          // Contar facturas por carreta
+          if (factura.placa_carreta) {
+            facturasCarreta[factura.placa_carreta] =
+              (facturasCarreta[factura.placa_carreta] || 0) + 1;
+            ingresosCarreta[factura.placa_carreta] =
+              (ingresosCarreta[factura.placa_carreta] || 0) + monto;
+          }
+        });
+
         setStats({
           clientesTotal: clientesCount || 0,
           vehiculosTotal: vehiculosCount || 0,
@@ -310,6 +349,10 @@ export default function DashboardPage() {
           ingresosHoy: totalIngresosHoy,
           ingresosTotal: totalIngresos,
           egresosTotal: totalEgresos,
+          facturasTracto,
+          facturasCarreta,
+          ingresosTracto,
+          ingresosCarreta,
         });
       } catch (error) {
         console.error('Error al cargar estadísticas:', error);
@@ -681,6 +724,128 @@ export default function DashboardPage() {
     };
   }, []);
 
+  // Extraer datos para gráficos de vehículos
+  const datosFacturasTracto = useMemo(() => {
+    const labels = Object.keys(stats.facturasTracto).slice(0, 10); // Limitamos a 10 para mejor visualización
+    const data = labels.map((placa) => stats.facturasTracto[placa]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Facturas por Tracto',
+          data,
+          backgroundColor: 'rgba(59, 130, 246, 0.6)',
+          borderColor: 'rgb(59, 130, 246)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [stats.facturasTracto]);
+
+  const datosFacturasCarreta = useMemo(() => {
+    const labels = Object.keys(stats.facturasCarreta).slice(0, 10);
+    const data = labels.map((placa) => stats.facturasCarreta[placa]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Facturas por Carreta',
+          data,
+          backgroundColor: 'rgba(234, 179, 8, 0.6)',
+          borderColor: 'rgb(234, 179, 8)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [stats.facturasCarreta]);
+
+  const datosIngresosTracto = useMemo(() => {
+    const labels = Object.keys(stats.ingresosTracto).slice(0, 10);
+    const data = labels.map((placa) => stats.ingresosTracto[placa]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Ingresos por Tracto (S/.)',
+          data,
+          backgroundColor: 'rgba(34, 197, 94, 0.6)',
+          borderColor: 'rgb(34, 197, 94)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [stats.ingresosTracto]);
+
+  const datosIngresosCarreta = useMemo(() => {
+    const labels = Object.keys(stats.ingresosCarreta).slice(0, 10);
+    const data = labels.map((placa) => stats.ingresosCarreta[placa]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Ingresos por Carreta (S/.)',
+          data,
+          backgroundColor: 'rgba(168, 85, 247, 0.6)',
+          borderColor: 'rgb(168, 85, 247)',
+          borderWidth: 1,
+        },
+      ],
+    };
+  }, [stats.ingresosCarreta]);
+
+  // Componente para tabla de ingresos por vehículo
+  function TablaEstadisticas({
+    titulo,
+    datos,
+    tipoVehiculo,
+  }: {
+    titulo: string;
+    datos: Record<string, number>;
+    tipoVehiculo: string;
+  }) {
+    // Convertir datos a array y ordenar por valor (de mayor a menor)
+    const datosOrdenados = Object.entries(datos)
+      .map(([placa, valor]) => ({ placa, valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 15); // Limitamos a los 15 primeros
+
+    return (
+      <div className="bg-white rounded-lg shadow-sm p-4">
+        <h3 className="text-lg font-medium mb-4">{titulo}</h3>
+        {datosOrdenados.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2">Placa {tipoVehiculo}</th>
+                  <th className="px-4 py-2">Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                {datosOrdenados.map(({ placa, valor }, index) => (
+                  <tr key={placa} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                    <td className="px-4 py-2 font-medium">{placa}</td>
+                    <td className="px-4 py-2">
+                      {titulo.includes('Ingresos')
+                        ? `S/. ${valor.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : valor}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-center py-4">No hay datos disponibles</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
@@ -833,6 +998,166 @@ export default function DashboardPage() {
               }
               linkTo="/egresos"
             />
+          </div>
+
+          {/* Sección de Estadísticas de Vehículos */}
+          <div className="mb-8">
+            <h2 className="text-xl font-bold mb-4">Estadísticas de Vehículos</h2>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              {/* Gráficos para conteo de facturas */}
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h3 className="text-lg font-medium mb-4">Conteo de Facturas por Tracto</h3>
+                <div className="h-80">
+                  {Object.keys(stats.facturasTracto).length > 0 ? (
+                    <Bar
+                      data={datosFacturasTracto}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'top',
+                          },
+                          title: {
+                            display: false,
+                          },
+                        },
+                        scales: {
+                          y: {
+                            beginAtZero: true,
+                            ticks: {
+                              precision: 0,
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      No hay datos disponibles
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h3 className="text-lg font-medium mb-4">Conteo de Facturas por Carreta</h3>
+                <div className="h-80">
+                  {Object.keys(stats.facturasCarreta).length > 0 ? (
+                    <Bar
+                      data={datosFacturasCarreta}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'top',
+                          },
+                          title: {
+                            display: false,
+                          },
+                        },
+                        scales: {
+                          y: {
+                            beginAtZero: true,
+                            ticks: {
+                              precision: 0,
+                            },
+                          },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      No hay datos disponibles
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Gráficos para suma de ingresos */}
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h3 className="text-lg font-medium mb-4">Ingresos Totales por Tracto</h3>
+                <div className="h-80">
+                  {Object.keys(stats.ingresosTracto).length > 0 ? (
+                    <Doughnut
+                      data={datosIngresosTracto}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'right',
+                          },
+                          title: {
+                            display: false,
+                          },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      No hay datos disponibles
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-4">
+                <h3 className="text-lg font-medium mb-4">Ingresos Totales por Carreta</h3>
+                <div className="h-80">
+                  {Object.keys(stats.ingresosCarreta).length > 0 ? (
+                    <Doughnut
+                      data={datosIngresosCarreta}
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            position: 'right',
+                          },
+                          title: {
+                            display: false,
+                          },
+                        },
+                      }}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      No hay datos disponibles
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tablas de estadísticas */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <TablaEstadisticas
+                titulo="Conteo de Facturas por Tracto"
+                datos={stats.facturasTracto}
+                tipoVehiculo="Tracto"
+              />
+
+              <TablaEstadisticas
+                titulo="Conteo de Facturas por Carreta"
+                datos={stats.facturasCarreta}
+                tipoVehiculo="Carreta"
+              />
+
+              <TablaEstadisticas
+                titulo="Ingresos Totales por Tracto (S/.)"
+                datos={stats.ingresosTracto}
+                tipoVehiculo="Tracto"
+              />
+
+              <TablaEstadisticas
+                titulo="Ingresos Totales por Carreta (S/.)"
+                datos={stats.ingresosCarreta}
+                tipoVehiculo="Carreta"
+              />
+            </div>
           </div>
 
           {/* Sección de Reportes Financieros */}
