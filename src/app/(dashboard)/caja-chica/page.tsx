@@ -37,6 +37,7 @@ export default function CajaChicaPage() {
   const [loading, setLoading] = useState(true);
   const [movimientos, setMovimientos] = useState<CajaChica[]>([]);
   const [saldoActual, setSaldoActual] = useState(0);
+  const [saldoDebe, setSaldoDebe] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<Partial<CajaChica>>({
@@ -45,6 +46,7 @@ export default function CajaChicaPage() {
     importe: 0,
     concepto: '',
     observaciones: '',
+    pagado: false,
   });
 
   // Diálogo de confirmación para eliminar
@@ -56,10 +58,20 @@ export default function CajaChicaPage() {
     confirmText: 'Eliminar',
   });
 
+  // Diálogo de confirmación para marcar como pagado
+  const pagarConfirm = useConfirmDialog({
+    title: 'Marcar como Pagado',
+    description: '¿Está seguro de que desea marcar este movimiento como pagado?',
+    type: 'warning',
+    variant: 'default',
+    confirmText: 'Confirmar',
+  });
+
   // Cargar datos desde Supabase al iniciar
   useEffect(() => {
     fetchMovimientos();
     fetchSaldoActual();
+    fetchSaldoDebe();
   }, []);
 
   const fetchMovimientos = async () => {
@@ -82,6 +94,16 @@ export default function CajaChicaPage() {
     } catch (error) {
       console.error('Error al calcular saldo de caja chica:', error);
       notificationService.error('No se pudo calcular el saldo actual');
+    }
+  };
+
+  const fetchSaldoDebe = async () => {
+    try {
+      const saldo = await cajaChicaService.calcularSaldoDebe();
+      setSaldoDebe(saldo);
+    } catch (error) {
+      console.error('Error al calcular saldo de debe:', error);
+      notificationService.error('No se pudo calcular el saldo de deudas');
     }
   };
 
@@ -113,18 +135,23 @@ export default function CajaChicaPage() {
         return;
       }
 
-      // Crear nuevo movimiento
-      await cajaChicaService.crearMovimiento({
+      // Establecer pagado en false cuando el tipo es 'debe'
+      const movimientoData = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
-        tipo: formData.tipo as 'ingreso' | 'egreso',
+        tipo: formData.tipo as 'ingreso' | 'egreso' | 'debe',
         importe: formData.importe || 0,
         concepto: formData.concepto || '',
         observaciones: formData.observaciones || '',
-      });
+        pagado: formData.tipo === 'debe' ? false : undefined,
+      };
+
+      // Crear nuevo movimiento
+      await cajaChicaService.crearMovimiento(movimientoData);
 
       // Recargar datos
       await fetchMovimientos();
       await fetchSaldoActual();
+      await fetchSaldoDebe();
 
       // Cerrar formulario y mostrar notificación
       setShowForm(false);
@@ -146,10 +173,30 @@ export default function CajaChicaPage() {
         await cajaChicaService.eliminarMovimiento(id);
         await fetchMovimientos();
         await fetchSaldoActual();
+        await fetchSaldoDebe();
         notificationService.success('Movimiento eliminado correctamente');
       } catch (error) {
         console.error('Error al eliminar movimiento:', error);
         notificationService.error('Error al eliminar el movimiento');
+      }
+    }
+  };
+
+  const handlePagar = async (id: string) => {
+    // Usar el dialogo de confirmación
+    pagarConfirm.open();
+    const confirmed = await pagarConfirm.confirm();
+
+    if (confirmed) {
+      try {
+        await cajaChicaService.cambiarEstadoPago(id, true);
+        await fetchMovimientos();
+        await fetchSaldoActual();
+        await fetchSaldoDebe();
+        notificationService.success('Movimiento marcado como pagado correctamente');
+      } catch (error) {
+        console.error('Error al marcar como pagado:', error);
+        notificationService.error('Error al marcar como pagado');
       }
     }
   };
@@ -161,8 +208,38 @@ export default function CajaChicaPage() {
       importe: 0,
       concepto: '',
       observaciones: '',
+      pagado: false,
     });
   };
+
+  // Icono para el botón de pagar
+  const PaymentIcon = () => (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"
+      />
+    </svg>
+  );
+
+  // Botón para marcar como pagado
+  const PayButton = ({ onClick }: { onClick: () => void }) => (
+    <button
+      onClick={onClick}
+      className="bg-green-100 text-green-700 hover:bg-green-200 p-1.5 rounded-md"
+      title="Marcar como pagado"
+    >
+      <PaymentIcon />
+    </button>
+  );
 
   // Definir columnas para la tabla
   const columns: Column<CajaChica>[] = [
@@ -177,10 +254,20 @@ export default function CajaChicaPage() {
       cell: (value, row) => (
         <span
           className={`px-2 py-1 rounded-full text-xs font-medium ${
-            row.tipo === 'ingreso' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            row.tipo === 'ingreso'
+              ? 'bg-green-100 text-green-800'
+              : row.tipo === 'egreso'
+                ? 'bg-red-100 text-red-800'
+                : 'bg-yellow-100 text-yellow-800'
           }`}
         >
-          {row.tipo === 'ingreso' ? 'Ingreso' : 'Egreso'}
+          {row.tipo === 'ingreso'
+            ? 'Ingreso'
+            : row.tipo === 'egreso'
+              ? 'Egreso'
+              : row.pagado
+                ? 'Debe (Pagado)'
+                : 'Debe'}
         </span>
       ),
     },
@@ -205,6 +292,20 @@ export default function CajaChicaPage() {
       },
     },
     {
+      header: 'Estado',
+      accessor: 'pagado',
+      cell: (value, row) =>
+        row.tipo === 'debe' && (
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium ${
+              row.pagado ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            }`}
+          >
+            {row.pagado ? 'Pagado' : 'Pendiente'}
+          </span>
+        ),
+    },
+    {
       header: 'Observaciones',
       accessor: 'observaciones',
     },
@@ -214,6 +315,9 @@ export default function CajaChicaPage() {
       cell: (value, row) => (
         <DeletePermission>
           <ActionButtonGroup>
+            {row.tipo === 'debe' && !row.pagado && (
+              <PayButton onClick={() => handlePagar(row.id)} />
+            )}
             <DeleteButton onClick={() => handleDelete(row.id)} />
           </ActionButtonGroup>
         </DeletePermission>
@@ -235,6 +339,11 @@ export default function CajaChicaPage() {
               >
                 {formatCurrency(saldoActual)}
               </p>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+              <p className="text-sm text-gray-500 mb-1">Total Debe Pendiente:</p>
+              <p className="text-xl font-bold text-yellow-600">{formatCurrency(saldoDebe)}</p>
             </div>
 
             <CreatePermission>
@@ -299,7 +408,7 @@ export default function CajaChicaPage() {
               <p className="text-xs text-gray-500 mt-1">La fecha es siempre la actual</p>
             </div>
 
-            {/* Tipo (ingreso/egreso) */}
+            {/* Tipo (ingreso/egreso/debe) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Tipo <span className="text-red-500">*</span>
@@ -313,7 +422,14 @@ export default function CajaChicaPage() {
               >
                 <option value="ingreso">Ingreso</option>
                 <option value="egreso">Egreso</option>
+                <option value="debe">Debe</option>
               </select>
+              {formData.tipo === 'debe' && (
+                <p className="text-xs text-yellow-600 mt-1">
+                  Este monto quedará como deuda pendiente y restará del saldo hasta que sea marcado
+                  como pagado.
+                </p>
+              )}
             </div>
           </div>
 
@@ -379,8 +495,11 @@ export default function CajaChicaPage() {
         </form>
       </Modal>
 
-      {/* Diálogo de confirmación */}
+      {/* Diálogo de confirmación de eliminación */}
       <ConfirmDialog {...deleteConfirm.dialogProps} />
+
+      {/* Diálogo de confirmación para marcar como pagado */}
+      <ConfirmDialog {...pagarConfirm.dialogProps} />
     </div>
   );
 }

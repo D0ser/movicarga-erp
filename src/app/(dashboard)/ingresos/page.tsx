@@ -19,7 +19,6 @@ import {
 } from '@/lib/supabaseServices';
 import { EditButton, DeleteButton, ActionButtonGroup } from '@/components/ActionIcons';
 import supabase from '@/lib/supabase';
-import showToast from '@/utils/toast';
 import Modal from '@/components/Modal';
 import {
   ViewPermission,
@@ -28,6 +27,9 @@ import {
   DeletePermission,
 } from '@/components/permission-guard';
 import { usePermissions } from '@/hooks/use-permissions';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 // Interfaz que es compatible con DataItem
 interface Ingreso {
@@ -53,6 +55,7 @@ interface Ingreso {
   diasCredito: number;
   fechaVencimiento: string;
   estado: string;
+  cuentaAbonada: string;
 }
 
 // Componente para mostrar el total de monto de flete
@@ -164,6 +167,19 @@ export default function IngresosPage() {
     guiaTransp: '',
     diasCredito: 0,
     estado: 'Pendiente',
+    cuentaAbonada: '',
+  });
+
+  // Toast para notificaciones
+  const { toast } = useToast();
+
+  // Diálogos de confirmación
+  const deleteConfirm = useConfirmDialog({
+    title: 'Eliminar Ingreso',
+    description: '¿Está seguro de que desea eliminar este ingreso?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
   });
 
   // Obtener las series disponibles
@@ -226,7 +242,11 @@ export default function IngresosPage() {
         setIngresosFiltrados(ingresosConEstadoActualizado);
       } catch (error) {
         console.error('Error al cargar datos:', error);
-        showToast.error('Error al cargar los datos. Por favor, intente de nuevo.');
+        toast({
+          title: 'Error',
+          description: 'Error al cargar los datos. Por favor, intente de nuevo.',
+          variant: 'destructive',
+        });
       } finally {
         setLoading(false);
       }
@@ -523,6 +543,12 @@ export default function IngresosPage() {
           const fechaVencimientoObj = new Date(fechaVencimiento);
           const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj);
 
+          // Obtener cuenta abonada del cliente si existe
+          let cuentaAbonada = '';
+          if (cliente && typeof cliente === 'object' && 'cuenta_abonada' in cliente) {
+            cuentaAbonada = cliente.cuenta_abonada || '';
+          }
+
           return {
             id: ing.id,
             fecha: ing.fecha,
@@ -545,6 +571,7 @@ export default function IngresosPage() {
             diasCredito: diasCredito,
             fechaVencimiento: fechaVencimiento,
             estado: estadoAutomatico,
+            cuentaAbonada: cuentaAbonada,
           };
         })
       );
@@ -569,11 +596,20 @@ export default function IngresosPage() {
   }, [ingresos]);
 
   const handleError = (message: string) => {
-    showToast.error(message);
+    toast({
+      title: 'Error',
+      description: message,
+      variant: 'destructive',
+    });
   };
 
   const handleSuccess = (message: string) => {
-    showToast.success(message);
+    toast({
+      title: 'Éxito',
+      description: message,
+      variant: 'default',
+      className: 'bg-green-600 text-white',
+    });
   };
 
   // Columnas para la tabla de ingresos
@@ -758,6 +794,21 @@ export default function IngresosPage() {
           </div>
         );
       },
+    },
+    {
+      header: 'Cuenta Abonada',
+      accessor: 'cuentaAbonada',
+      cell: (value) => (
+        <div className="flex justify-center">
+          {(value as string) ? (
+            <span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 text-sm">
+              {value as string}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      ),
     },
     {
       header: 'RUC',
@@ -1209,14 +1260,22 @@ export default function IngresosPage() {
       if (name === 'placaTracto' && value) {
         const tractoSeleccionado = vehiculos.find((v) => v.placa === value);
         if (tractoSeleccionado && tractoSeleccionado.tipo_vehiculo !== 'Tracto') {
-          showToast.error('La placa seleccionada no corresponde a un tracto');
+          toast({
+            title: 'Error',
+            description: 'La placa seleccionada no corresponde a un tracto',
+            variant: 'destructive',
+          });
         }
       }
 
       if (name === 'placaCarreta' && value) {
         const carretaSeleccionada = vehiculos.find((v) => v.placa === value);
         if (carretaSeleccionada && carretaSeleccionada.tipo_vehiculo !== 'Carreta') {
-          showToast.error('La placa seleccionada no corresponde a una carreta');
+          toast({
+            title: 'Error',
+            description: 'La placa seleccionada no corresponde a una carreta',
+            variant: 'destructive',
+          });
         }
       }
 
@@ -1268,7 +1327,11 @@ export default function IngresosPage() {
 
     // Validate required fields
     if (!formData.serie || !formData.numeroFactura || !formData.empresa || !formData.ruc) {
-      handleError('Por favor complete todos los campos requeridos');
+      toast({
+        title: 'Error',
+        description: 'Por favor complete todos los campos requeridos',
+        variant: 'destructive',
+      });
       return;
     }
 
@@ -1276,11 +1339,19 @@ export default function IngresosPage() {
     if (formData.placaTracto) {
       const tractoSeleccionado = vehiculos.find((v) => v.placa === formData.placaTracto);
       if (!tractoSeleccionado) {
-        handleError('La placa de tracto seleccionada no existe');
+        toast({
+          title: 'Error',
+          description: 'La placa de tracto seleccionada no existe',
+          variant: 'destructive',
+        });
         return;
       }
       if (tractoSeleccionado.tipo_vehiculo !== 'Tracto') {
-        handleError('La placa seleccionada no corresponde a un tracto');
+        toast({
+          title: 'Error',
+          description: 'La placa seleccionada no corresponde a un tracto',
+          variant: 'destructive',
+        });
         return;
       }
     }
@@ -1288,11 +1359,19 @@ export default function IngresosPage() {
     if (formData.placaCarreta) {
       const carretaSeleccionada = vehiculos.find((v) => v.placa === formData.placaCarreta);
       if (!carretaSeleccionada) {
-        handleError('La placa de carreta seleccionada no existe');
+        toast({
+          title: 'Error',
+          description: 'La placa de carreta seleccionada no existe',
+          variant: 'destructive',
+        });
         return;
       }
       if (carretaSeleccionada.tipo_vehiculo !== 'Carreta') {
-        handleError('La placa seleccionada no corresponde a una carreta');
+        toast({
+          title: 'Error',
+          description: 'La placa seleccionada no corresponde a una carreta',
+          variant: 'destructive',
+        });
         return;
       }
     }
@@ -1395,13 +1474,23 @@ export default function IngresosPage() {
       if (formData.id && typeof formData.id === 'string') {
         // Actualizar ingreso existente
         await ingresoService.updateIngreso(formData.id, ingresoData);
-        handleSuccess('Ingreso actualizado correctamente');
+        toast({
+          title: 'Éxito',
+          description: 'Ingreso actualizado correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       } else {
         // Agregar nuevo ingreso
         await ingresoService.createIngreso(
           ingresoData as Omit<IngresoType, 'id' | 'cliente' | 'viaje'>
         );
-        handleSuccess('Nuevo ingreso registrado correctamente');
+        toast({
+          title: 'Éxito',
+          description: 'Nuevo ingreso registrado correctamente',
+          variant: 'default',
+          className: 'bg-green-600 text-white',
+        });
       }
 
       // Recargar los ingresos
@@ -1440,20 +1529,28 @@ export default function IngresosPage() {
         guiaTransp: '',
         diasCredito: 0,
         estado: 'Vigente',
+        cuentaAbonada: '',
       });
 
       setShowForm(false);
     } catch (error) {
       console.error('Error al guardar ingreso:', error);
-      handleError('Error al guardar el ingreso. Por favor, inténtalo de nuevo.');
+      toast({
+        title: 'Error',
+        description: 'Error al guardar el ingreso. Por favor, inténtalo de nuevo.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: number | string) => {
-    if (confirm('¿Está seguro de que desea eliminar este ingreso?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteConfirm.confirm();
+
+      if (confirmed) {
         setLoading(true);
 
         if (typeof id === 'string') {
@@ -1463,14 +1560,23 @@ export default function IngresosPage() {
           const ingresosActualizados = await cargarIngresos();
           setIngresos(ingresosActualizados);
 
-          handleSuccess('Ingreso eliminado correctamente');
+          toast({
+            title: 'Éxito',
+            description: 'Ingreso eliminado correctamente',
+            variant: 'default',
+            className: 'bg-green-600 text-white',
+          });
         }
-      } catch (error) {
-        console.error('Error al eliminar ingreso:', error);
-        handleError('Error al eliminar el ingreso. Por favor, inténtalo de nuevo.');
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error al eliminar ingreso:', error);
+      toast({
+        title: 'Error',
+        description: 'Error al eliminar el ingreso. Por favor, inténtalo de nuevo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1528,6 +1634,7 @@ export default function IngresosPage() {
       diasCredito: 0,
       fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
       estado: estadoAutomatico,
+      cuentaAbonada: '',
     });
   };
 
@@ -1706,6 +1813,7 @@ export default function IngresosPage() {
                   empresa: e.target.value,
                   ruc: clienteSeleccionado?.ruc || '',
                   diasCredito: clienteSeleccionado?.dias_credito || 0,
+                  cuentaAbonada: clienteSeleccionado?.cuenta_abonada || '',
                 }));
               }}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
@@ -1726,6 +1834,17 @@ export default function IngresosPage() {
               type="text"
               name="ruc"
               value={formData.ruc}
+              className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
+              readOnly
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Cuenta Abonada</label>
+            <input
+              type="text"
+              name="cuentaAbonada"
+              value={formData.cuentaAbonada}
               className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
               readOnly
             />
@@ -1861,6 +1980,9 @@ export default function IngresosPage() {
           </div>
         </form>
       </Modal>
+
+      {/* Diálogo de confirmación para eliminar */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
 
       <ViewPermission>
         <DataTable

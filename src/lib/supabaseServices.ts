@@ -207,10 +207,11 @@ export interface Empresa extends DataItem {
 export interface CajaChica extends DataItem {
   id: string;
   fecha: string;
-  tipo: 'ingreso' | 'egreso';
+  tipo: 'ingreso' | 'egreso' | 'debe';
   importe: number;
   concepto: string;
   observaciones: string;
+  pagado?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -858,7 +859,7 @@ export const cajaChicaService = {
 
   async calcularSaldo() {
     try {
-      const { data, error } = await supabase.from('caja_chica').select('tipo, importe');
+      const { data, error } = await supabase.from('caja_chica').select('tipo, importe, pagado');
 
       if (error) throw error;
 
@@ -866,14 +867,60 @@ export const cajaChicaService = {
       const saldo = (data as CajaChica[]).reduce((total, movimiento) => {
         if (movimiento.tipo === 'ingreso') {
           return total + movimiento.importe;
-        } else {
+        } else if (movimiento.tipo === 'egreso') {
+          return total - movimiento.importe;
+        } else if (movimiento.tipo === 'debe' && movimiento.pagado) {
+          // Si está pagado, no afecta al saldo
+          return total;
+        } else if (movimiento.tipo === 'debe' && !movimiento.pagado) {
+          // Si es tipo debe y no está pagado, se resta del saldo
           return total - movimiento.importe;
         }
+        return total;
       }, 0);
 
       return saldo;
     } catch (error) {
       console.error('Error al calcular saldo de caja chica:', error);
+      throw error;
+    }
+  },
+
+  async calcularSaldoDebe() {
+    try {
+      const { data, error } = await supabase
+        .from('caja_chica')
+        .select('tipo, importe, pagado')
+        .eq('tipo', 'debe')
+        .eq('pagado', false);
+
+      if (error) throw error;
+
+      // Calcular el total de deudas pendientes
+      const saldoDebe = (data as CajaChica[]).reduce((total, movimiento) => {
+        return total + movimiento.importe;
+      }, 0);
+
+      return saldoDebe;
+    } catch (error) {
+      console.error('Error al calcular saldo de debe en caja chica:', error);
+      throw error;
+    }
+  },
+
+  async cambiarEstadoPago(id: string, pagado: boolean) {
+    try {
+      const { data, error } = await supabase
+        .from('caja_chica')
+        .update({ pagado })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as CajaChica;
+    } catch (error) {
+      console.error('Error al cambiar estado de pago:', error);
       throw error;
     }
   },

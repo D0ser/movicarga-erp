@@ -11,6 +11,11 @@ const defaultOptions: ToastOptions = {
   duration: 3000,
 };
 
+// Variable para almacenar la referencia al último toast creado
+let lastToastRef: { id: string; dismiss: () => void } | undefined;
+// Variable para rastrear si hay una notificación de carga activa
+let loadingActive = false;
+
 // Servicio de notificaciones usando shadcn/ui
 const notificationService = {
   /**
@@ -19,13 +24,21 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   success: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si hay una notificación de carga activa, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       title: 'Éxito',
       description: message,
       variant: 'default',
       className: cn('bg-green-600 text-white font-medium shadow-xl border-0', options.className),
       duration: options.duration || defaultOptions.duration,
     });
+    lastToastRef = result;
+    loadingActive = false;
+    return result;
   },
 
   /**
@@ -34,13 +47,21 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   error: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si hay una notificación de carga activa, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       title: 'Error',
       description: message,
       variant: 'destructive',
       className: cn('bg-red-600 text-white font-medium shadow-xl border-0', options.className),
       duration: options.duration || defaultOptions.duration,
     });
+    lastToastRef = result;
+    loadingActive = false;
+    return result;
   },
 
   /**
@@ -49,13 +70,21 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   warning: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si hay una notificación de carga activa, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       title: 'Advertencia',
       description: message,
       variant: 'default',
       className: cn('bg-amber-500 text-white font-medium shadow-xl border-0', options.className),
       duration: options.duration || defaultOptions.duration,
     });
+    lastToastRef = result;
+    loadingActive = false;
+    return result;
   },
 
   /**
@@ -64,13 +93,21 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   info: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si hay una notificación de carga activa, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       title: 'Información',
       description: message,
       variant: 'default',
-      className: cn('bg-primary text-white font-medium shadow-xl border-0', options.className),
+      className: cn('bg-blue-600 text-white font-medium shadow-xl border-0', options.className),
       duration: options.duration || defaultOptions.duration,
     });
+    lastToastRef = result;
+    loadingActive = false;
+    return result;
   },
 
   /**
@@ -79,22 +116,54 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   loading: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si ya hay una notificación de carga, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       title: 'Cargando',
       description: message,
       className: cn('bg-black/90 text-white font-medium shadow-xl border-0', options.className),
       duration: 100000, // Duración larga para que no desaparezca automáticamente
     });
+    lastToastRef = result;
+    loadingActive = true;
+    return result;
   },
 
   /**
    * Cierra las notificaciones activas
-   * En shadcn/ui no hay una manera directa de cerrar notificaciones específicas
-   * pero se proporciona este método para mantener compatibilidad API
+   * Utiliza dismiss del propio toast para cerrar la última notificación
    */
   dismiss: () => {
-    // Este método es un placeholder, actualmente no es funcional con shadcn/ui
-    // Las notificaciones se cerrarán automáticamente según su duración
+    // Primero intentamos cerrar la notificación específica
+    if (lastToastRef) {
+      try {
+        console.log('Cerrando notificación con ID:', lastToastRef.id);
+        lastToastRef.dismiss();
+      } catch (e) {
+        console.error('Error al cerrar notificación específica:', e);
+        // Si falla, usar el método dismiss global
+        try {
+          shadcnToast.dismiss();
+        } catch (e2) {
+          console.error('Error al cerrar todas las notificaciones:', e2);
+        }
+      }
+      lastToastRef = undefined;
+    } else {
+      // Como alternativa, cerramos todas las notificaciones
+      try {
+        console.log('Cerrando todas las notificaciones');
+        shadcnToast.dismiss();
+      } catch (e) {
+        console.error('Error al cerrar todas las notificaciones:', e);
+      }
+    }
+
+    // Resetear el estado de carga
+    loadingActive = false;
   },
 
   /**
@@ -103,19 +172,33 @@ const notificationService = {
    * @param options Opciones adicionales
    */
   custom: (message: string, options: ToastOptions = {}) => {
-    return shadcnToast({
+    // Si hay una notificación de carga activa, cerrarla primero
+    if (loadingActive) {
+      notificationService.dismiss();
+    }
+
+    const result = shadcnToast({
       description: message,
       className: cn('bg-white shadow-xl border-gray-200', options.className),
       duration: options.duration || defaultOptions.duration,
     });
+    lastToastRef = result;
+    loadingActive = false;
+    return result;
   },
 
   /**
    * Cierra todas las notificaciones
    */
   closeAll: () => {
-    // En shadcn/ui no hay una manera directa de cerrar todas las notificaciones
-    // pero como por diseño solo se muestra una a la vez, esto no debería ser problema
+    // Utiliza el método dismiss global
+    try {
+      shadcnToast.dismiss();
+    } catch (e) {
+      console.error('Error al cerrar todas las notificaciones:', e);
+    }
+    lastToastRef = undefined;
+    loadingActive = false;
   },
 };
 

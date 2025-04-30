@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import DataTable, { DataItem, Column } from '@/components/DataTable';
 import { format } from 'date-fns';
-import { clienteService, Cliente } from '@/lib/supabaseServices';
+import { clienteService, Cliente, Ingreso } from '@/lib/supabaseServices';
 import notificationService from '@/components/notifications/NotificationService';
 import { db } from '@/lib/supabaseClient';
 import {
@@ -50,6 +50,16 @@ export default function ClientesPage() {
     type: 'error',
     variant: 'destructive',
     confirmText: 'Eliminar',
+  });
+
+  // Diálogo para desactivar cliente
+  const desactivarConfirm = useConfirmDialog({
+    title: 'No se puede eliminar este cliente',
+    description:
+      'Este cliente tiene ingresos registrados en el sistema y no puede ser eliminado para mantener la integridad de los datos. ¿Desea desactivarlo en su lugar?',
+    type: 'warning',
+    confirmText: 'Desactivar',
+    cancelText: 'Cancelar',
   });
 
   // Cargar datos desde Supabase al iniciar
@@ -438,23 +448,108 @@ export default function ClientesPage() {
 
   const handleDelete = async (id: string) => {
     try {
+      // Evitar múltiples operaciones
+      const cliente = clientes.find((c) => c.id === id);
+      if (!cliente) {
+        notificationService.error('Cliente no encontrado');
+        return;
+      }
+
       // Esperar confirmación mediante el diálogo
       const confirmed = await deleteConfirm.confirm();
 
       if (confirmed) {
-        notificationService.loading('Eliminando cliente...');
-        await clienteService.deleteCliente(id);
-        notificationService.dismiss();
-        notificationService.success('Cliente eliminado correctamente');
+        try {
+          // Cerrar cualquier notificación anterior que pudiera estar abierta
+          notificationService.dismiss();
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Actualizar la lista de clientes
-        fetchClientes();
+          notificationService.loading('Verificando dependencias del cliente...');
+          console.log('Verificando dependencias...', cliente.razon_social);
+
+          // Verificar si el cliente tiene ingresos asociados
+          const ingresosAsociados = await db.getWhere<Ingreso>('ingresos', 'cliente_id', id);
+
+          if (!ingresosAsociados) {
+            console.error('Error al verificar ingresos');
+            throw new Error('No se pudieron verificar los ingresos asociados');
+          }
+
+          console.log('Ingresos asociados:', ingresosAsociados);
+
+          if (ingresosAsociados && ingresosAsociados.length > 0) {
+            // Si hay ingresos asociados, ofrecer desactivarlo en lugar de eliminarlo
+            console.log('Cliente tiene ingresos asociados, mostrando diálogo de desactivación');
+
+            // Cerrar la notificación de carga ANTES de mostrar el diálogo
+            notificationService.dismiss();
+            await new Promise((resolve) => setTimeout(resolve, 300));
+
+            // Calcular el total de ingresos asociados
+            const cantidadIngresos = ingresosAsociados.length;
+            const totalIngresos = ingresosAsociados.reduce(
+              (sum: number, ingreso: Ingreso) => sum + (parseFloat(String(ingreso.monto)) || 0),
+              0
+            );
+
+            // Mostrar notificación informativa sobre por qué no se puede eliminar
+            notificationService.warning(
+              `El cliente ${cliente.razon_social} tiene ${cantidadIngresos} ${
+                cantidadIngresos === 1 ? 'ingreso asociado' : 'ingresos asociados'
+              } por un total de S/. ${totalIngresos.toFixed(2)} y no puede ser eliminado`
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            // Mostrar notificación sobre la opción alternativa
+            notificationService.info(
+              `Se le ofrecerá la opción de desactivar al cliente en su lugar`,
+              { className: 'bg-blue-600 border-blue-700 text-white font-medium' }
+            );
+            await new Promise((resolve) => setTimeout(resolve, 1500));
+
+            // Usar el diálogo predefinido para desactivar
+            const desactivarConfirmado = await desactivarConfirm.confirm();
+            console.log('Respuesta desactivación:', desactivarConfirmado);
+
+            if (desactivarConfirmado) {
+              notificationService.loading('Desactivando cliente...');
+              await clienteService.updateCliente(id, { estado: false });
+              notificationService.dismiss();
+              await new Promise((resolve) => setTimeout(resolve, 300));
+              notificationService.success(
+                `Cliente ${cliente.razon_social} desactivado correctamente`
+              );
+              fetchClientes();
+            } else {
+              notificationService.info('Operación cancelada');
+            }
+          } else {
+            // Si no hay ingresos asociados, proceder con la eliminación
+            console.log('No hay ingresos asociados, procediendo con eliminación');
+            notificationService.loading('Eliminando cliente...');
+            await clienteService.deleteCliente(id);
+            notificationService.dismiss();
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            notificationService.success(`Cliente ${cliente.razon_social} eliminado correctamente`);
+
+            // Actualizar la lista de clientes
+            fetchClientes();
+          }
+        } catch (error) {
+          console.error('Error durante el proceso:', error);
+          notificationService.dismiss();
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          notificationService.error(
+            `Error al procesar cliente: ${(error as Error).message || 'Intente nuevamente'}`
+          );
+        }
       }
     } catch (error) {
-      console.error('Error al eliminar cliente:', error);
+      console.error('Error general en handleDelete:', error);
       notificationService.dismiss();
+      await new Promise((resolve) => setTimeout(resolve, 300));
       notificationService.error(
-        `Error al eliminar cliente: ${(error as Error).message || 'Intente nuevamente'}`
+        `Error al eliminar cliente: ${(error as any).message || 'Intente nuevamente'}`
       );
     }
   };

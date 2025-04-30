@@ -120,7 +120,7 @@ export default function EgresosPage() {
             cuentaEgreso: eg.cuenta_egreso || 'Cuenta Principal',
             operacion: eg.metodo_pago || 'Efectivo',
             destino: eg.proveedor,
-            cuentaAbonada: empresaCorrespondiente?.cuenta_abonada || '',
+            cuentaAbonada: eg.cuenta_abonada || empresaCorrespondiente?.cuenta_abonada || '',
             tipoEgreso: eg.categoria || 'Operativo',
             moneda: 'PEN',
             monto: eg.monto,
@@ -142,7 +142,7 @@ export default function EgresosPage() {
             cuentaEgreso: eg.cuenta_egreso || 'Caja Chica',
             operacion: eg.metodo_pago || 'Efectivo',
             destino: eg.concepto,
-            cuentaAbonada: empresaCorrespondiente?.cuenta_abonada || '',
+            cuentaAbonada: eg.cuenta_abonada || empresaCorrespondiente?.cuenta_abonada || '',
             tipoEgreso: eg.categoria || 'Operativo',
             moneda: 'PEN',
             monto: eg.monto,
@@ -212,6 +212,21 @@ export default function EgresosPage() {
     cargarEmpresas();
     cargarTiposEgreso();
     cargarCuentasBanco();
+
+    // Función para recargar los datos cuando la ventana obtiene el foco
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        cargarEgresos();
+      }
+    };
+
+    // Agregar event listener para detectar cuando la página obtiene el foco
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Limpiar event listener al desmontar el componente
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const [showForm, setShowForm] = useState(false);
@@ -640,23 +655,30 @@ export default function EgresosPage() {
       // Determinar si es un egreso con factura o sin factura
       const tieneFactura = formData.factura && formData.factura.trim() !== '';
 
+      // Preparar los datos para enviar, excluyendo el ID cuando es un nuevo registro
+      const datosParaEnviar = { ...formData };
+      if (datosParaEnviar.id === 0) {
+        delete datosParaEnviar.id; // Eliminar el ID para que Supabase genere un UUID automáticamente
+      }
+
       if (tieneFactura) {
         // Egreso con factura
         const { data, error } = await supabase
           .from('egresos')
           .upsert({
-            id: formData.id,
-            fecha: formData.fecha,
-            proveedor: formData.destino,
-            concepto: formData.tipoEgreso,
-            monto: formData.monto,
-            metodo_pago: formData.operacion,
-            numero_factura: formData.factura,
-            fecha_factura: formData.fecha,
-            categoria: formData.tipoEgreso,
-            observacion: formData.observacion,
-            estado: formData.estado?.toLowerCase(),
-            cuenta_egreso: formData.cuentaEgreso,
+            ...(datosParaEnviar.id ? { id: datosParaEnviar.id } : {}), // Solo incluir ID si existe
+            fecha: datosParaEnviar.fecha,
+            proveedor: datosParaEnviar.destino,
+            concepto: datosParaEnviar.tipoEgreso,
+            monto: datosParaEnviar.monto,
+            metodo_pago: datosParaEnviar.operacion,
+            numero_factura: datosParaEnviar.factura,
+            fecha_factura: datosParaEnviar.fecha,
+            categoria: datosParaEnviar.tipoEgreso,
+            observacion: datosParaEnviar.observacion,
+            estado: datosParaEnviar.estado?.toLowerCase(),
+            cuenta_egreso: datosParaEnviar.cuentaEgreso,
+            cuenta_abonada: datosParaEnviar.cuentaAbonada,
           })
           .select();
 
@@ -666,15 +688,16 @@ export default function EgresosPage() {
         const { data, error } = await supabase
           .from('egresos_sin_factura')
           .upsert({
-            id: formData.id,
-            fecha: formData.fecha,
-            concepto: formData.destino,
-            monto: formData.monto,
-            metodo_pago: formData.operacion,
-            categoria: formData.tipoEgreso,
-            observacion: formData.observacion,
-            estado: formData.estado?.toLowerCase(),
-            cuenta_egreso: formData.cuentaEgreso,
+            ...(datosParaEnviar.id ? { id: datosParaEnviar.id } : {}), // Solo incluir ID si existe
+            fecha: datosParaEnviar.fecha,
+            concepto: datosParaEnviar.destino,
+            monto: datosParaEnviar.monto,
+            metodo_pago: datosParaEnviar.operacion,
+            categoria: datosParaEnviar.tipoEgreso,
+            observacion: datosParaEnviar.observacion,
+            estado: datosParaEnviar.estado?.toLowerCase(),
+            cuenta_egreso: datosParaEnviar.cuentaEgreso,
+            cuenta_abonada: datosParaEnviar.cuentaAbonada,
           })
           .select();
 
