@@ -33,7 +33,7 @@ import { useToast } from '@/hooks/use-toast';
 
 // Interfaz que es compatible con DataItem
 interface Ingreso {
-  [key: string]: string | number | boolean;
+  [key: string]: string | number | boolean | undefined;
   id: number | string;
   fecha: string;
   serie: string;
@@ -56,6 +56,8 @@ interface Ingreso {
   fechaVencimiento: string;
   estado: string;
   cuentaAbonada: string;
+  numOperacionPrimeraCuota?: string;
+  numOperacionSegundaCuota?: string;
 }
 
 // Componente para mostrar el total de monto de flete
@@ -168,6 +170,8 @@ export default function IngresosPage() {
     diasCredito: 0,
     estado: 'Pendiente',
     cuentaAbonada: '',
+    numOperacionPrimeraCuota: '',
+    numOperacionSegundaCuota: '',
   });
 
   // Toast para notificaciones
@@ -194,6 +198,11 @@ export default function IngresosPage() {
 
   // Estado para los ingresos filtrados
   const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
+
+  // Estado para el modal de número de operación
+  const [showNumOperacionModal, setShowNumOperacionModal] = useState(false);
+  const [cuotaSeleccionada, setCuotaSeleccionada] = useState<'primera' | 'segunda'>('primera');
+  const [numOperacion, setNumOperacion] = useState('');
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -314,6 +323,8 @@ export default function IngresosPage() {
           let fechaVencimiento = ing.fecha;
           let observacionUsuario = '';
           let montoFlete = ing.monto || 0;
+          let numOperacionPrimeraCuota = '';
+          let numOperacionSegundaCuota = '';
 
           // Para extraer datos de conductor y vehículos desde observaciones
           let conductorId = '';
@@ -341,6 +352,8 @@ export default function IngresosPage() {
                 detraccion = datosJSON.detraccion || ing.monto * 0.04;
                 totalMonto = datosJSON.totalMonto || ing.monto;
                 totalDeber = datosJSON.totalDeber || 0;
+                numOperacionPrimeraCuota = datosJSON.numOperacionPrimeraCuota || '';
+                numOperacionSegundaCuota = datosJSON.numOperacionSegundaCuota || '';
 
                 // Extraer datos de transporte
                 conductor = datosJSON.conductor || '';
@@ -468,6 +481,20 @@ export default function IngresosPage() {
               placaCarreta = placaCarretaMatch[1].trim();
             }
 
+            // Extraer Número de operación primera cuota
+            const numOpPrimeraRegex = /Num\. Operación 1era cuota: ([a-zA-Z0-9-]+)/;
+            const numOpPrimeraMatch = texto.match(numOpPrimeraRegex);
+            if (numOpPrimeraMatch && numOpPrimeraMatch[1]) {
+              numOperacionPrimeraCuota = numOpPrimeraMatch[1].trim();
+            }
+
+            // Extraer Número de operación segunda cuota
+            const numOpSegundaRegex = /Num\. Operación 2da cuota: ([a-zA-Z0-9-]+)/;
+            const numOpSegundaMatch = texto.match(numOpSegundaRegex);
+            if (numOpSegundaMatch && numOpSegundaMatch[1]) {
+              numOperacionSegundaCuota = numOpSegundaMatch[1].trim();
+            }
+
             // Si no encontramos observación específica, usar todo el texto
             observacionUsuario = texto;
           }
@@ -572,6 +599,8 @@ export default function IngresosPage() {
             fechaVencimiento: fechaVencimiento,
             estado: estadoAutomatico,
             cuentaAbonada: cuentaAbonada,
+            numOperacionPrimeraCuota: numOperacionPrimeraCuota,
+            numOperacionSegundaCuota: numOperacionSegundaCuota,
           };
         })
       );
@@ -707,17 +736,34 @@ export default function IngresosPage() {
     {
       header: 'Monto Flete',
       accessor: 'montoFlete',
-      cell: (value) => (
-        <div className="flex justify-end">
-          <span className="font-mono text-green-700 font-medium">
-            S/.{' '}
-            {(value as number).toLocaleString('es-PE', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        </div>
-      ),
+      cell: (value, row) => {
+        const numOpPrimera = row.numOperacionPrimeraCuota || '';
+        const numOpSegunda = row.numOperacionSegundaCuota || '';
+
+        let tooltipContent = '';
+        if (numOpPrimera || numOpSegunda) {
+          tooltipContent = `
+            ${numOpPrimera ? `1era cuota: S/. ${row.primeraCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} - Op: ${numOpPrimera}` : ''}
+            ${numOpPrimera && numOpSegunda ? '\n' : ''}
+            ${numOpSegunda ? `2da cuota: S/. ${row.segundaCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} - Op: ${numOpSegunda}` : ''}
+          `;
+        }
+
+        return (
+          <div className="flex justify-end">
+            <span
+              className="font-mono text-green-700 font-medium cursor-help"
+              title={tooltipContent}
+            >
+              S/.{' '}
+              {(value as number).toLocaleString('es-PE', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
+          </div>
+        );
+      },
     },
     {
       header: 'Detracción',
@@ -1415,6 +1461,8 @@ export default function IngresosPage() {
         detraccion: formData.detraccion || 0,
         totalDeber: formData.totalDeber || 0,
         totalMonto: formData.totalMonto || 0,
+        numOperacionPrimeraCuota: formData.numOperacionPrimeraCuota || '',
+        numOperacionSegundaCuota: formData.numOperacionSegundaCuota || '',
 
         // Datos de transporte
         conductor: formData.conductor || '',
@@ -1530,6 +1578,8 @@ export default function IngresosPage() {
         diasCredito: 0,
         estado: 'Vigente',
         cuentaAbonada: '',
+        numOperacionPrimeraCuota: '',
+        numOperacionSegundaCuota: '',
       });
 
       setShowForm(false);
@@ -1635,7 +1685,36 @@ export default function IngresosPage() {
       fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
       estado: estadoAutomatico,
       cuentaAbonada: '',
+      numOperacionPrimeraCuota: '',
+      numOperacionSegundaCuota: '',
     });
+  };
+
+  // Abre el modal para ingresar el número de operación
+  const handleCuotaChange = (tipo: 'primera' | 'segunda') => {
+    setCuotaSeleccionada(tipo);
+    setNumOperacion(
+      tipo === 'primera'
+        ? formData.numOperacionPrimeraCuota || ''
+        : formData.numOperacionSegundaCuota || ''
+    );
+    setShowNumOperacionModal(true);
+  };
+
+  // Guarda el número de operación en el formulario
+  const handleGuardarNumOperacion = () => {
+    if (cuotaSeleccionada === 'primera') {
+      setFormData((prev) => ({
+        ...prev,
+        numOperacionPrimeraCuota: numOperacion,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        numOperacionSegundaCuota: numOperacion,
+      }));
+    }
+    setShowNumOperacionModal(false);
   };
 
   return (
@@ -1725,26 +1804,54 @@ export default function IngresosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">1era Cuota</label>
-            <input
-              type="number"
-              step="0.01"
-              name="primeraCuota"
-              value={formData.primeraCuota}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="flex">
+              <input
+                type="number"
+                step="0.01"
+                name="primeraCuota"
+                value={formData.primeraCuota}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => handleCuotaChange('primera')}
+                className="mt-1 px-3 bg-indigo-600 text-white rounded-r-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title={
+                  formData.numOperacionPrimeraCuota
+                    ? `N° Operación: ${formData.numOperacionPrimeraCuota}`
+                    : 'Agregar N° operación'
+                }
+              >
+                {formData.numOperacionPrimeraCuota ? '#' : '+'}
+              </button>
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700">2da Cuota</label>
-            <input
-              type="number"
-              step="0.01"
-              name="segundaCuota"
-              value={formData.segundaCuota}
-              onChange={handleInputChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            />
+            <div className="flex">
+              <input
+                type="number"
+                step="0.01"
+                name="segundaCuota"
+                value={formData.segundaCuota}
+                onChange={handleInputChange}
+                className="mt-1 block w-full border border-gray-300 rounded-l-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={() => handleCuotaChange('segunda')}
+                className="mt-1 px-3 bg-indigo-600 text-white rounded-r-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                title={
+                  formData.numOperacionSegundaCuota
+                    ? `N° Operación: ${formData.numOperacionSegundaCuota}`
+                    : 'Agregar N° operación'
+                }
+              >
+                {formData.numOperacionSegundaCuota ? '#' : '+'}
+              </button>
+            </div>
           </div>
 
           <div>
@@ -1979,6 +2086,45 @@ export default function IngresosPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal para número de operación */}
+      <Modal
+        isOpen={showNumOperacionModal}
+        onClose={() => setShowNumOperacionModal(false)}
+        title={`Número de Operación - ${cuotaSeleccionada === 'primera' ? 'Primera' : 'Segunda'} Cuota`}
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Ingrese el número de operación:
+            </label>
+            <input
+              type="text"
+              value={numOperacion}
+              onChange={(e) => setNumOperacion(e.target.value)}
+              className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Ej: 00012345"
+            />
+          </div>
+          <div className="flex justify-end space-x-2">
+            <button
+              type="button"
+              onClick={() => setShowNumOperacionModal(false)}
+              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleGuardarNumOperacion}
+              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* Diálogo de confirmación para eliminar */}

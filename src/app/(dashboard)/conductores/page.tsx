@@ -670,6 +670,9 @@ export default function ConductoresPage() {
           }}
         />
       </Loading>
+
+      {/* Diálogo de confirmación para eliminar */}
+      <ConfirmDialog {...deleteConfirm.dialogProps} />
     </div>
   );
 }

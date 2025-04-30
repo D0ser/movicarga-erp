@@ -7,6 +7,8 @@ import { serieService, Serie, observacionService, Observacion } from '@/lib/supa
 import notificationService from '@/components/notifications/NotificationService';
 import { ActionButtonGroup, EditButton, DeleteButton } from '@/components/ActionIcons';
 import Modal from '@/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 
 // Definición de la estructura de datos para Observaciones ya no es necesaria, se importa de supabaseServices
 
@@ -76,6 +78,23 @@ export default function OtrasListasPage() {
   const [formDataObservaciones, setFormDataObservaciones] = useState<Partial<Observacion>>({
     observacion: '',
     fecha_creacion: new Date().toISOString().split('T')[0],
+  });
+
+  // Diálogos de confirmación
+  const deleteSerieConfirm = useConfirmDialog({
+    title: 'Eliminar Serie',
+    description: '¿Está seguro de que desea eliminar esta serie?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
+  });
+
+  const deleteObservacionConfirm = useConfirmDialog({
+    title: 'Eliminar Observación',
+    description: '¿Está seguro de que desea eliminar esta observación?',
+    type: 'error',
+    variant: 'destructive',
+    confirmText: 'Eliminar',
   });
 
   // Columnas para la tabla de Series
@@ -210,20 +229,23 @@ export default function OtrasListasPage() {
   };
 
   const handleDeleteSerie = async (id: string) => {
-    if (confirm('¿Está seguro de que desea eliminar esta serie?')) {
-      setLoading(true);
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteSerieConfirm.confirm();
+
+      if (confirmed) {
+        setLoading(true);
         await serieService.deleteSerie(id);
         // Recargar series
         const seriesActualizadas = await serieService.getSeries();
         setSeries(seriesActualizadas);
         notificationService.success('La serie se eliminó correctamente');
-      } catch (error) {
-        console.error('Error al eliminar serie:', error);
-        notificationService.error('No se pudo eliminar la serie. Inténtelo de nuevo más tarde.');
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error al eliminar serie:', error);
+      notificationService.error('No se pudo eliminar la serie. Inténtelo de nuevo más tarde.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -296,20 +318,23 @@ export default function OtrasListasPage() {
   };
 
   const handleDeleteObservacion = async (id: string) => {
-    if (confirm('¿Está seguro de que desea eliminar esta observación?')) {
-      try {
+    try {
+      // Esperar confirmación mediante el diálogo
+      const confirmed = await deleteObservacionConfirm.confirm();
+
+      if (confirmed) {
         setLoading(true);
         await observacionService.deleteObservacion(id);
         setObservaciones(observaciones.filter((obs) => obs.id !== id));
         notificationService.success('Observación eliminada correctamente');
-      } catch (error) {
-        console.error('Error al eliminar observación:', error);
-        notificationService.error(
-          'No se pudo eliminar la observación. Inténtelo de nuevo más tarde.'
-        );
-      } finally {
-        setLoading(false);
       }
+    } catch (error) {
+      console.error('Error al eliminar observación:', error);
+      notificationService.error(
+        'No se pudo eliminar la observación. Inténtelo de nuevo más tarde.'
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -493,6 +518,10 @@ export default function OtrasListasPage() {
           />
         </div>
       )}
+
+      {/* Diálogos de confirmación */}
+      <ConfirmDialog {...deleteSerieConfirm.dialogProps} />
+      <ConfirmDialog {...deleteObservacionConfirm.dialogProps} />
     </div>
   );
 }
