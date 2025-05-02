@@ -291,8 +291,18 @@ export default function IngresosPage() {
       // Transformar los datos al formato esperado por la interfaz
       const ingresosFormateados = await Promise.all(
         ingresosSupabase.map(async (ing) => {
-          // Buscar el cliente relacionado para obtener la razón social y RUC
-          const cliente = ing.cliente || { razon_social: '', ruc: '' };
+          // Obtener datos del cliente si tenemos cliente_id
+          let datosCliente = { razon_social: '', ruc: '' };
+          if (ing.cliente_id) {
+            try {
+              const clienteData = await clienteService.getClienteById(ing.cliente_id);
+              if (clienteData) {
+                datosCliente = clienteData;
+              }
+            } catch (error) {
+              console.error('Error al obtener cliente:', error);
+            }
+          }
 
           // Extraer o establecer valores por defecto para los campos nativos
           const serie = ing.serie_factura || '';
@@ -318,16 +328,16 @@ export default function IngresosPage() {
           let conductor = '';
           let numOperacionPrimeraCuota = '';
           let numOperacionSegundaCuota = '';
-          let observacionUsuario = ing.observaciones || '';
+          let observacionUsuario = ing.concepto || '';
 
-          // Para mantener compatibilidad con registros anteriores, también procesamos los datos de las observaciones
-          if (ing.observaciones) {
-            const observaciones = ing.observaciones;
+          // Para mantener compatibilidad con registros anteriores, también procesamos los datos del concepto
+          if (ing.concepto) {
+            const conceptoTexto = ing.concepto;
 
             // Verificar si el contenido tiene el formato con JSON
-            if (observaciones.includes('|||')) {
+            if (conceptoTexto.includes('|||')) {
               // Dividir la cadena en la parte de observación del usuario y los datos JSON
-              const parts = observaciones.split('|||');
+              const parts = conceptoTexto.split('|||');
               observacionUsuario = parts[0];
 
               try {
@@ -347,7 +357,7 @@ export default function IngresosPage() {
                 totalMonto = datosJSON.totalMonto || montoFlete;
                 totalDeber = datosJSON.totalDeber || 0;
               } catch (error) {
-                console.error('Error al parsear datos JSON de observaciones:', error);
+                console.error('Error al parsear datos JSON del concepto:', error);
               }
             }
           }
@@ -391,8 +401,8 @@ export default function IngresosPage() {
             detraccion: detraccion,
             totalDeber: totalDeber,
             totalMonto: totalMonto,
-            empresa: cliente.razon_social || '',
-            ruc: cliente.ruc || '',
+            empresa: datosCliente.razon_social || '',
+            ruc: datosCliente.ruc || '',
             conductor: conductor,
             placaTracto: placaTracto,
             placaCarreta: placaCarreta,
@@ -1257,14 +1267,13 @@ export default function IngresosPage() {
         conductorId: conductor?.id || '',
       };
 
-      // Convertir a JSON para guardar en el campo observaciones
+      // Convertir a JSON para guardar en el campo concepto
       const datosJSON = JSON.stringify(datosEstructurados);
 
-      // Crear la cadena de observaciones final con un separador claro
+      // Crear la cadena de concepto final con un separador claro
       // Formato: ObservacionUsuario||| + JSON
-      const observacionesCompletas = observacionUsuario
-        ? `${observacionUsuario}|||${datosJSON}`
-        : `|||${datosJSON}`;
+      const conceptoTextoUsuario = observacionUsuario || 'Ingreso por flete';
+      const conceptoCompleto = `${conceptoTextoUsuario}|||${datosJSON}`;
 
       // Buscar un viaje relacionado
       const viaje_id = await buscarViajeRelacionado(
@@ -1281,13 +1290,12 @@ export default function IngresosPage() {
       const ingresoData: Partial<IngresoType> = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
         cliente_id: cliente?.id,
-        concepto: observacionUsuario || 'Ingreso por flete',
+        concepto: conceptoCompleto,
         monto: formData.montoFlete || 0,
         numero_factura: formData.numeroFactura || null,
         fecha_factura: formData.fecha || new Date().toISOString().split('T')[0],
         estado_factura: estadoAutomatico,
         serie_factura: formData.serie || null,
-        observaciones: observacionesCompletas,
         dias_credito: formData.diasCredito || 0,
         fecha_vencimiento: formData.fechaVencimiento || null,
         guia_remision: formData.documentoGuiaRemit || null,

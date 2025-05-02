@@ -89,18 +89,13 @@ export default function EgresosPage() {
     try {
       setLoading(true);
 
-      // Consultar egresos con factura
+      // Consultar solo egresos con factura
       const { data: egresosConFactura, error: errorEgresos } = await supabase
         .from('egresos')
         .select('*');
 
-      // Consultar egresos sin factura
-      const { data: egresosSinFactura, error: errorEgresosSinFactura } = await supabase
-        .from('egresos_sin_factura')
-        .select('*');
-
-      if (errorEgresos || errorEgresosSinFactura) {
-        console.error('Error al cargar egresos:', errorEgresos || errorEgresosSinFactura);
+      if (errorEgresos) {
+        console.error('Error al cargar egresos:', errorEgresos);
         return;
       }
 
@@ -121,35 +116,13 @@ export default function EgresosPage() {
             operacion: eg.metodo_pago || 'Efectivo',
             destino: eg.proveedor,
             cuentaAbonada: eg.cuenta_abonada || empresaCorrespondiente?.cuenta_abonada || '',
-            tipoEgreso: eg.categoria || 'Operativo',
-            moneda: 'PEN',
+            tipoEgreso: eg.concepto || 'Operativo',
+            moneda: eg.moneda || 'PEN',
             monto: eg.monto,
             estado: eg.estado
               ? eg.estado.charAt(0).toUpperCase() + eg.estado.slice(1)
               : 'Pendiente',
-            observacion: eg.observacion || '',
-          };
-        }),
-        ...(egresosSinFactura || []).map((eg) => {
-          // Buscar la empresa correspondiente
-          const empresaCorrespondiente = empresas.find((empresa) => empresa.nombre === eg.concepto);
-
-          return {
-            id: eg.id,
-            fecha: eg.fecha,
-            hora: new Date(eg.created_at).toTimeString().slice(0, 5),
-            factura: '',
-            cuentaEgreso: eg.cuenta_egreso || 'Caja Chica',
-            operacion: eg.metodo_pago || 'Efectivo',
-            destino: eg.concepto,
-            cuentaAbonada: eg.cuenta_abonada || empresaCorrespondiente?.cuenta_abonada || '',
-            tipoEgreso: eg.categoria || 'Operativo',
-            moneda: 'PEN',
-            monto: eg.monto,
-            estado: eg.estado
-              ? eg.estado.charAt(0).toUpperCase() + eg.estado.slice(1)
-              : 'Pendiente',
-            observacion: eg.observacion || '',
+            observacion: eg.observaciones || '',
           };
         }),
       ];
@@ -264,7 +237,7 @@ export default function EgresosPage() {
           }
 
           return (
-            <div className="flex justify-center">
+            <div className="flex justify-center whitespace-nowrap">
               <span className="text-sm font-medium flex items-center text-gray-700">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -293,7 +266,7 @@ export default function EgresosPage() {
       header: 'Hora',
       accessor: 'hora',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="flex justify-center whitespace-nowrap">
           <span className="text-sm font-medium flex items-center text-gray-700">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -318,7 +291,7 @@ export default function EgresosPage() {
       header: 'Factura',
       accessor: 'factura',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="flex justify-center whitespace-nowrap">
           {(value as string) ? (
             <span className="font-mono bg-purple-50 px-2 py-1 rounded text-purple-700 text-sm flex items-center">
               <svg
@@ -347,7 +320,7 @@ export default function EgresosPage() {
       header: 'Cuenta Egreso',
       accessor: 'cuentaEgreso',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="flex justify-center whitespace-nowrap">
           <span className="px-2 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 flex items-center">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -458,7 +431,7 @@ export default function EgresosPage() {
         }
 
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center whitespace-nowrap">
             <span
               className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor} flex items-center`}
             >
@@ -482,11 +455,13 @@ export default function EgresosPage() {
         const inicial = (value as string).charAt(0).toUpperCase();
 
         return (
-          <div className="flex items-center px-2 justify-center">
+          <div className="flex items-center px-2 justify-center whitespace-nowrap">
             <div className="flex-shrink-0 h-7 w-7 rounded-full bg-cyan-100 text-cyan-800 flex items-center justify-center font-bold mr-2">
               {inicial}
             </div>
-            <div className="text-sm font-medium text-gray-900 truncate">{value as string}</div>
+            <div className="text-sm font-medium text-gray-900 truncate max-w-[150px]">
+              {value as string}
+            </div>
           </div>
         );
       },
@@ -495,7 +470,7 @@ export default function EgresosPage() {
       header: 'Cuenta Abonada',
       accessor: 'cuentaAbonada',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="flex justify-center whitespace-nowrap">
           {(value as string) !== 'N/A' ? (
             <span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 text-sm">
               {value as string}
@@ -534,7 +509,7 @@ export default function EgresosPage() {
         }
 
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center whitespace-nowrap">
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
               {tipoEgreso}
             </span>
@@ -552,7 +527,7 @@ export default function EgresosPage() {
         const symbol = moneda === 'PEN' ? 'S/.' : '$';
 
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center whitespace-nowrap">
             <span className={`px-2 py-1 rounded-full text-xs font-medium ${bgColor} ${textColor}`}>
               {symbol} {moneda}
             </span>
@@ -564,7 +539,7 @@ export default function EgresosPage() {
       header: 'Monto',
       accessor: 'monto',
       cell: (value, row) => (
-        <div className="flex justify-end">
+        <div className="flex justify-end whitespace-nowrap">
           <span className="font-mono font-medium text-gray-700">
             {row.moneda === 'PEN' ? 'S/.' : '$'}{' '}
             {(value as number).toLocaleString('es-PE', {
@@ -579,7 +554,7 @@ export default function EgresosPage() {
       header: 'Observación',
       accessor: 'observacion',
       cell: (value) => (
-        <div className="flex justify-center">
+        <div className="flex justify-center whitespace-nowrap">
           {value ? (
             <span className="text-sm text-gray-600 truncate max-w-[200px]" title={value as string}>
               {value as string}
@@ -597,7 +572,7 @@ export default function EgresosPage() {
         const estado = value as string;
 
         return (
-          <div className="flex justify-center">
+          <div className="flex justify-center whitespace-nowrap">
             <select
               value={estado}
               onChange={(e) => handleChangeEstado(row.id, e.target.value)}
@@ -616,19 +591,21 @@ export default function EgresosPage() {
       header: 'Acciones',
       accessor: 'id',
       cell: (value, row) => (
-        <ActionButtonGroup>
-          <EditPermission>
-            <EditButton onClick={() => handleEdit(row)} />
-          </EditPermission>
-          <DeletePermission>
-            <DeleteButton onClick={() => handleDelete(value as string)} />
-          </DeletePermission>
-          <EditPermission>
-            {row.estado !== 'Aprobado' && (
-              <ActivateButton onClick={() => handleApprove(value as string)} />
-            )}
-          </EditPermission>
-        </ActionButtonGroup>
+        <div className="whitespace-nowrap">
+          <ActionButtonGroup>
+            <EditPermission>
+              <EditButton onClick={() => handleEdit(row)} />
+            </EditPermission>
+            <DeletePermission>
+              <DeleteButton onClick={() => handleDelete(value as string)} />
+            </DeletePermission>
+            <EditPermission>
+              {row.estado !== 'Aprobado' && (
+                <ActivateButton onClick={() => handleApprove(value as string)} />
+              )}
+            </EditPermission>
+          </ActionButtonGroup>
+        </div>
       ),
     },
   ];
@@ -675,12 +652,11 @@ export default function EgresosPage() {
             metodo_pago: datosParaEnviar.operacion,
             numero_factura: datosParaEnviar.factura,
             fecha_factura: datosParaEnviar.fecha,
-            categoria: datosParaEnviar.tipoEgreso,
-            categoria_id: tiposEgreso.find((tipo) => tipo.tipo === datosParaEnviar.tipoEgreso)?.id,
-            observacion: datosParaEnviar.observacion,
+            observaciones: datosParaEnviar.observacion,
             estado: datosParaEnviar.estado?.toLowerCase(),
             cuenta_egreso: datosParaEnviar.cuentaEgreso,
             cuenta_abonada: datosParaEnviar.cuentaAbonada,
+            moneda: datosParaEnviar.moneda,
           })
           .select();
 
@@ -692,15 +668,15 @@ export default function EgresosPage() {
           .upsert({
             ...(datosParaEnviar.id ? { id: datosParaEnviar.id } : {}), // Solo incluir ID si existe
             fecha: datosParaEnviar.fecha,
-            concepto: datosParaEnviar.destino,
+            beneficiario: datosParaEnviar.destino,
+            concepto: datosParaEnviar.tipoEgreso,
             monto: datosParaEnviar.monto,
             metodo_pago: datosParaEnviar.operacion,
-            categoria: datosParaEnviar.tipoEgreso,
-            categoria_id: tiposEgreso.find((tipo) => tipo.tipo === datosParaEnviar.tipoEgreso)?.id,
-            observacion: datosParaEnviar.observacion,
+            observaciones: datosParaEnviar.observacion,
             estado: datosParaEnviar.estado?.toLowerCase(),
             cuenta_egreso: datosParaEnviar.cuentaEgreso,
             cuenta_abonada: datosParaEnviar.cuentaAbonada,
+            moneda: datosParaEnviar.moneda,
           })
           .select();
 
@@ -751,9 +727,8 @@ export default function EgresosPage() {
       const confirmed = await deleteConfirm.confirm();
 
       if (confirmed) {
-        // Intentar eliminar de ambas tablas
+        // Eliminar solo de la tabla egresos
         await supabase.from('egresos').delete().eq('id', id);
-        await supabase.from('egresos_sin_factura').delete().eq('id', id);
 
         // Actualizar la interfaz
         setEgresos(egresos.filter((eg) => eg.id !== id));
@@ -780,13 +755,8 @@ export default function EgresosPage() {
       // Actualizar en la interfaz
       setEgresos(egresos.map((eg) => (eg.id === id ? { ...eg, estado: nuevoEstado } : eg)));
 
-      // Actualizar en Supabase - intentar en ambas tablas
+      // Actualizar solo en la tabla egresos
       await supabase.from('egresos').update({ estado: nuevoEstado.toLowerCase() }).eq('id', id);
-
-      await supabase
-        .from('egresos_sin_factura')
-        .update({ estado: nuevoEstado.toLowerCase() })
-        .eq('id', id);
 
       toast({
         title: 'Éxito',
@@ -1053,6 +1023,8 @@ export default function EgresosPage() {
             month: true,
             searchField: 'destino',
           }}
+          tableClassName="whitespace-nowrap"
+          containerClassName="overflow-x-auto"
         />
       </Loading>
 

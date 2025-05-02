@@ -89,12 +89,10 @@ export interface Ingreso extends DataItem, RelatedEntities {
   viaje_id: string | null;
   concepto: string;
   monto: number;
-  metodo_pago: string;
   numero_factura: string | null;
   fecha_factura: string | null;
   estado_factura: string | null;
   serie_factura: string | null;
-  observaciones: string | null;
   dias_credito: number | null;
   fecha_vencimiento: string | null;
   guia_remision: string | null;
@@ -233,6 +231,22 @@ export const clienteService = {
       .select('*, tipo_cliente(nombre)')
       .order('razon_social');
     if (error) throw error;
+    return data;
+  },
+
+  getClienteById: async (id: string): Promise<Cliente | null> => {
+    const { data, error } = await supabase
+      .from('clientes')
+      .select('*, tipo_cliente(nombre)')
+      .eq('id', id)
+      .single();
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No se encontró el cliente
+        return null;
+      }
+      throw error;
+    }
     return data;
   },
 
@@ -398,13 +412,7 @@ export const ingresoService = {
   getIngresos: async (): Promise<Ingreso[]> => {
     const { data, error } = await supabase
       .from('ingresos')
-      .select(
-        `
-        *,
-        cliente:clientes(*),
-        viaje:viajes(*)
-      `
-      )
+      .select('*')
       .order('fecha', { ascending: false });
     if (error) throw error;
     return data;
@@ -524,19 +532,65 @@ export const egresoSinFacturaService = {
 // Servicios para detracciones
 export const detraccionService = {
   getDetracciones: async (): Promise<Detraccion[]> => {
+    // Obtener detracciones sin relaciones anidadas
     const { data, error } = await supabase
       .from('detracciones')
-      .select(
-        `
-        *,
-        ingreso:ingresos(*),
-        viaje:viajes(*),
-        cliente:clientes(*)
-      `
-      )
+      .select('*')
       .order('fecha_deposito', { ascending: false });
+
     if (error) throw error;
-    return data;
+
+    // Procesar manualmente las relaciones
+    const detraccionesCompletas = await Promise.all(
+      data.map(async (det) => {
+        let detraccionProcesada = { ...det };
+
+        // Obtener cliente si existe el ID
+        if (det.cliente_id) {
+          try {
+            const cliente = await clienteService.getClienteById(det.cliente_id);
+            if (cliente) {
+              detraccionProcesada.cliente = cliente;
+            }
+          } catch (error) {
+            console.error('Error al obtener cliente de detracción:', error);
+          }
+        }
+
+        // Obtener ingreso si existe el ID
+        if (det.ingreso_id) {
+          try {
+            const { data: ingreso, error: ingresoError } = await supabase
+              .from('ingresos')
+              .select('*')
+              .eq('id', det.ingreso_id)
+              .single();
+
+            if (!ingresoError && ingreso) {
+              detraccionProcesada.ingreso = ingreso;
+            }
+          } catch (error) {
+            console.error('Error al obtener ingreso de detracción:', error);
+          }
+        }
+
+        // Obtener viaje si existe el ID
+        if (det.viaje_id) {
+          try {
+            const viaje = await viajeService.getViajeById(det.viaje_id);
+            if (viaje) {
+              detraccionProcesada.viaje = viaje;
+            }
+          } catch (error) {
+            console.error('Error al obtener viaje de detracción:', error);
+          }
+        }
+
+        return detraccionProcesada;
+      })
+    );
+
+    return detraccionesCompletas;
   },
 
   createDetraccion: async (

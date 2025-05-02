@@ -40,6 +40,8 @@ interface DataTableProps<T extends DataItem = DataItem> {
   isLoading?: boolean;
   onDataFiltered?: (filteredData: T[]) => void;
   onDataChanged?: () => void; // Nueva prop para manejar cambios en los datos (eliminaciones, etc.)
+  tableClassName?: string;
+  containerClassName?: string;
   filters?: {
     year?: boolean;
     month?: boolean;
@@ -65,6 +67,8 @@ export default function DataTable<T extends DataItem = DataItem>({
   filters,
   onDataFiltered,
   onDataChanged,
+  tableClassName,
+  containerClassName,
 }: DataTableProps<T>) {
   const [sortConfig, setSortConfig] = useState({ key: defaultSort || '', direction: 'asc' });
   const [filterYear, setFilterYear] = useState<string>('');
@@ -802,7 +806,9 @@ export default function DataTable<T extends DataItem = DataItem>({
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-100">
+    <div
+      className={`bg-white rounded-lg shadow-md overflow-hidden border border-gray-100 ${containerClassName || ''}`}
+    >
       {/* Diálogo de confirmación para eliminación en lote */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
@@ -1302,7 +1308,9 @@ export default function DataTable<T extends DataItem = DataItem>({
       ) : (
         // Vista de tabla tradicional
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 table-fixed">
+          <table
+            className={`min-w-full divide-y divide-gray-200 table-fixed ${tableClassName || ''}`}
+          >
             <thead>
               <tr className="bg-gradient-to-r from-gray-50 to-gray-100 drop-shadow-sm">
                 {/* Columna para checkbox de selección múltiple */}
