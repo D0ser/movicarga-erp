@@ -791,6 +791,8 @@ export default function DashboardPage() {
       const montosPorCliente: Record<string, number> = {};
       const conteoFacturasPorEstado: Record<string, number> = {};
       const conteoFacturasPorCliente: Record<string, number> = {}; // Contador para facturas por cliente
+      // Nuevo objeto para agrupar detracciones por serie
+      const detraccionesPorSerie: Record<string, number> = {};
 
       // Log todos los clientes detectados
       console.log('Clientes detectados y sus campos en ingresos:');
@@ -816,6 +818,9 @@ export default function DashboardPage() {
         // Hay que verificar todos los posibles nombres de campo donde podría estar
         let totalDeber = 0;
 
+        // Obtener serie de factura (normalizada)
+        const serie = ingreso.serie_factura || ingreso.serie || '';
+
         // Registrar todos los campos relevantes para análisis
         console.log(`INGRESO #${index} CAMPOS NUMÉRICOS:`, {
           monto: ingreso.monto,
@@ -827,6 +832,7 @@ export default function DashboardPage() {
           total_monto: ingreso.total_monto,
           detraccion: ingreso.detraccion,
           detraccion_monto: ingreso.detraccion_monto,
+          serie: serie,
         });
 
         // Intentar cada posible campo para el total a deber
@@ -873,6 +879,26 @@ export default function DashboardPage() {
               );
             }
           }
+        }
+
+        // Procesar detracciones por serie
+        // Obtener el monto de detracción
+        const montoDetraccion =
+          typeof ingreso.detraccion === 'number'
+            ? ingreso.detraccion
+            : typeof ingreso.detraccion_monto === 'number'
+              ? ingreso.detraccion_monto
+              : 0;
+
+        // Si tenemos serie y hay detracción, acumular en el objeto detraccionesPorSerie
+        if (serie && montoDetraccion > 0) {
+          // Si la serie no existe en el objeto, inicializarla
+          if (!detraccionesPorSerie[serie]) {
+            detraccionesPorSerie[serie] = 0;
+          }
+          // Acumular el monto de detracción para esta serie
+          detraccionesPorSerie[serie] += montoDetraccion;
+          console.log(`Detracción de S/. ${montoDetraccion} acumulada para serie ${serie}`);
         }
 
         // Procesar ingresos por cliente
@@ -948,6 +974,7 @@ export default function DashboardPage() {
       console.log('Resumen de montos pendientes por cliente:', montosPorCliente);
       console.log('Resumen de viajes por placa tracto:', conteoTractos);
       console.log('Resumen de viajes por placa carreta:', conteoCarretas);
+      console.log('Resumen de detracciones por serie:', detraccionesPorSerie);
 
       // Actualizar estados para los gráficos
       setDatosViajesTracto(formatDataForChart(conteoTractos, 10)); // Mostrar hasta 10 placas
@@ -957,6 +984,8 @@ export default function DashboardPage() {
       setDatosIngresosPorMes(formatDataForChart(montosPorMes, 12)); // Mostrar hasta 12 meses
       setDatosMontosPorEmpresa(formatDataForChart(montosPorCliente));
       setDatosFacturasPorEstado(formatDataForChart(conteoFacturasPorEstado));
+      // Actualizar datos de detracciones por serie
+      setDatosDetracciones(formatDataForChart(detraccionesPorSerie, 10));
 
       // Usar un límite mayor para mostrar más empresas (10 en lugar de 5)
       setDatosViajesPorEmpresa(formatDataForChart(conteoFacturasPorCliente, 10));
@@ -973,6 +1002,10 @@ export default function DashboardPage() {
       console.log(
         'Datos de gráfico Viajes por Placa Carreta:',
         formatDataForChart(conteoCarretas, 10)
+      );
+      console.log(
+        'Datos de gráfico Detracciones por Serie:',
+        formatDataForChart(detraccionesPorSerie, 10)
       );
       console.log('Procesamiento de ingresos completado');
     } catch (error) {
