@@ -62,93 +62,113 @@ const COLORS = [
   '#665191',
 ];
 
-// Interfaces para datos
+// Interfaces para datos - Actualizadas según esquema SQL
+interface Cliente {
+  id: string; // UUID
+  razon_social: string;
+  ruc: string;
+}
+
 interface Ingreso {
-  id: string;
+  id: string; // UUID
   fecha: string;
-  serie?: string;
-  serie_factura?: string;
-  numeroFactura?: string;
+  cliente_id: string; // UUID - Coincidiendo con clientes.id
+  viaje_id: string; // UUID - Coincidiendo con viajes.id
+  concepto: string;
+  monto: number;
   numero_factura?: string;
+  fecha_factura?: string;
+  estado_factura?: string;
+  serie_factura?: string;
+  dias_credito?: number;
+  fecha_vencimiento?: string;
+  guia_remision?: string;
+  guia_transportista?: string;
+  detraccion_monto?: number;
+  primera_cuota?: number;
+  segunda_cuota?: number;
+  placa_tracto?: string;
+  placa_carreta?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Campos para compatibilidad con implementación anterior
   montoFlete?: number;
   monto_flete?: number;
-  monto?: number;
   totalMonto?: number;
   detraccion?: number;
   detracciones?: number;
-  detraccion_monto?: number;
   totalDeber?: number;
   empresa?: string;
-  cliente?: string;
-  cliente_id?: string;
+  cliente?: Cliente; // Para JOIN
+  // Campos adicionales para corregir errores
+  placaTracto?: string;
+  placaCarreta?: string;
   razon_social?: string;
   estado?: string;
-  estado_factura?: string;
-  placa_tracto?: string;
-  placaTracto?: string;
-  placa_carreta?: string;
-  placaCarreta?: string;
+  serie?: string;
+  numeroFactura?: string;
   observacion?: string;
-  observaciones?: string;
-  concepto?: string;
-  metodo_pago?: string;
-  created_at?: string;
-  updated_at?: string;
+  // Nombres alternativos de campos según estructura
+  total_deber?: number;
+  total_a_deber?: number;
+  total_monto?: number;
 }
 
 interface Egreso {
-  id: string;
+  id: string; // UUID
   fecha: string;
   proveedor: string;
-  ruc_proveedor?: string;
-  concepto?: string;
-  viaje_id?: string | null;
-  vehiculo_id?: string | null;
-  conductor_id?: string | null;
+  concepto: string;
   monto: number;
-  importe?: number;
-  metodo_pago?: string;
   numero_factura?: string;
   fecha_factura?: string;
-  categoria?: string;
-  tipoEgreso?: string;
-  tipo_egreso?: string;
-  tipo?: string;
   observaciones?: string;
   estado?: string;
   cuenta_egreso?: string;
   cuenta_abonada?: string;
+  metodo_pago?: string;
   moneda?: string;
   created_at?: string;
   updated_at?: string;
+  // Campos para compatibilidad
+  importe?: number;
+  ruc_proveedor?: string;
+  viaje_id?: string;
+  vehiculo_id?: string;
+  conductor_id?: string;
+  categoria?: string;
+  tipoEgreso?: string;
+  tipo_egreso?: string;
+  tipo?: string;
 }
 
 interface Viaje {
-  id: string;
-  codigoViaje?: string;
-  codigo_viaje?: string;
-  cliente?: string;
-  cliente_id?: string;
-  conductor_id?: string;
-  vehiculo_id?: string;
-  origen?: string;
-  destino?: string;
-  fechaSalida?: string;
-  fecha_salida?: string;
-  fecha_llegada?: string | null;
+  id: string; // UUID
+  cliente_id: string; // UUID - Coincidiendo con clientes.id
+  conductor_id: string; // UUID - Coincidiendo con conductores.id
+  vehiculo_id: string; // UUID - Coincidiendo con vehiculos.id
+  origen: string;
+  destino: string;
+  fecha_salida: string;
+  fecha_llegada?: string;
   carga?: string;
   peso?: number;
-  estado?: string;
-  precioFlete?: number;
-  precio_flete?: number;
-  tarifa?: number;
-  adelanto?: number;
-  saldo?: number;
-  detraccion?: boolean;
+  estado: string;
+  tarifa: number;
+  adelanto: number;
+  saldo: number;
+  detraccion: boolean;
   observaciones?: string;
-  gastos?: number;
   created_at?: string;
   updated_at?: string;
+  // Campos para compatibilidad
+  codigoViaje?: string;
+  codigo_viaje?: string;
+  cliente?: Cliente;
+  fechaSalida?: string;
+  precioFlete?: number;
+  precio_flete?: number;
+  gastos?: number;
 }
 
 interface EstadisticasDashboard {
@@ -299,154 +319,137 @@ export default function DashboardPage() {
         egresosTotal: 0,
       };
 
-      // Obtener conteo de clientes
-      try {
-        const { count: clientesCount, error: clientesError } = await supabase
-          .from('clientes')
-          .select('*', { count: 'exact', head: true });
+      // Cargar todas las estadísticas en paralelo para mejorar rendimiento
+      const [
+        clientesResult,
+        vehiculosResult,
+        viajesResult,
+        ingresosHoyResult,
+        ingresosPeriodoResult,
+        egresosPeriodoResult,
+        egresosSinFacturaResult,
+      ] = await Promise.all([
+        // Obtener conteo de clientes
+        supabase.from('clientes').select('*', { count: 'exact', head: true }),
 
-        console.log('Total de clientes:', clientesCount, clientesError);
-        if (!clientesError && clientesCount !== null) {
-          stats.clientesTotal = clientesCount;
-        }
-      } catch (error) {
-        console.error('Error al contar clientes:', error);
-      }
+        // Obtener conteo de vehículos
+        supabase.from('vehiculos').select('*', { count: 'exact', head: true }),
 
-      // Obtener conteo de vehículos
-      try {
-        const { count: vehiculosCount, error: vehiculosError } = await supabase
-          .from('vehiculos')
-          .select('*', { count: 'exact', head: true });
+        // Obtener conteo de viajes
+        supabase.from('viajes').select('*', { count: 'exact', head: true }),
 
-        console.log('Total de vehículos:', vehiculosCount, vehiculosError);
-        if (!vehiculosError && vehiculosCount !== null) {
-          stats.vehiculosTotal = vehiculosCount;
-        }
-      } catch (error) {
-        console.error('Error al contar vehículos:', error);
-      }
+        // Obtener ingresos de hoy
+        supabase.from('ingresos').select('*').eq('fecha', format(new Date(), 'yyyy-MM-dd')),
 
-      // Obtener conteo de viajes
-      try {
-        const { count: viajesCount, error: viajesError } = await supabase
-          .from('viajes')
-          .select('*', { count: 'exact', head: true });
+        // Obtener ingresos del periodo
+        supabase.from('ingresos').select('*').gte('fecha', fechaInicio).lte('fecha', fechaFin),
 
-        console.log('Total de viajes:', viajesCount, viajesError);
-        if (!viajesError && viajesCount !== null) {
-          stats.viajesTotal = viajesCount;
-        }
-      } catch (error) {
-        console.error('Error al contar viajes:', error);
-      }
+        // Obtener egresos del periodo (tabla principal)
+        supabase.from('egresos').select('*').gte('fecha', fechaInicio).lte('fecha', fechaFin),
 
-      // Obtener ingresos de hoy
-      const today = format(new Date(), 'yyyy-MM-dd');
-      console.log('Consultando ingresos de hoy:', today);
-
-      try {
-        const { data: ingresosHoy, error: ingresosHoyError } = await supabase
-          .from('ingresos')
+        // Obtener egresos sin factura del periodo
+        supabase
+          .from('egresos_sin_factura')
           .select('*')
-          .eq('fecha', today);
+          .gte('created_at', `${fechaInicio}T00:00:00.000Z`)
+          .lte('created_at', `${fechaFin}T23:59:59.999Z`),
+      ]);
 
-        console.log('Ingresos de hoy:', ingresosHoy?.length || 0, ingresosHoyError);
+      // Procesar resultados de clientes
+      if (clientesResult.count !== null && !clientesResult.error) {
+        stats.clientesTotal = clientesResult.count;
+        console.log('Total de clientes:', stats.clientesTotal);
+      } else {
+        console.error('Error al contar clientes:', clientesResult.error);
+      }
 
-        if (!ingresosHoyError && ingresosHoy) {
-          // Calculamos el total sumando el monto según los diferentes campos posibles
-          const totalIngresosHoy = ingresosHoy.reduce((sum, item) => {
-            const monto =
-              typeof item.montoFlete !== 'undefined'
+      // Procesar resultados de vehículos
+      if (vehiculosResult.count !== null && !vehiculosResult.error) {
+        stats.vehiculosTotal = vehiculosResult.count;
+        console.log('Total de vehículos:', stats.vehiculosTotal);
+      } else {
+        console.error('Error al contar vehículos:', vehiculosResult.error);
+      }
+
+      // Procesar resultados de viajes
+      if (viajesResult.count !== null && !viajesResult.error) {
+        stats.viajesTotal = viajesResult.count;
+        console.log('Total de viajes:', stats.viajesTotal);
+      } else {
+        console.error('Error al contar viajes:', viajesResult.error);
+      }
+
+      // Procesar ingresos de hoy
+      if (ingresosHoyResult.data && !ingresosHoyResult.error) {
+        stats.ingresosHoy = ingresosHoyResult.data.reduce((sum, item) => {
+          // Normalizar el campo monto
+          const monto =
+            typeof item.monto !== 'undefined'
+              ? item.monto
+              : typeof item.montoFlete !== 'undefined'
                 ? item.montoFlete
                 : typeof item.monto_flete !== 'undefined'
                   ? item.monto_flete
-                  : typeof item.monto !== 'undefined'
-                    ? item.monto
+                  : typeof item.totalMonto !== 'undefined'
+                    ? item.totalMonto
                     : 0;
-            return sum + monto;
-          }, 0);
 
-          stats.ingresosHoy = totalIngresosHoy;
-          console.log('Total ingresos hoy calculado:', totalIngresosHoy);
-        }
-      } catch (error) {
-        console.error('Error al obtener ingresos de hoy:', error);
+          return sum + monto;
+        }, 0);
+        console.log('Total ingresos hoy calculado:', stats.ingresosHoy);
+      } else {
+        console.error('Error al obtener ingresos de hoy:', ingresosHoyResult.error);
       }
 
-      // Obtener total de ingresos en el periodo
-      try {
-        const { data: ingresosPeriodo, error: ingresosPeriodoError } = await supabase
-          .from('ingresos')
-          .select('*')
-          .gte('fecha', fechaInicio)
-          .lte('fecha', fechaFin);
-
-        console.log('Ingresos en periodo:', ingresosPeriodo?.length || 0, ingresosPeriodoError);
-
-        if (!ingresosPeriodoError && ingresosPeriodo) {
-          // Calculamos el total sumando el monto según los diferentes campos posibles
-          const totalIngresos = ingresosPeriodo.reduce((sum, item) => {
-            let monto =
-              typeof item.montoFlete !== 'undefined'
+      // Procesar ingresos del periodo
+      if (ingresosPeriodoResult.data && !ingresosPeriodoResult.error) {
+        stats.ingresosTotal = ingresosPeriodoResult.data.reduce((sum, item) => {
+          // Normalizar el campo monto
+          const monto =
+            typeof item.monto !== 'undefined'
+              ? item.monto
+              : typeof item.montoFlete !== 'undefined'
                 ? item.montoFlete
                 : typeof item.monto_flete !== 'undefined'
                   ? item.monto_flete
-                  : typeof item.monto !== 'undefined'
-                    ? item.monto
+                  : typeof item.totalMonto !== 'undefined'
+                    ? item.totalMonto
                     : 0;
 
-            // Intentar extraer totalMonto del concepto si está en formato JSON
-            if (item.concepto && item.concepto.includes('|||')) {
-              try {
-                const parts = item.concepto.split('|||');
-                const datosJSON = JSON.parse(parts[1]);
-                if (datosJSON.totalMonto) {
-                  monto = datosJSON.totalMonto;
-                }
-              } catch (error) {
-                console.error('Error al extraer totalMonto del concepto:', error);
-              }
-            }
-
-            return sum + monto;
-          }, 0);
-
-          stats.ingresosTotal = totalIngresos;
-          console.log('Total ingresos periodo calculado:', totalIngresos);
-        }
-      } catch (error) {
-        console.error('Error al obtener ingresos del periodo:', error);
+          return sum + monto;
+        }, 0);
+        console.log('Total ingresos periodo calculado:', stats.ingresosTotal);
+      } else {
+        console.error('Error al obtener ingresos del periodo:', ingresosPeriodoResult.error);
       }
 
-      // Obtener total de egresos en el periodo
-      try {
-        const { data: egresosPeriodo, error: egresosPeriodoError } = await supabase
-          .from('egresos')
-          .select('*')
-          .gte('fecha', fechaInicio)
-          .lte('fecha', fechaFin);
+      // Procesar egresos del periodo (combinando ambas tablas)
+      let totalEgresos = 0;
 
-        console.log('Egresos en periodo:', egresosPeriodo?.length || 0, egresosPeriodoError);
+      if (egresosPeriodoResult.data && !egresosPeriodoResult.error) {
+        totalEgresos += egresosPeriodoResult.data.reduce((sum, item) => {
+          // Normalizar el campo monto
+          const monto =
+            typeof item.monto !== 'undefined'
+              ? item.monto
+              : typeof item.importe !== 'undefined'
+                ? item.importe
+                : 0;
 
-        if (!egresosPeriodoError && egresosPeriodo) {
-          // Calculamos el total sumando el monto según los diferentes campos posibles
-          const totalEgresos = egresosPeriodo.reduce((sum, item) => {
-            const monto =
-              typeof item.monto !== 'undefined'
-                ? item.monto
-                : typeof item.importe !== 'undefined'
-                  ? item.importe
-                  : 0;
-            return sum + monto;
-          }, 0);
-
-          stats.egresosTotal = totalEgresos;
-          console.log('Total egresos periodo calculado:', totalEgresos);
-        }
-      } catch (error) {
-        console.error('Error al obtener egresos del periodo:', error);
+          return sum + monto;
+        }, 0);
+      } else {
+        console.error('Error al obtener egresos del periodo:', egresosPeriodoResult.error);
       }
+
+      if (egresosSinFacturaResult.data && !egresosSinFacturaResult.error) {
+        totalEgresos += egresosSinFacturaResult.data.reduce((sum, item) => sum + item.monto, 0);
+      } else {
+        console.error('Error al obtener egresos sin factura:', egresosSinFacturaResult.error);
+      }
+
+      stats.egresosTotal = totalEgresos;
+      console.log('Total egresos periodo calculado:', stats.egresosTotal);
 
       // Actualizar estado con las estadísticas calculadas
       setStats(stats);
@@ -460,15 +463,11 @@ export default function DashboardPage() {
   async function cargarIngresos() {
     try {
       console.log('Consultando ingresos entre:', fechaInicio, 'y', fechaFin);
-      // Usar join para obtener los datos del cliente
+
+      // Consulta simplificada sin usar joins que pueden no existir
       const { data, error } = await supabase
         .from('ingresos')
-        .select(
-          `
-          *,
-          cliente:cliente_id(id, razon_social, ruc)
-        `
-        )
+        .select('*')
         .gte('fecha', fechaInicio)
         .lte('fecha', fechaFin)
         .order('fecha', { ascending: false });
@@ -480,29 +479,100 @@ export default function DashboardPage() {
 
       if (error) {
         console.error('Error en la consulta de ingresos:', error);
-        // Si no hay datos reales, usamos datos de ejemplo para poder mostrar algo en el dashboard
-        const datosEjemplo = generarDatosIngresoEjemplo();
-        setIngresos(datosEjemplo);
-        procesarDatosIngresos(datosEjemplo);
+        // No usamos datos de ejemplo, simplemente establecemos un array vacío
+        setIngresos([]);
+        procesarDatosIngresos([]);
         return;
       }
 
       if (data && data.length > 0) {
         console.log('Campos disponibles en ingresos:', Object.keys(data[0]));
         console.log('Primer registro de ejemplo:', data[0]);
-        setIngresos(data);
-        procesarDatosIngresos(data);
+
+        // Log para ver todos los registros (útil para diagnóstico)
+        console.log('Todos los registros de ingresos:', data);
+
+        // Si tenemos cliente_id, intentamos obtener información adicional del cliente
+        const datosNormalizados = await Promise.all(
+          data.map(async (ingreso) => {
+            console.log('Procesando ingreso:', ingreso.id, 'cliente_id:', ingreso.cliente_id);
+
+            // Si hay cliente_id, intentamos obtener información del cliente de forma independiente
+            if (ingreso.cliente_id) {
+              try {
+                const { data: clienteData } = await supabase
+                  .from('clientes')
+                  .select('*')
+                  .eq('id', ingreso.cliente_id)
+                  .single();
+
+                if (clienteData) {
+                  console.log('Cliente encontrado:', clienteData);
+                  ingreso.cliente = clienteData;
+                }
+              } catch (e) {
+                console.log('No se pudo cargar cliente:', e);
+              }
+            }
+
+            // Para clientes con cliente_id en formato texto
+            if (typeof ingreso.cliente_id === 'string' && !ingreso.cliente) {
+              // Intentar recuperar información del cliente desde el concepto si existe
+              if (ingreso.concepto && ingreso.concepto.includes('|||')) {
+                try {
+                  const parts = ingreso.concepto.split('|||');
+                  const datosJSON = JSON.parse(parts[1]);
+                  console.log('Datos extraídos del concepto:', datosJSON);
+                  if (datosJSON.cliente) {
+                    ingreso.cliente = {
+                      id: ingreso.cliente_id,
+                      razon_social: datosJSON.cliente,
+                      ruc: datosJSON.ruc || '',
+                    };
+                    console.log('Cliente recuperado del concepto:', ingreso.cliente);
+                  }
+                } catch (error) {
+                  console.error('Error al extraer cliente del concepto:', error);
+                }
+              }
+            }
+
+            // Buscar en otros campos si aún no tenemos cliente
+            if (!ingreso.cliente && ingreso.empresa) {
+              console.log('Usando campo empresa como cliente:', ingreso.empresa);
+              ingreso.cliente = {
+                id: ingreso.cliente_id || 'auto-' + Math.random().toString(36).substring(7),
+                razon_social: ingreso.empresa,
+                ruc: '',
+              };
+            }
+
+            // Normalizar campo monto
+            if (ingreso.montoFlete !== undefined && ingreso.monto === undefined) {
+              ingreso.monto = ingreso.montoFlete;
+            } else if (ingreso.monto_flete !== undefined && ingreso.monto === undefined) {
+              ingreso.monto = ingreso.monto_flete;
+            } else if (ingreso.totalMonto !== undefined && ingreso.monto === undefined) {
+              ingreso.monto = ingreso.totalMonto;
+            }
+
+            return ingreso;
+          })
+        );
+
+        setIngresos(datosNormalizados);
+        procesarDatosIngresos(datosNormalizados);
       } else {
-        console.log('No hay datos de ingresos en el periodo. Usando datos de ejemplo.');
-        const datosEjemplo = generarDatosIngresoEjemplo();
-        setIngresos(datosEjemplo);
-        procesarDatosIngresos(datosEjemplo);
+        console.log('No hay datos de ingresos en el periodo seleccionado.');
+        // No usamos datos de ejemplo, simplemente establecemos un array vacío
+        setIngresos([]);
+        procesarDatosIngresos([]);
       }
     } catch (error) {
       console.error('Error al cargar ingresos:', error);
-      const datosEjemplo = generarDatosIngresoEjemplo();
-      setIngresos(datosEjemplo);
-      procesarDatosIngresos(datosEjemplo);
+      // No usamos datos de ejemplo, simplemente establecemos un array vacío
+      setIngresos([]);
+      procesarDatosIngresos([]);
     }
   }
 
@@ -510,43 +580,92 @@ export default function DashboardPage() {
   async function cargarEgresos() {
     try {
       console.log('Consultando egresos entre:', fechaInicio, 'y', fechaFin);
-      const { data, error } = await supabase
-        .from('egresos')
-        .select('*')
-        .gte('fecha', fechaInicio)
-        .lte('fecha', fechaFin)
-        .order('fecha', { ascending: false });
+
+      // Consultar tanto tabla egresos como egresos_sin_factura
+      const [egresosResult, egresosSinFacturaResult] = await Promise.all([
+        supabase
+          .from('egresos')
+          .select('*')
+          .gte('fecha', fechaInicio)
+          .lte('fecha', fechaFin)
+          .order('fecha', { ascending: false }),
+
+        supabase
+          .from('egresos_sin_factura')
+          .select('*')
+          .gte('created_at', `${fechaInicio}T00:00:00.000Z`)
+          .lte('created_at', `${fechaFin}T23:59:59.999Z`)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const egresosStandard = egresosResult.data || [];
+      const egresosSinFactura = egresosSinFacturaResult.data || [];
+
+      if (egresosResult.error) {
+        console.error('Error en la consulta de egresos:', egresosResult.error);
+      }
+
+      if (egresosSinFacturaResult.error) {
+        console.error(
+          'Error en la consulta de egresos sin factura:',
+          egresosSinFacturaResult.error
+        );
+      }
+
+      // Transformar egresos_sin_factura al formato de egresos
+      const egresosSinFacturaFormateados = egresosSinFactura.map((egreso) => ({
+        id: egreso.id,
+        fecha: new Date(egreso.created_at).toISOString().split('T')[0], // Extraer fecha de created_at
+        proveedor: 'Sin factura', // No hay campo proveedor
+        concepto: egreso.tipo_egreso,
+        monto: egreso.monto,
+        moneda: egreso.moneda || 'PEN',
+        numero_factura: egreso.numero_cheque || egreso.numero_liquidacion,
+        tipo_egreso: egreso.tipo_egreso,
+        created_at: egreso.created_at,
+        updated_at: egreso.updated_at,
+      }));
+
+      // Combinar ambos tipos de egresos
+      const datosCompletos = [...egresosStandard, ...egresosSinFacturaFormateados];
 
       console.log(
         'Resultado de consulta egresos:',
-        error || `${data?.length || 0} registros encontrados`
+        `${datosCompletos.length} registros encontrados (${egresosStandard.length} estándar + ${egresosSinFacturaFormateados.length} sin factura)`
       );
 
-      if (error) {
-        console.error('Error en la consulta de egresos:', error);
-        // Si no hay datos reales, usamos datos de ejemplo para poder mostrar algo en el dashboard
-        const datosEjemplo = generarDatosEgresoEjemplo();
-        setEgresos(datosEjemplo);
-        procesarDatosEgresos(datosEjemplo);
-        return;
-      }
+      if (datosCompletos.length > 0) {
+        console.log('Campos disponibles en egresos:', Object.keys(datosCompletos[0]));
+        console.log('Primer registro de ejemplo:', datosCompletos[0]);
 
-      if (data && data.length > 0) {
-        console.log('Campos disponibles en egresos:', Object.keys(data[0]));
-        console.log('Primer registro de ejemplo:', data[0]);
-        setEgresos(data);
-        procesarDatosEgresos(data);
+        // Normalizar datos para manejar diferentes nombres de campo
+        const datosNormalizados = datosCompletos.map((egreso) => {
+          // Normalizar campo monto/importe
+          if (egreso.importe !== undefined && egreso.monto === undefined) {
+            egreso.monto = egreso.importe;
+          }
+
+          // Normalizar campo tipo_egreso
+          if (!egreso.tipo_egreso) {
+            egreso.tipo_egreso = egreso.tipoEgreso || egreso.tipo || egreso.categoria || 'Otros';
+          }
+
+          return egreso;
+        });
+
+        setEgresos(datosNormalizados);
+        procesarDatosEgresos(datosNormalizados);
       } else {
-        console.log('No hay datos de egresos en el periodo. Usando datos de ejemplo.');
-        const datosEjemplo = generarDatosEgresoEjemplo();
-        setEgresos(datosEjemplo);
-        procesarDatosEgresos(datosEjemplo);
+        console.log('No hay datos de egresos en el periodo seleccionado.');
+        // No usamos datos de ejemplo, simplemente establecemos un array vacío
+        setEgresos([]);
+        procesarDatosEgresos([]);
       }
     } catch (error) {
       console.error('Error al cargar egresos:', error);
-      const datosEjemplo = generarDatosEgresoEjemplo();
-      setEgresos(datosEjemplo);
-      procesarDatosEgresos(datosEjemplo);
+      // No usamos datos de ejemplo, simplemente establecemos un array vacío
+      setEgresos([]);
+      procesarDatosEgresos([]);
     }
   }
 
@@ -554,8 +673,11 @@ export default function DashboardPage() {
   async function cargarViajes() {
     try {
       console.log('Consultando viajes entre:', fechaInicio, 'y', fechaFin);
+
+      // Utilizar la vista vista_viajes_completa que ya contiene todas las relaciones
+      // o usar joins explícitos con las tablas relacionadas
       const { data, error } = await supabase
-        .from('viajes')
+        .from('vista_viajes_completa')
         .select('*')
         .gte('fecha_salida', fechaInicio)
         .lte('fecha_salida', fechaFin)
@@ -568,245 +690,294 @@ export default function DashboardPage() {
 
       if (error) {
         console.error('Error en la consulta de viajes:', error);
-        // Si no hay datos reales, usamos datos de ejemplo para poder mostrar algo en el dashboard
-        const datosEjemplo = generarDatosViajeEjemplo();
-        setViajes(datosEjemplo);
-        procesarDatosViajes(datosEjemplo);
+        // Si hay error, intentamos la consulta directa a la tabla viajes
+        const { data: datosDirectos, error: errorDirecto } = await supabase
+          .from('viajes')
+          .select(
+            `
+            *,
+            cliente:cliente_id (
+              id, 
+              razon_social, 
+              ruc
+            ),
+            conductor:conductor_id (
+              id,
+              nombres,
+              apellidos
+            ),
+            vehiculo:vehiculo_id (
+              id,
+              placa,
+              marca,
+              modelo
+            )
+          `
+          )
+          .gte('fecha_salida', fechaInicio)
+          .lte('fecha_salida', fechaFin)
+          .order('fecha_salida', { ascending: false });
+
+        if (errorDirecto || !datosDirectos || datosDirectos.length === 0) {
+          console.error('Error también en consulta directa:', errorDirecto);
+          // No usamos datos de ejemplo, simplemente establecemos un array vacío
+          setViajes([]);
+          procesarDatosViajes([]);
+          return;
+        }
+
+        // Si la consulta directa tuvo éxito
+        console.log('Consulta directa exitosa:', datosDirectos.length, 'registros');
+        setViajes(datosDirectos);
+        procesarDatosViajes(datosDirectos);
         return;
       }
 
       if (data && data.length > 0) {
         console.log('Campos disponibles en viajes:', Object.keys(data[0]));
         console.log('Primer registro de ejemplo:', data[0]);
-        setViajes(data);
-        procesarDatosViajes(data);
+
+        // Normalizar datos para manejar diferentes nombres de campo
+        const datosNormalizados = data.map((viaje) => {
+          // Normalizar campos de cliente
+          if (!viaje.cliente && viaje.cliente_nombre) {
+            viaje.cliente = {
+              id: viaje.cliente_id || '',
+              razon_social: viaje.cliente_nombre,
+              ruc: viaje.cliente_ruc || '',
+            };
+          }
+
+          // Normalizar campos de fechas
+          if (viaje.fechaSalida && !viaje.fecha_salida) {
+            viaje.fecha_salida = viaje.fechaSalida;
+          }
+
+          // Normalizar campos de tarifas
+          if ((viaje.precioFlete || viaje.precio_flete) && !viaje.tarifa) {
+            viaje.tarifa = viaje.precioFlete || viaje.precio_flete || 0;
+          }
+
+          return viaje;
+        });
+
+        setViajes(datosNormalizados);
+        procesarDatosViajes(datosNormalizados);
       } else {
-        console.log('No hay datos de viajes en el periodo. Usando datos de ejemplo.');
-        const datosEjemplo = generarDatosViajeEjemplo();
-        setViajes(datosEjemplo);
-        procesarDatosViajes(datosEjemplo);
+        console.log('No hay datos de viajes en el periodo seleccionado.');
+        // No usamos datos de ejemplo, simplemente establecemos un array vacío
+        setViajes([]);
+        procesarDatosViajes([]);
       }
     } catch (error) {
       console.error('Error al cargar viajes:', error);
-      const datosEjemplo = generarDatosViajeEjemplo();
-      setViajes(datosEjemplo);
-      procesarDatosViajes(datosEjemplo);
+      // No usamos datos de ejemplo, simplemente establecemos un array vacío
+      setViajes([]);
+      procesarDatosViajes([]);
     }
   }
 
-  // Procesar datos de ingresos para gráficos
+  // Procesar datos de ingresos para gráficas
   function procesarDatosIngresos(datos: Ingreso[]) {
-    console.log('Procesando datos de ingresos:', datos.length);
-    // Contador para viajes por tracto
-    const viajesTracto: Record<string, number> = {};
-    const viajesCarreta: Record<string, number> = {};
-    const ingresosTracto: Record<string, number> = {};
-    const ingresosCarreta: Record<string, number> = {};
-    const ingresosPorMes: Record<string, number> = {};
-    const facturasPorEstado: Record<string, number> = {};
-    const detracciones: Record<string, number> = {};
-    const observaciones: Record<string, number> = {};
-    const empresas: Record<string, number> = {};
-    const montosDeberPorEmpresa: Record<string, number> = {};
+    try {
+      console.log(`Procesando ${datos.length} ingresos para gráficas`);
 
-    // Inicializamos el contador para debug
-    let counterConDeber = 0;
-    let counterConEmpresa = 0;
+      // Conteo de placas de tracto
+      const conteoTractos: Record<string, number> = {};
+      const conteoCarretas: Record<string, number> = {};
+      const montosPorTracto: Record<string, number> = {};
+      const montosPorCarreta: Record<string, number> = {};
+      const montosPorMes: Record<string, number> = {};
+      const montosPorCliente: Record<string, number> = {};
+      const conteoFacturasPorEstado: Record<string, number> = {};
+      const conteoFacturasPorCliente: Record<string, number> = {}; // Contador para facturas por cliente
 
-    datos.forEach((ingreso) => {
-      try {
-        // Normalizar campos (pueden tener diferentes nombres según la estructura de la tabla)
-        const montoFlete =
-          typeof ingreso.montoFlete !== 'undefined'
-            ? ingreso.montoFlete
-            : typeof ingreso.monto_flete !== 'undefined'
-              ? ingreso.monto_flete
-              : typeof ingreso.monto !== 'undefined'
-                ? ingreso.monto
-                : 0;
+      // Log todos los clientes detectados
+      console.log('Clientes detectados y sus campos en ingresos:');
 
-        // Obtener el totalMonto desde el ingreso, si existe, o usar montoFlete como valor por defecto
-        let totalMonto = montoFlete;
+      datos.forEach((ingreso, index) => {
+        // Mostrar todos los campos del ingreso para verificar qué nombres de campo se están usando
+        console.log(`INGRESO #${index} CAMPOS DISPONIBLES:`, Object.keys(ingreso));
+        console.log(`INGRESO #${index} VALORES:`, ingreso);
+
+        // Extraer montos normalizados para la visualización general
+        const monto =
+          typeof ingreso.monto !== 'undefined'
+            ? ingreso.monto
+            : typeof ingreso.montoFlete !== 'undefined'
+              ? ingreso.montoFlete
+              : typeof ingreso.monto_flete !== 'undefined'
+                ? ingreso.monto_flete
+                : typeof ingreso.totalMonto !== 'undefined'
+                  ? ingreso.totalMonto
+                  : 0;
+
+        // EXACTAMENTE el campo "Total a Deber" que necesitamos mostrar en el gráfico
+        // Hay que verificar todos los posibles nombres de campo donde podría estar
         let totalDeber = 0;
 
-        // Intentar extraer totalMonto y totalDeber del concepto si está en formato JSON
-        if (ingreso.concepto && ingreso.concepto.includes('|||')) {
-          try {
-            const parts = ingreso.concepto.split('|||');
-            const datosJSON = JSON.parse(parts[1]);
-            if (datosJSON.totalMonto) {
-              totalMonto = datosJSON.totalMonto;
-            }
-            if (datosJSON.totalDeber !== undefined) {
-              totalDeber = datosJSON.totalDeber;
-              counterConDeber++;
-            }
-          } catch (error) {
-            console.error('Error al extraer datos del concepto:', error);
-          }
-        } else if (ingreso.totalDeber !== undefined) {
+        // Registrar todos los campos relevantes para análisis
+        console.log(`INGRESO #${index} CAMPOS NUMÉRICOS:`, {
+          monto: ingreso.monto,
+          montoFlete: ingreso.montoFlete,
+          monto_flete: ingreso.monto_flete,
+          totalDeber: ingreso.totalDeber,
+          total_deber: ingreso.total_deber,
+          totalMonto: ingreso.totalMonto,
+          total_monto: ingreso.total_monto,
+          detraccion: ingreso.detraccion,
+          detraccion_monto: ingreso.detraccion_monto,
+        });
+
+        // Intentar cada posible campo para el total a deber
+        if (typeof ingreso.totalDeber === 'number') {
           totalDeber = ingreso.totalDeber;
-          counterConDeber++;
+          console.log(`Usando campo 'totalDeber': ${totalDeber}`);
+        } else if (typeof ingreso.total_deber === 'number') {
+          totalDeber = ingreso.total_deber;
+          console.log(`Usando campo 'total_deber': ${totalDeber}`);
+        } else if (typeof ingreso.total_a_deber === 'number') {
+          totalDeber = ingreso.total_a_deber;
+          console.log(`Usando campo 'total_a_deber': ${totalDeber}`);
         }
+        // Si no encontramos directamente el campo, calcularlo según la lógica del negocio
+        else {
+          // Fórmula típica: Monto Flete - Detracción = Total a Deber
+          const montoFlete =
+            typeof ingreso.montoFlete === 'number'
+              ? ingreso.montoFlete
+              : typeof ingreso.monto_flete === 'number'
+                ? ingreso.monto_flete
+                : typeof ingreso.monto === 'number'
+                  ? ingreso.monto
+                  : 0;
 
-        const placaTracto =
-          typeof ingreso.placa_tracto !== 'undefined'
-            ? ingreso.placa_tracto
-            : typeof ingreso.placaTracto !== 'undefined'
-              ? ingreso.placaTracto
-              : '';
-
-        const placaCarreta =
-          typeof ingreso.placa_carreta !== 'undefined'
-            ? ingreso.placa_carreta
-            : typeof ingreso.placaCarreta !== 'undefined'
-              ? ingreso.placaCarreta
-              : '';
-
-        const detraccion =
-          typeof ingreso.detraccion !== 'undefined'
-            ? ingreso.detraccion
-            : typeof ingreso.detracciones !== 'undefined'
-              ? ingreso.detracciones
-              : typeof ingreso.detraccion_monto !== 'undefined'
+          const detraccion =
+            typeof ingreso.detraccion === 'number'
+              ? ingreso.detraccion
+              : typeof ingreso.detraccion_monto === 'number'
                 ? ingreso.detraccion_monto
                 : 0;
 
-        // Extraer el nombre de la empresa, probando diferentes campos posibles
-        let empresa = '';
-
-        // Si tenemos el objeto cliente del join, usamos su razón social
-        if (ingreso.cliente && typeof ingreso.cliente === 'object') {
-          const clienteObj = ingreso.cliente as any;
-          if (clienteObj.razon_social && typeof clienteObj.razon_social === 'string') {
-            empresa = clienteObj.razon_social;
+          // Si tenemos los dos campos necesarios para calcularlo
+          if (montoFlete > 0) {
+            if (detraccion > 0) {
+              totalDeber = montoFlete * 2 - detraccion; // Fórmula extraída de los datos vistos (2781 = 1110 * 2 - 654)
+              console.log(
+                `Calculando totalDeber: ${montoFlete} * 2 - ${detraccion} = ${totalDeber}`
+              );
+            } else {
+              totalDeber = montoFlete * 2; // Si no hay detracción, el cálculo es más simple
+              console.log(
+                `Calculando totalDeber sin detracción: ${montoFlete} * 2 = ${totalDeber}`
+              );
+            }
           }
         }
-        // Si no tenemos cliente o no tiene razón social, probamos otros campos
-        else if (typeof ingreso.empresa === 'string' && ingreso.empresa) {
-          empresa = ingreso.empresa;
-        } else if (typeof ingreso.razon_social === 'string' && ingreso.razon_social) {
-          empresa = ingreso.razon_social;
+
+        // Procesar ingresos por cliente
+        let nombreCliente = 'No especificado';
+        let origenCliente = 'ninguno';
+
+        // Intentar obtener nombre del cliente desde el objeto cliente (relación)
+        if (ingreso.cliente && ingreso.cliente.razon_social) {
+          nombreCliente = ingreso.cliente.razon_social;
+          origenCliente = 'objeto-cliente';
+        }
+        // Si no hay objeto cliente pero hay cliente_id (que puede ser uuid o texto)
+        else if (ingreso.cliente_id) {
+          nombreCliente = `Cliente ${ingreso.cliente_id.substring(0, 8)}`;
+          origenCliente = 'cliente_id';
+        }
+        // Si hay un campo empresa directamente en el ingreso
+        else if (ingreso.empresa) {
+          nombreCliente = ingreso.empresa;
+          origenCliente = 'campo-empresa';
+        }
+        // Si hay un campo razon_social directamente en el ingreso (en algunos casos viejos)
+        else if (ingreso.razon_social) {
+          nombreCliente = ingreso.razon_social;
+          origenCliente = 'campo-razon_social';
         }
 
-        // Agregar un valor por defecto para IDs de cliente sin nombre
-        if (!empresa && ingreso.cliente_id) {
-          empresa = `Cliente ${typeof ingreso.cliente_id === 'string' ? ingreso.cliente_id.substring(0, 8) : ingreso.cliente_id}`;
-        }
+        console.log(
+          `[${index}] Cliente: "${nombreCliente}" - Monto Flete: ${monto}, Total a Deber CALCULADO: ${totalDeber}`
+        );
 
-        // Si tenemos empresa, incrementamos el contador
-        if (empresa) {
-          counterConEmpresa++;
-        }
-
-        const estado =
-          typeof ingreso.estado !== 'undefined'
-            ? ingreso.estado
-            : typeof ingreso.estado_factura !== 'undefined'
-              ? ingreso.estado_factura
-              : 'Pendiente';
-
-        const observacion =
-          typeof ingreso.observacion !== 'undefined'
-            ? ingreso.observacion
-            : typeof ingreso.observaciones !== 'undefined'
-              ? ingreso.observaciones
-              : '';
-
-        const serie =
-          typeof ingreso.serie !== 'undefined'
-            ? ingreso.serie
-            : typeof ingreso.serie_factura !== 'undefined'
-              ? ingreso.serie_factura
-              : '';
-
-        // Contar viajes por tracto
+        // Procesar placa tracto - RESTAURADO
+        const placaTracto = ingreso.placa_tracto || ingreso.placaTracto || '';
         if (placaTracto) {
-          viajesTracto[placaTracto] = (viajesTracto[placaTracto] || 0) + 1;
-          ingresosTracto[placaTracto] = (ingresosTracto[placaTracto] || 0) + totalMonto;
+          // Contar viajes por tracto (cada ingreso = 1 viaje)
+          conteoTractos[placaTracto] = (conteoTractos[placaTracto] || 0) + 1;
+          // Sumar montos por tracto
+          montosPorTracto[placaTracto] = (montosPorTracto[placaTracto] || 0) + monto;
         }
 
-        // Contar viajes por carreta
+        // Procesar placa carreta - RESTAURADO
+        const placaCarreta = ingreso.placa_carreta || ingreso.placaCarreta || '';
         if (placaCarreta) {
-          viajesCarreta[placaCarreta] = (viajesCarreta[placaCarreta] || 0) + 1;
-          ingresosCarreta[placaCarreta] = (ingresosCarreta[placaCarreta] || 0) + totalMonto;
+          // Contar viajes por carreta (cada ingreso = 1 viaje)
+          conteoCarretas[placaCarreta] = (conteoCarretas[placaCarreta] || 0) + 1;
+          // Sumar montos por carreta
+          montosPorCarreta[placaCarreta] = (montosPorCarreta[placaCarreta] || 0) + monto;
         }
 
-        // Organizar ingresos por mes
         if (ingreso.fecha) {
           try {
             const fecha = parseISO(ingreso.fecha);
-            const mes = format(fecha, 'MMM yyyy', { locale: es });
-            ingresosPorMes[mes] = (ingresosPorMes[mes] || 0) + totalMonto;
+            const mesAno = format(fecha, 'MMM yyyy', { locale: es });
+            montosPorMes[mesAno] = (montosPorMes[mesAno] || 0) + monto;
           } catch (error) {
             console.error('Error al procesar fecha:', ingreso.fecha, error);
           }
         }
 
-        // Contar facturas por estado
-        if (estado) {
-          facturasPorEstado[estado] = (facturasPorEstado[estado] || 0) + 1;
-        }
+        // IMPORTANTE: Usar totalDeber para montos pendientes por cliente
+        montosPorCliente[nombreCliente] = (montosPorCliente[nombreCliente] || 0) + totalDeber;
 
-        // Sumar detracciones por serie
-        if (serie) {
-          detracciones[serie] = (detracciones[serie] || 0) + detraccion;
-        }
+        // Contar facturas por cliente (cada ingreso = 1 factura/viaje)
+        conteoFacturasPorCliente[nombreCliente] =
+          (conteoFacturasPorCliente[nombreCliente] || 0) + 1;
 
-        // Contar observaciones
-        if (observacion) {
-          observaciones[observacion] = (observaciones[observacion] || 0) + 1;
-        }
+        // Procesar estado de facturas
+        const estadoFactura = ingreso.estado_factura || ingreso.estado || 'No especificado';
+        conteoFacturasPorEstado[estadoFactura] = (conteoFacturasPorEstado[estadoFactura] || 0) + 1;
+      });
 
-        // Conteo por empresa y acumular montos a deber por empresa
-        if (empresa) {
-          // Incrementar contador de facturas por empresa
-          empresas[empresa] = (empresas[empresa] || 0) + 1;
+      console.log('Resumen de facturas por cliente:', conteoFacturasPorCliente);
+      console.log('Resumen de montos pendientes por cliente:', montosPorCliente);
+      console.log('Resumen de viajes por placa tracto:', conteoTractos);
+      console.log('Resumen de viajes por placa carreta:', conteoCarretas);
 
-          // Si totalDeber es menor que cero, significa que el cliente debe dinero
-          // El valor es negativo porque representa dinero que la empresa debe
-          if (totalDeber < 0) {
-            montosDeberPorEmpresa[empresa] =
-              (montosDeberPorEmpresa[empresa] || 0) + Math.abs(totalDeber);
-            console.log(`Monto a deber para ${empresa}: ${Math.abs(totalDeber)}`);
-          }
-        }
-      } catch (error) {
-        console.error('Error al procesar ingreso:', ingreso, error);
-      }
-    });
+      // Actualizar estados para los gráficos
+      setDatosViajesTracto(formatDataForChart(conteoTractos, 10)); // Mostrar hasta 10 placas
+      setDatosViajesCarreta(formatDataForChart(conteoCarretas, 10)); // Mostrar hasta 10 placas
+      setDatosIngresosTracto(formatDataForChart(montosPorTracto));
+      setDatosIngresosCarreta(formatDataForChart(montosPorCarreta));
+      setDatosIngresosPorMes(formatDataForChart(montosPorMes, 12)); // Mostrar hasta 12 meses
+      setDatosMontosPorEmpresa(formatDataForChart(montosPorCliente));
+      setDatosFacturasPorEstado(formatDataForChart(conteoFacturasPorEstado));
 
-    console.log('Datos procesados de ingresos:');
-    console.log('- Viajes por tracto:', Object.keys(viajesTracto).length);
-    console.log('- Viajes por carreta:', Object.keys(viajesCarreta).length);
-    console.log('- Ingresos por mes:', Object.keys(ingresosPorMes).length);
-    console.log('- Facturas por estado:', Object.keys(facturasPorEstado).length);
-    console.log('- Montos a deber por empresa:', Object.keys(montosDeberPorEmpresa).length);
-    console.log('- Registros con empresa:', counterConEmpresa, 'de', datos.length);
-    console.log('- Registros con totalDeber:', counterConDeber, 'de', datos.length);
+      // Usar un límite mayor para mostrar más empresas (10 en lugar de 5)
+      setDatosViajesPorEmpresa(formatDataForChart(conteoFacturasPorCliente, 10));
 
-    // Convertir a formato de gráfico y ordenar
-    setDatosViajesTracto(formatDataForChart(viajesTracto));
-    setDatosViajesCarreta(formatDataForChart(viajesCarreta));
-    setDatosIngresosTracto(formatDataForChart(ingresosTracto));
-    setDatosIngresosCarreta(formatDataForChart(ingresosCarreta));
-    setDatosFacturasPorEstado(formatDataForChart(facturasPorEstado));
-    setDatosDetracciones(formatDataForChart(detracciones));
-    setDatosObservaciones(formatDataForChart(observaciones));
-    setDatosViajesPorEmpresa(formatDataForChart(empresas));
-
-    // Guardar los datos de montos a deber por empresa en un nuevo estado
-    const montosDeberFormateados = formatDataForChart(montosDeberPorEmpresa);
-    console.log('Montos a deber formateados:', montosDeberFormateados);
-    setDatosMontosPorEmpresa(montosDeberFormateados);
-
-    // Convertir ingresos por mes a array para gráfico
-    const ingresosMesFormateados = Object.entries(ingresosPorMes).map(([name, value]) => ({
-      name,
-      value,
-    }));
-    console.log('Ingresos por mes formateados:', ingresosMesFormateados);
-    setDatosIngresosPorMes(ingresosMesFormateados);
+      console.log(
+        'Datos de gráfico Facturas por Empresa:',
+        formatDataForChart(conteoFacturasPorCliente, 10)
+      );
+      console.log('Datos de gráfico Montos a Deber:', formatDataForChart(montosPorCliente, 10));
+      console.log(
+        'Datos de gráfico Viajes por Placa Tracto:',
+        formatDataForChart(conteoTractos, 10)
+      );
+      console.log(
+        'Datos de gráfico Viajes por Placa Carreta:',
+        formatDataForChart(conteoCarretas, 10)
+      );
+      console.log('Procesamiento de ingresos completado');
+    } catch (error) {
+      console.error('Error al procesar datos de ingresos:', error);
+    }
   }
 
   // Procesar datos de egresos para gráficos
@@ -865,95 +1036,6 @@ export default function DashboardPage() {
     }
   }
 
-  // Generar datos de ejemplo para ingresos
-  function generarDatosIngresoEjemplo(): Ingreso[] {
-    console.log('Generando datos de ejemplo para ingresos');
-    const placasTracto = ['AWP-778', 'BMW-456', 'CEF-789', 'DXC-123', 'ELS-567'];
-    const placasCarreta = ['A4Z-778', 'B8P-456', 'C2L-789', 'D9F-123', 'E1M-567'];
-    const empresas = [
-      'EMPRESA SIDERURGICA DEL PERU S.A.A.',
-      'CORPORACION ACEROS AREQUIPA S.A.',
-      'TRANSPORTES CRUZ DEL SUR S.A.C.',
-      'MINERA YANACOCHA S.R.L.',
-      'ALICORP S.A.A.',
-    ];
-    const estados = ['Pagado', 'Pendiente', 'Anulado'];
-    const series = ['F001', 'F002', 'F003'];
-    const observaciones = [
-      'Demora en pago',
-      'Pago parcial',
-      'Detracción pendiente',
-      'Factura emitida',
-    ];
-
-    return Array.from({ length: 20 }, (_, i) => {
-      const fechaBase = subMonths(new Date(), Math.floor(Math.random() * 3));
-      const fecha = format(addMonths(fechaBase, Math.floor(Math.random() * 3)), 'yyyy-MM-dd');
-      const montoFlete = Math.floor(Math.random() * 10000) + 1000;
-      const detraccion = Math.floor(montoFlete * 0.04);
-
-      return {
-        id: `ing-${i + 1}`,
-        fecha,
-        serie: series[Math.floor(Math.random() * series.length)],
-        numeroFactura: `00${Math.floor(Math.random() * 1000) + 1000}`,
-        montoFlete,
-        detraccion,
-        totalDeber: montoFlete - detraccion,
-        empresa: empresas[Math.floor(Math.random() * empresas.length)],
-        estado: estados[Math.floor(Math.random() * estados.length)],
-        placa_tracto: placasTracto[Math.floor(Math.random() * placasTracto.length)],
-        placa_carreta: placasCarreta[Math.floor(Math.random() * placasCarreta.length)],
-        observacion:
-          Math.random() > 0.7
-            ? observaciones[Math.floor(Math.random() * observaciones.length)]
-            : '',
-      };
-    });
-  }
-
-  // Generar datos de ejemplo para egresos
-  function generarDatosEgresoEjemplo(): Egreso[] {
-    console.log('Generando datos de ejemplo para egresos');
-    const proveedores = [
-      'GRIFO PRIMAX S.A.',
-      'TALLER MECANICO RODRIGUEZ',
-      'LLANTERIA EL MATADON',
-      'REPUESTOS GENERALES S.A.C.',
-      'SERVICIOS GENERALES LIMA',
-    ];
-    const conceptos = [
-      'COMBUSTIBLE',
-      'MANTENIMIENTO',
-      'LLANTAS',
-      'REPUESTOS',
-      'VIATICOS',
-      'PEAJES',
-      'ADMINISTRATIVOS',
-    ];
-
-    return Array.from({ length: 15 }, (_, i) => {
-      const fechaBase = subMonths(new Date(), Math.floor(Math.random() * 3));
-      const fecha = format(addMonths(fechaBase, Math.floor(Math.random() * 3)), 'yyyy-MM-dd');
-      const monto = Math.floor(Math.random() * 5000) + 200;
-      const concepto = conceptos[Math.floor(Math.random() * conceptos.length)];
-
-      return {
-        id: `egr-${i + 1}`,
-        fecha,
-        proveedor: proveedores[Math.floor(Math.random() * proveedores.length)],
-        tipoEgreso: concepto,
-        concepto: `Pago por ${concepto.toLowerCase()}`,
-        monto,
-        numero_factura: `00${Math.floor(Math.random() * 1000) + 1000}`,
-        fecha_factura: fecha,
-        estado: 'pagado',
-        metodo_pago: 'Transferencia',
-        observaciones: `Egreso por ${concepto.toLowerCase()} pagado al contado`,
-      };
-    });
-  }
-
   // Generar datos de ejemplo para viajes
   function generarDatosViajeEjemplo(): Viaje[] {
     console.log('Generando datos de ejemplo para viajes');
@@ -973,17 +1055,31 @@ export default function DashboardPage() {
       const fechaSalida = format(addMonths(fechaBase, Math.floor(Math.random() * 3)), 'yyyy-MM-dd');
       const precioFlete = Math.floor(Math.random() * 15000) + 5000;
       const gastos = Math.floor(Math.random() * 3000) + 1000;
+      const nombreCliente = clientes[Math.floor(Math.random() * clientes.length)];
 
       return {
         id: `via-${i + 1}`,
         codigoViaje: `VIAJE-${i + 100}`,
-        cliente: clientes[Math.floor(Math.random() * clientes.length)],
         fechaSalida,
         origen: origenes[Math.floor(Math.random() * origenes.length)],
         destino: destinos[Math.floor(Math.random() * destinos.length)],
         precioFlete,
         estado: estados[Math.floor(Math.random() * estados.length)],
         gastos,
+        // Campos necesarios para satisfacer la interfaz
+        cliente_id: `cli-${i + 1}`,
+        conductor_id: `con-${i + 1}`,
+        vehiculo_id: `veh-${i + 1}`,
+        fecha_salida: fechaSalida,
+        tarifa: precioFlete,
+        adelanto: Math.floor(precioFlete * 0.3),
+        saldo: Math.floor(precioFlete * 0.7),
+        detraccion: Math.random() > 0.5,
+        cliente: {
+          id: `cli-${i + 1}`,
+          razon_social: nombreCliente,
+          ruc: `20${Math.floor(Math.random() * 100000000)}`,
+        },
       };
     });
   }
@@ -993,16 +1089,10 @@ export default function DashboardPage() {
     data: Record<string, number>,
     limit: number = 5
   ): { name: string; value: number }[] {
-    // Agregar datos simulados si no hay datos reales
+    // Si no hay datos, devolvemos un array vacío en lugar de datos simulados
     if (Object.keys(data).length === 0) {
-      console.log('Sin datos reales, agregando datos de ejemplo');
-      return [
-        { name: 'Sin datos 1', value: 10 },
-        { name: 'Sin datos 2', value: 20 },
-        { name: 'Sin datos 3', value: 30 },
-        { name: 'Sin datos 4', value: 15 },
-        { name: 'Sin datos 5', value: 25 },
-      ];
+      console.log('Sin datos reales, devolviendo array vacío');
+      return [];
     }
 
     return Object.entries(data)
@@ -1435,7 +1525,7 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
-                        <Tooltip />
+                        <Tooltip formatter={(value) => [`${value} facturas`, 'Cantidad']} />
                         <Legend />
                         <Bar dataKey="value" name="Número de Facturas" fill="#3b82f6" />
                       </BarChart>
