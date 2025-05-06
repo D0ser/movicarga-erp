@@ -16,6 +16,8 @@ import {
   vehiculoService,
   Vehiculo,
   viajeService,
+  observacionService,
+  Observacion,
 } from '@/lib/supabaseServices';
 import { EditButton, DeleteButton, ActionButtonGroup } from '@/components/ActionIcons';
 import supabase from '@/lib/supabase';
@@ -46,6 +48,8 @@ interface Ingreso {
   totalMonto: number;
   empresa: string;
   ruc: string;
+  razon_social_cliente: string;
+  ruc_cliente: string;
   conductor: string;
   placaTracto: string;
   placaCarreta: string;
@@ -57,6 +61,7 @@ interface Ingreso {
   estado: string;
   numOperacionPrimeraCuota?: string;
   numOperacionSegundaCuota?: string;
+  documento?: string; // Nuevo campo documento
 }
 
 // Componente para mostrar el total de monto de flete
@@ -152,24 +157,28 @@ export default function IngresosPage() {
     fecha: new Date().toISOString().split('T')[0],
     serie: '',
     numeroFactura: '',
-    montoFlete: undefined,
-    primeraCuota: undefined,
-    segundaCuota: undefined,
-    detraccion: undefined,
-    totalDeber: undefined,
-    totalMonto: undefined,
+    montoFlete: 0,
+    primeraCuota: 0,
+    segundaCuota: 0,
+    detraccion: 0,
+    totalDeber: 0,
+    totalMonto: 0,
     empresa: '',
     ruc: '',
+    razon_social_cliente: '',
+    ruc_cliente: '',
     conductor: '',
     placaTracto: '',
     placaCarreta: '',
     observacion: '',
     documentoGuiaRemit: '',
     guiaTransp: '',
-    diasCredito: undefined,
-    estado: 'Pendiente',
+    diasCredito: 0,
+    fechaVencimiento: new Date().toISOString().split('T')[0],
+    estado: 'Vigente',
     numOperacionPrimeraCuota: '',
     numOperacionSegundaCuota: '',
+    documento: '', // Inicializar nuevo campo documento
   });
 
   // Toast para notificaciones
@@ -193,6 +202,8 @@ export default function IngresosPage() {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [tractos, setTractos] = useState<Vehiculo[]>([]);
   const [carretas, setCarretas] = useState<Vehiculo[]>([]);
+  // Nuevo estado para observaciones
+  const [observacionesDisponibles, setObservacionesDisponibles] = useState<Observacion[]>([]);
 
   // Estado para los ingresos filtrados
   const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
@@ -208,16 +219,19 @@ export default function IngresosPage() {
       try {
         setLoading(true);
         // Cargar clientes, conductores, vehículos y series
-        const [clientesData, conductoresData, vehiculosData, seriesData] = await Promise.all([
-          clienteService.getClientes(),
-          conductorService.getConductores(),
-          vehiculoService.getVehiculos(),
-          serieService.getSeries(),
-        ]);
+        const [clientesData, conductoresData, vehiculosData, seriesData, observacionesData] =
+          await Promise.all([
+            clienteService.getClientes(),
+            conductorService.getConductores(),
+            vehiculoService.getVehiculos(),
+            serieService.getSeries(),
+            observacionService.getObservaciones(), // Cargar observaciones
+          ]);
 
         setClientes(clientesData);
         setConductores(conductoresData);
         setVehiculos(vehiculosData);
+        setObservacionesDisponibles(observacionesData); // Guardar observaciones
 
         // Filtrar vehículos según su tipo
         setTractos(vehiculosData.filter((v) => v.tipo_vehiculo === 'Tracto'));
@@ -238,7 +252,8 @@ export default function IngresosPage() {
         // Actualizar el estado de cada ingreso basado en la fecha de vencimiento
         const ingresosConEstadoActualizado = ingresosFromSupabase.map((ingreso) => {
           const fechaVencimiento = new Date(ingreso.fechaVencimiento);
-          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+          // Pasar totalDeber a la función
+          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, ingreso.totalDeber);
           return {
             ...ingreso,
             estado: estadoAutomatico,
@@ -262,8 +277,15 @@ export default function IngresosPage() {
     cargarDatos();
   }, []);
 
-  // Función para calcular el estado automáticamente basado en la fecha de vencimiento
-  const calcularEstadoAutomatico = (fechaVencimiento: Date): string => {
+  // Función para calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
+  const calcularEstadoAutomatico = (fechaVencimiento: Date, totalDeber: number): string => {
+    // Primero, verificar si está pagado
+    if (Math.abs(totalDeber) < 0.01) {
+      // Usar una pequeña tolerancia para comparación de flotantes
+      return 'Pagado';
+    }
+
+    // Si no está pagado, aplicar la lógica basada en fecha
     const hoy = new Date();
     // Resetear horas, minutos, segundos y milisegundos para comparar solo las fechas
     hoy.setHours(0, 0, 0, 0);
@@ -313,82 +335,46 @@ export default function IngresosPage() {
           const detraccion = ing.detraccion_monto || montoFlete * 0.04;
           const diasCredito = ing.dias_credito || 0;
           const fechaVencimiento = ing.fecha_vencimiento || ing.fecha;
-          let totalMonto = montoFlete;
-          let totalDeber = 0;
 
-          // Placa tracto y carreta
+          // Usar los campos nativos en la tabla
+          let totalMonto = ing.total_monto || montoFlete;
+          let totalDeber = ing.total_deber || 0;
           let placaTracto = ing.placa_tracto || '';
           let placaCarreta = ing.placa_carreta || '';
-
-          // Documentos
           let documentoGuiaRemit = ing.guia_remision || '';
           let guiaTransp = ing.guia_transportista || '';
 
+          // Usar las nuevas columnas para observación y números de operación
+          let observacionUsuario = ing.observacion || '';
+          let numOperacionPrimeraCuota = ing.num_operacion_primera_cuota || '';
+          let numOperacionSegundaCuota = ing.num_operacion_segunda_cuota || '';
+          let documento = ing.documento || ''; // Usar el nuevo campo documento
+
           // Información del conductor
-          let conductor = '';
-          let numOperacionPrimeraCuota = '';
-          let numOperacionSegundaCuota = '';
-          let observacionUsuario = ing.concepto || '';
-
-          // Para mantener compatibilidad con registros anteriores, también procesamos los datos del concepto
-          if (ing.concepto) {
-            const conceptoTexto = ing.concepto;
-
-            // Verificar si el contenido tiene el formato con JSON
-            if (conceptoTexto.includes('|||')) {
-              // Dividir la cadena en la parte de observación del usuario y los datos JSON
-              const parts = conceptoTexto.split('|||');
-              observacionUsuario = parts[0];
-
-              try {
-                // Intentar parsear los datos JSON
-                const datosJSON = JSON.parse(parts[1]);
-
-                // Extraer operaciones bancarias que no están en la tabla
-                numOperacionPrimeraCuota = datosJSON.numOperacionPrimeraCuota || '';
-                numOperacionSegundaCuota = datosJSON.numOperacionSegundaCuota || '';
-
-                // Extraer datos del conductor si no existe en viaje
-                if (!conductor && datosJSON.conductor) {
-                  conductor = datosJSON.conductor || '';
-                }
-
-                // Extraer datos de totalMonto y totalDeber que no existen en la tabla
-                totalMonto = datosJSON.totalMonto || montoFlete;
-                totalDeber = datosJSON.totalDeber || 0;
-              } catch (error) {
-                console.error('Error al parsear datos JSON del concepto:', error);
-              }
-            }
-          }
+          let conductorName = '';
 
           // Si hay viaje asociado, obtener datos de conductor y vehículos
           if (ing.viaje_id) {
             try {
               const viajeData = await viajeService.getViajeById(ing.viaje_id);
-              if (viajeData) {
-                // Datos del conductor
-                if (viajeData.conductor) {
-                  conductor = `${viajeData.conductor.nombres} ${viajeData.conductor.apellidos}`;
-                }
-
-                // Datos del vehículo si no existen ya
-                if (viajeData.vehiculo) {
-                  if (viajeData.vehiculo.tipo_vehiculo === 'Tracto' && !placaTracto) {
-                    placaTracto = viajeData.vehiculo.placa;
-                  } else if (viajeData.vehiculo.tipo_vehiculo === 'Carreta' && !placaCarreta) {
-                    placaCarreta = viajeData.vehiculo.placa;
-                  }
-                }
+              if (viajeData && viajeData.conductor) {
+                conductorName = `${viajeData.conductor.nombres} ${viajeData.conductor.apellidos}`;
               }
             } catch (error) {
               console.error('Error al obtener datos del viaje:', error);
             }
           }
 
-          // Calcular el estado automáticamente basado en la fecha de vencimiento
+          // Si no se obtuvo el nombre del conductor a través del viaje_id,
+          // usar el valor directamente de la tabla ingresos (si existe y no es null)
+          if (!conductorName && ing.conductor) {
+            conductorName = ing.conductor as string;
+          }
+
+          // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
           const fechaVencimientoObj = new Date(fechaVencimiento);
-          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj);
+          // Pasar totalDeber a la función
+          const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj, totalDeber);
 
           return {
             id: ing.id,
@@ -403,7 +389,9 @@ export default function IngresosPage() {
             totalMonto: totalMonto,
             empresa: datosCliente.razon_social || '',
             ruc: datosCliente.ruc || '',
-            conductor: conductor,
+            razon_social_cliente: datosCliente.razon_social || '',
+            ruc_cliente: datosCliente.ruc || '',
+            conductor: conductorName, // Usar el conductorName obtenido
             placaTracto: placaTracto,
             placaCarreta: placaCarreta,
             observacion: observacionUsuario,
@@ -414,6 +402,7 @@ export default function IngresosPage() {
             estado: estadoAutomatico,
             numOperacionPrimeraCuota: numOperacionPrimeraCuota,
             numOperacionSegundaCuota: numOperacionSegundaCuota,
+            documento: documento, // Agregar el campo documento al objeto
           };
         })
       );
@@ -548,13 +537,21 @@ export default function IngresosPage() {
         const numOpPrimera = row.numOperacionPrimeraCuota || '';
         const numOpSegunda = row.numOperacionSegundaCuota || '';
 
+        let tooltipLines: string[] = [];
+        if (numOpPrimera) {
+          tooltipLines.push(
+            `- 1era cuota: S/. ${row.primeraCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} (Op: ${numOpPrimera})`
+          );
+        }
+        if (numOpSegunda) {
+          tooltipLines.push(
+            `- 2da cuota: S/. ${row.segundaCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} (Op: ${numOpSegunda})`
+          );
+        }
+
         let tooltipContent = '';
-        if (numOpPrimera || numOpSegunda) {
-          tooltipContent = `
-            ${numOpPrimera ? `1era cuota: S/. ${row.primeraCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} - Op: ${numOpPrimera}` : ''}
-            ${numOpPrimera && numOpSegunda ? '\n' : ''}
-            ${numOpSegunda ? `2da cuota: S/. ${row.segundaCuota.toLocaleString('es-PE', { minimumFractionDigits: 2 })} - Op: ${numOpSegunda}` : ''}
-          `;
+        if (tooltipLines.length > 0) {
+          tooltipContent = 'Detalles de Pago de Cuotas:\n' + tooltipLines.join('\n');
         }
 
         return (
@@ -636,7 +633,7 @@ export default function IngresosPage() {
 
         // Crear un avatar con la primera letra del nombre
         const inicial = (value as string).charAt(0).toUpperCase();
-        const empresaName = value as string;
+        const empresaName = row.razon_social_cliente || (value as string);
 
         return (
           <div className="flex items-center space-x-2 px-2">
@@ -656,7 +653,7 @@ export default function IngresosPage() {
     {
       header: 'RUC',
       accessor: 'ruc',
-      cell: (value) => (
+      cell: (value, row) => (
         <div className="text-center whitespace-nowrap">
           <span className="inline-flex items-center font-mono bg-gray-50 px-2 py-0.5 rounded text-gray-700 text-xs">
             <svg
@@ -673,7 +670,7 @@ export default function IngresosPage() {
                 d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"
               />
             </svg>
-            {value as string}
+            {row.ruc_cliente || (value as string)}
           </span>
         </div>
       ),
@@ -780,6 +777,38 @@ export default function IngresosPage() {
                     strokeLinejoin="round"
                     strokeWidth={1.5}
                     d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+                  />
+                </svg>
+                {texto}
+              </div>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Documento', // Nueva columna
+      accessor: 'documento', // Nuevo accessor
+      cell: (value) => {
+        const texto = value as string;
+        return (
+          <div className="text-center">
+            {texto ? (
+              <div className="truncate text-sm text-gray-600 max-w-[150px]" title={texto}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="inline h-3.5 w-3.5 text-gray-400 mr-1"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
                   />
                 </svg>
                 {texto}
@@ -931,8 +960,26 @@ export default function IngresosPage() {
         let colorClass = 'bg-gray-100 text-gray-800';
         let icon = null;
 
-        // Asignar colores según el estado basado en la fecha de vencimiento
-        if (estado === 'Vencido') {
+        // Asignar colores según el estado basado en la fecha de vencimiento y si está pagado
+        if (estado === 'Pagado') {
+          colorClass = 'bg-blue-100 text-blue-800';
+          icon = (
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-3.5 w-3.5 mr-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          );
+        } else if (estado === 'Vencido') {
           colorClass = 'bg-red-100 text-red-800';
           icon = (
             <svg
@@ -1101,8 +1148,10 @@ export default function IngresosPage() {
           fechaVencimiento.setDate(fecha.getDate() + diasCredito);
           newData.fechaVencimiento = fechaVencimiento.toISOString().split('T')[0];
 
-          // Calcular el estado automáticamente basado en la fecha de vencimiento
-          newData.estado = calcularEstadoAutomatico(fechaVencimiento);
+          // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
+          // Asegurarse de que totalDeber existe en newData, si no usar el del estado previo o 0
+          const totalDeberActual = newData.totalDeber ?? prev.totalDeber ?? 0;
+          newData.estado = calcularEstadoAutomatico(fechaVencimiento, totalDeberActual);
         }
       }
 
@@ -1256,25 +1305,6 @@ export default function IngresosPage() {
       // Capturar la observación original del usuario
       const observacionUsuario = formData.observacion || '';
 
-      // Crear un objeto con datos que no son campos nativos en la tabla
-      const datosEstructurados = {
-        // Datos que no están en la tabla
-        totalMonto: formData.totalMonto || 0,
-        totalDeber: formData.totalDeber || 0,
-        numOperacionPrimeraCuota: formData.numOperacionPrimeraCuota || '',
-        numOperacionSegundaCuota: formData.numOperacionSegundaCuota || '',
-        conductor: formData.conductor || '',
-        conductorId: conductor?.id || '',
-      };
-
-      // Convertir a JSON para guardar en el campo concepto
-      const datosJSON = JSON.stringify(datosEstructurados);
-
-      // Crear la cadena de concepto final con un separador claro
-      // Formato: ObservacionUsuario||| + JSON
-      const conceptoTextoUsuario = observacionUsuario || 'Ingreso por flete';
-      const conceptoCompleto = `${conceptoTextoUsuario}|||${datosJSON}`;
-
       // Buscar un viaje relacionado
       const viaje_id = await buscarViajeRelacionado(
         cliente?.id,
@@ -1282,15 +1312,15 @@ export default function IngresosPage() {
         tracto?.id || carreta?.id
       );
 
-      // Calcular el estado automáticamente basado en la fecha de vencimiento
+      // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
       const fechaVencimiento = new Date(formData.fechaVencimiento || new Date());
-      const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+      // Usar el totalDeber recalculado
+      const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, totalDeberFinal);
 
-      // Datos para Supabase
+      // Datos para Supabase - ahora usamos las nuevas columnas directamente
       const ingresoData: Partial<IngresoType> = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
         cliente_id: cliente?.id,
-        concepto: conceptoCompleto,
         monto: formData.montoFlete || 0,
         numero_factura: formData.numeroFactura || null,
         fecha_factura: formData.fecha || new Date().toISOString().split('T')[0],
@@ -1305,6 +1335,15 @@ export default function IngresosPage() {
         segunda_cuota: formData.segundaCuota || 0,
         placa_tracto: formData.placaTracto || null,
         placa_carreta: formData.placaCarreta || null,
+        total_monto: formData.totalMonto || 0,
+        total_deber: totalDeberFinal,
+        observacion: observacionUsuario,
+        num_operacion_primera_cuota: formData.numOperacionPrimeraCuota || null,
+        num_operacion_segunda_cuota: formData.numOperacionSegundaCuota || null,
+        razon_social_cliente: formData.razon_social_cliente || formData.empresa,
+        ruc_cliente: formData.ruc_cliente || formData.ruc,
+        conductor: formData.conductor || null,
+        documento: formData.documento || null, // Incluir el nuevo campo
       };
 
       // Agregar viaje_id si existe
@@ -1337,10 +1376,11 @@ export default function IngresosPage() {
       // Recargar los ingresos
       const ingresosActualizados = await cargarIngresos();
 
-      // Actualizar el estado de cada ingreso basado en la fecha de vencimiento
+      // Actualizar el estado de cada ingreso basado en la fecha de vencimiento y total a deber
       const ingresosConEstadoActualizado = ingresosActualizados.map((ingreso) => {
         const fechaVencimiento = new Date(ingreso.fechaVencimiento);
-        const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+        // Pasar totalDeber a la función
+        const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, ingreso.totalDeber);
         return {
           ...ingreso,
           estado: estadoAutomatico,
@@ -1354,24 +1394,28 @@ export default function IngresosPage() {
         fecha: new Date().toISOString().split('T')[0],
         serie: '',
         numeroFactura: '',
-        montoFlete: undefined,
-        primeraCuota: undefined,
-        segundaCuota: undefined,
-        detraccion: undefined,
-        totalDeber: undefined,
-        totalMonto: undefined,
+        montoFlete: 0,
+        primeraCuota: 0,
+        segundaCuota: 0,
+        detraccion: 0,
+        totalDeber: 0,
+        totalMonto: 0,
         empresa: '',
         ruc: '',
+        razon_social_cliente: '',
+        ruc_cliente: '',
         conductor: '',
         placaTracto: '',
         placaCarreta: '',
         observacion: '',
         documentoGuiaRemit: '',
         guiaTransp: '',
-        diasCredito: undefined,
-        estado: 'Vigente',
+        diasCredito: 0,
+        fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
+        estado: estadoAutomatico,
         numOperacionPrimeraCuota: '',
         numOperacionSegundaCuota: '',
+        documento: '', // Limpiar el nuevo campo
       });
 
       setShowForm(false);
@@ -1427,9 +1471,10 @@ export default function IngresosPage() {
     const diferencia = -ingreso.totalMonto + ingreso.montoFlete + ingreso.detraccion;
     const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
 
-    // Calcular el estado basado en la fecha de vencimiento
+    // Calcular el estado basado en la fecha de vencimiento y total a deber
     const fechaVencimiento = new Date(ingreso.fechaVencimiento);
-    const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+    // Usar el totalDeber recalculado
+    const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, totalDeberFinal);
 
     // Ya tenemos la serie y número separados del objeto ingreso
     setFormData({
@@ -1451,34 +1496,37 @@ export default function IngresosPage() {
   // Resetear el formulario para un nuevo ingreso
   const resetForm = () => {
     const hoy = new Date().toISOString().split('T')[0];
-    const fechaVencimiento = new Date();
-    fechaVencimiento.setDate(fechaVencimiento.getDate() + 30); // 30 días por defecto
+    const fechaVencimientoDate = new Date();
+    fechaVencimientoDate.setDate(fechaVencimientoDate.getDate() + 0); // Fecha vencimiento inicial puede ser hoy si días credito es 0
 
-    const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento);
+    const estadoInicial = calcularEstadoAutomatico(fechaVencimientoDate, 0); // Asumiendo totalDeber 0 para un nuevo ingreso
 
     setFormData({
       fecha: hoy,
       serie: '',
       numeroFactura: '',
-      montoFlete: undefined,
-      primeraCuota: undefined,
-      segundaCuota: undefined,
-      detraccion: undefined,
-      totalDeber: undefined,
-      totalMonto: undefined,
+      montoFlete: 0,
+      primeraCuota: 0,
+      segundaCuota: 0,
+      detraccion: 0,
+      totalDeber: 0,
+      totalMonto: 0,
       empresa: '',
       ruc: '',
+      razon_social_cliente: '',
+      ruc_cliente: '',
       conductor: '',
       placaTracto: '',
       placaCarreta: '',
       observacion: '',
       documentoGuiaRemit: '',
       guiaTransp: '',
-      diasCredito: undefined,
-      fechaVencimiento: fechaVencimiento.toISOString().split('T')[0],
-      estado: estadoAutomatico,
+      diasCredito: 0,
+      fechaVencimiento: fechaVencimientoDate.toISOString().split('T')[0],
+      estado: estadoInicial, // Usar el estado calculado
       numOperacionPrimeraCuota: '',
       numOperacionSegundaCuota: '',
+      documento: '', // Resetear el nuevo campo
     });
   };
 
@@ -1708,6 +1756,8 @@ export default function IngresosPage() {
                   ...prev,
                   empresa: e.target.value,
                   ruc: clienteSeleccionado?.ruc || '',
+                  razon_social_cliente: clienteSeleccionado?.razon_social || '',
+                  ruc_cliente: clienteSeleccionado?.ruc || '',
                   diasCredito: clienteSeleccionado?.dias_credito || 0,
                   numOperacionPrimeraCuota: clienteSeleccionado?.cuenta_abonada || '',
                 }));
@@ -1729,7 +1779,7 @@ export default function IngresosPage() {
             <input
               type="text"
               name="ruc"
-              value={formData.ruc}
+              value={formData.ruc_cliente || formData.ruc}
               className="mt-1 block w-full border border-gray-300 rounded-md bg-gray-100 shadow-sm py-2 px-3"
               readOnly
             />
@@ -1810,12 +1860,30 @@ export default function IngresosPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700">Observación</label>
-            <input
-              type="text"
+            <select
               name="observacion"
               value={formData.observacion}
               onChange={handleInputChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Seleccione una observación</option>
+              {observacionesDisponibles.map((obs) => (
+                <option key={obs.id} value={obs.observacion}>
+                  {obs.observacion}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Documento</label>
+            <input
+              type="text"
+              name="documento"
+              value={formData.documento || ''}
+              onChange={handleInputChange}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Documento relacionado"
             />
           </div>
 
@@ -1947,6 +2015,7 @@ export default function IngresosPage() {
               { accessor: 'observacion', label: 'Observación' },
               { accessor: 'documentoGuiaRemit', label: 'Guía Remitente' },
               { accessor: 'guiaTransp', label: 'Guía Transportista' },
+              { accessor: 'documento', label: 'Documento' }, // Agregar filtro para documento
             ],
           }}
           onDataFiltered={handleDataFiltered}

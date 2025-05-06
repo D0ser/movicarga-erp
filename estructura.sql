@@ -767,16 +767,26 @@ COMMENT ON FUNCTION public.clean_expired_tokens() IS 'Elimina tokens JWT expirad
 CREATE FUNCTION public.clean_old_2fa_attempts() RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_affected_rows INTEGER;
-BEGIN
-  DELETE FROM two_factor_attempts
-  WHERE created_at < NOW() - INTERVAL '30 days';
-  
-  GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
-  RETURN v_affected_rows;
-END;
+    AS $$
+
+DECLARE
+
+  v_affected_rows INTEGER;
+
+BEGIN
+
+  DELETE FROM two_factor_attempts
+
+  WHERE created_at < NOW() - INTERVAL '30 days';
+
+  
+
+  GET DIAGNOSTICS v_affected_rows = ROW_COUNT;
+
+  RETURN v_affected_rows;
+
+END;
+
 $$;
 
 
@@ -809,24 +819,42 @@ $$;
 CREATE FUNCTION public.confirm_2fa_setup(p_user_id uuid, p_code text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_backup_codes JSONB;
-BEGIN
-  -- Generar códigos de respaldo
-  v_backup_codes := jsonb_build_array();
-  FOR i IN 1..8 LOOP
-    v_backup_codes := v_backup_codes || jsonb_build_object(
-      'code', upper(substring(encode(gen_random_bytes(5), 'hex') from 1 for 10)),
-      'used', FALSE
-    );
-  END LOOP;
-  
-  RETURN jsonb_build_object(
-    'success', TRUE,
-    'backup_codes', v_backup_codes
-  );
-END;
+    AS $$
+
+DECLARE
+
+  v_backup_codes JSONB;
+
+BEGIN
+
+  -- Generar códigos de respaldo
+
+  v_backup_codes := jsonb_build_array();
+
+  FOR i IN 1..8 LOOP
+
+    v_backup_codes := v_backup_codes || jsonb_build_object(
+
+      'code', upper(substring(encode(gen_random_bytes(5), 'hex') from 1 for 10)),
+
+      'used', FALSE
+
+    );
+
+  END LOOP;
+
+  
+
+  RETURN jsonb_build_object(
+
+    'success', TRUE,
+
+    'backup_codes', v_backup_codes
+
+  );
+
+END;
+
 $$;
 
 
@@ -904,11 +932,16 @@ COMMENT ON FUNCTION public.create_auth_token(p_user_id uuid, p_expires_in intege
 CREATE FUNCTION public.disable_2fa(p_user_id uuid, p_code text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-  -- Implementación simplificada
-  RETURN TRUE;
-END;
+    AS $$
+
+BEGIN
+
+  -- Implementación simplificada
+
+  RETURN TRUE;
+
+END;
+
 $$;
 
 
@@ -926,35 +959,64 @@ COMMENT ON FUNCTION public.disable_2fa(p_user_id uuid, p_code text) IS 'Desactiv
 CREATE FUNCTION public.eliminar_usuario_completo(id_usuario uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-    resultado BOOLEAN;
-BEGIN
-    -- Iniciar una transacción
-    BEGIN
-        -- Primero eliminar registros relacionados en login_attempts
-        DELETE FROM login_attempts 
-        WHERE user_id = id_usuario;
-        
-        -- Luego eliminar el usuario
-        DELETE FROM usuarios 
-        WHERE id = id_usuario;
-        
-        -- Verificar si se eliminó correctamente
-        IF FOUND THEN
-            resultado := TRUE;
-        ELSE
-            resultado := FALSE;
-        END IF;
-        
-        -- Confirmar la transacción
-        RETURN resultado;
-    EXCEPTION WHEN OTHERS THEN
-        -- Revertir la transacción en caso de error
-        RAISE EXCEPTION 'Error al eliminar usuario: %', SQLERRM;
-        RETURN FALSE;
-    END;
-END;
+    AS $$
+
+DECLARE
+
+    resultado BOOLEAN;
+
+BEGIN
+
+    -- Iniciar una transacción
+
+    BEGIN
+
+        -- Primero eliminar registros relacionados en login_attempts
+
+        DELETE FROM login_attempts 
+
+        WHERE user_id = id_usuario;
+
+        
+
+        -- Luego eliminar el usuario
+
+        DELETE FROM usuarios 
+
+        WHERE id = id_usuario;
+
+        
+
+        -- Verificar si se eliminó correctamente
+
+        IF FOUND THEN
+
+            resultado := TRUE;
+
+        ELSE
+
+            resultado := FALSE;
+
+        END IF;
+
+        
+
+        -- Confirmar la transacción
+
+        RETURN resultado;
+
+    EXCEPTION WHEN OTHERS THEN
+
+        -- Revertir la transacción en caso de error
+
+        RAISE EXCEPTION 'Error al eliminar usuario: %', SQLERRM;
+
+        RETURN FALSE;
+
+    END;
+
+END;
+
 $$;
 
 
@@ -965,31 +1027,56 @@ $$;
 CREATE FUNCTION public.eliminar_usuario_seguro(id_usuario uuid) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-    resultado BOOLEAN;
-BEGIN
-    -- Primero eliminar registros relacionados en login_attempts
-    DELETE FROM login_attempts 
-    WHERE user_id = id_usuario;
-    
-    -- Luego eliminar el usuario
-    DELETE FROM usuarios 
-    WHERE id = id_usuario;
-    
-    -- Verificar si se eliminó correctamente
-    IF FOUND THEN
-        resultado := TRUE;
-    ELSE
-        resultado := FALSE;
-    END IF;
-    
-    RETURN resultado;
-EXCEPTION
-    WHEN OTHERS THEN
-        RAISE NOTICE 'Error al eliminar usuario: %', SQLERRM;
-        RETURN FALSE;
-END;
+    AS $$
+
+DECLARE
+
+    resultado BOOLEAN;
+
+BEGIN
+
+    -- Primero eliminar registros relacionados en login_attempts
+
+    DELETE FROM login_attempts 
+
+    WHERE user_id = id_usuario;
+
+    
+
+    -- Luego eliminar el usuario
+
+    DELETE FROM usuarios 
+
+    WHERE id = id_usuario;
+
+    
+
+    -- Verificar si se eliminó correctamente
+
+    IF FOUND THEN
+
+        resultado := TRUE;
+
+    ELSE
+
+        resultado := FALSE;
+
+    END IF;
+
+    
+
+    RETURN resultado;
+
+EXCEPTION
+
+    WHEN OTHERS THEN
+
+        RAISE NOTICE 'Error al eliminar usuario: %', SQLERRM;
+
+        RETURN FALSE;
+
+END;
+
 $$;
 
 
@@ -1000,11 +1087,16 @@ $$;
 CREATE FUNCTION public.generate_totp_secret() RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-  -- Generar una cadena de caracteres aleatoria de 32 bytes y codificarla en base32
-  RETURN upper(encode(gen_random_bytes(20), 'base64'));
-END;
+    AS $$
+
+BEGIN
+
+  -- Generar una cadena de caracteres aleatoria de 32 bytes y codificarla en base32
+
+  RETURN upper(encode(gen_random_bytes(20), 'base64'));
+
+END;
+
 $$;
 
 
@@ -1022,13 +1114,20 @@ COMMENT ON FUNCTION public.generate_totp_secret() IS 'Genera un nuevo secreto pa
 CREATE FUNCTION public.hash_password(plain_password text) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-    -- Usar una implementación simple para evitar problemas con pgcrypto
-    RETURN plain_password;
-    -- En un entorno de producción real, se usaría algo como:
-    -- RETURN crypt(plain_password, gen_salt('bf', 10));
-END;
+    AS $$
+
+BEGIN
+
+    -- Usar una implementación simple para evitar problemas con pgcrypto
+
+    RETURN plain_password;
+
+    -- En un entorno de producción real, se usaría algo como:
+
+    -- RETURN crypt(plain_password, gen_salt('bf', 10));
+
+END;
+
 $$;
 
 
@@ -1039,16 +1138,26 @@ $$;
 CREATE FUNCTION public.hash_password_trigger() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $_$
-BEGIN
-    -- Solo hashear si la contraseña es texto plano (no comienza con $2)
-    IF NEW.password_hash IS NOT NULL AND NEW.password_hash != '' AND NEW.password_hash NOT LIKE '$2%' THEN
-        NEW.password_hash := hash_password(NEW.password_hash);
-        NEW.ultimo_cambio_password := NOW();
-    END IF;
-    
-    RETURN NEW;
-END;
+    AS $_$
+
+BEGIN
+
+    -- Solo hashear si la contraseña es texto plano (no comienza con $2)
+
+    IF NEW.password_hash IS NOT NULL AND NEW.password_hash != '' AND NEW.password_hash NOT LIKE '$2%' THEN
+
+        NEW.password_hash := hash_password(NEW.password_hash);
+
+        NEW.ultimo_cambio_password := NOW();
+
+    END IF;
+
+    
+
+    RETURN NEW;
+
+END;
+
 $_$;
 
 
@@ -1059,30 +1168,54 @@ $_$;
 CREATE FUNCTION public.initiate_2fa_setup(p_user_id uuid) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_secret TEXT;
-BEGIN
-  -- Verificar si el usuario ya tiene 2FA configurado
-  IF EXISTS (SELECT 1 FROM two_factor_auth WHERE user_id = p_user_id) THEN
-    -- Actualizar el registro existente con un nuevo secreto
-    v_secret := generate_totp_secret();
-    
-    UPDATE two_factor_auth 
-    SET secret = v_secret,
-        enabled = FALSE,
-        confirmed_at = NULL
-    WHERE user_id = p_user_id;
-  ELSE
-    -- Crear un nuevo registro de 2FA
-    v_secret := generate_totp_secret();
-    
-    INSERT INTO two_factor_auth (user_id, secret)
-    VALUES (p_user_id, v_secret);
-  END IF;
-  
-  RETURN v_secret;
-END;
+    AS $$
+
+DECLARE
+
+  v_secret TEXT;
+
+BEGIN
+
+  -- Verificar si el usuario ya tiene 2FA configurado
+
+  IF EXISTS (SELECT 1 FROM two_factor_auth WHERE user_id = p_user_id) THEN
+
+    -- Actualizar el registro existente con un nuevo secreto
+
+    v_secret := generate_totp_secret();
+
+    
+
+    UPDATE two_factor_auth 
+
+    SET secret = v_secret,
+
+        enabled = FALSE,
+
+        confirmed_at = NULL
+
+    WHERE user_id = p_user_id;
+
+  ELSE
+
+    -- Crear un nuevo registro de 2FA
+
+    v_secret := generate_totp_secret();
+
+    
+
+    INSERT INTO two_factor_auth (user_id, secret)
+
+    VALUES (p_user_id, v_secret);
+
+  END IF;
+
+  
+
+  RETURN v_secret;
+
+END;
+
 $$;
 
 
@@ -1100,23 +1233,40 @@ COMMENT ON FUNCTION public.initiate_2fa_setup(p_user_id uuid) IS 'Inicia la conf
 CREATE FUNCTION public.migrate_plain_passwords() RETURNS integer
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-    usuario_record RECORD;
-    contador INTEGER := 0;
-BEGIN
-    FOR usuario_record IN SELECT * FROM usuarios_por_hashear LOOP
-        IF usuario_record.password != '' THEN
-            UPDATE usuarios 
-            SET password_hash = hash_password(usuario_record.password),
-                ultimo_cambio_password = NOW()
-            WHERE id = usuario_record.id;
-            contador := contador + 1;
-        END IF;
-    END LOOP;
-    
-    RETURN contador; -- Retorna el número de contraseñas actualizadas
-END;
+    AS $$
+
+DECLARE
+
+    usuario_record RECORD;
+
+    contador INTEGER := 0;
+
+BEGIN
+
+    FOR usuario_record IN SELECT * FROM usuarios_por_hashear LOOP
+
+        IF usuario_record.password != '' THEN
+
+            UPDATE usuarios 
+
+            SET password_hash = hash_password(usuario_record.password),
+
+                ultimo_cambio_password = NOW()
+
+            WHERE id = usuario_record.id;
+
+            contador := contador + 1;
+
+        END IF;
+
+    END LOOP;
+
+    
+
+    RETURN contador; -- Retorna el número de contraseñas actualizadas
+
+END;
+
 $$;
 
 
@@ -1127,24 +1277,42 @@ $$;
 CREATE FUNCTION public.regenerate_backup_codes(p_user_id uuid, p_code text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-DECLARE
-  v_backup_codes JSONB;
-BEGIN
-  -- Generar nuevos códigos de respaldo
-  v_backup_codes := jsonb_build_array();
-  FOR i IN 1..8 LOOP
-    v_backup_codes := v_backup_codes || jsonb_build_object(
-      'code', upper(substring(encode(gen_random_bytes(5), 'hex') from 1 for 10)),
-      'used', FALSE
-    );
-  END LOOP;
-  
-  RETURN jsonb_build_object(
-    'success', TRUE,
-    'backup_codes', v_backup_codes
-  );
-END;
+    AS $$
+
+DECLARE
+
+  v_backup_codes JSONB;
+
+BEGIN
+
+  -- Generar nuevos códigos de respaldo
+
+  v_backup_codes := jsonb_build_array();
+
+  FOR i IN 1..8 LOOP
+
+    v_backup_codes := v_backup_codes || jsonb_build_object(
+
+      'code', upper(substring(encode(gen_random_bytes(5), 'hex') from 1 for 10)),
+
+      'used', FALSE
+
+    );
+
+  END LOOP;
+
+  
+
+  RETURN jsonb_build_object(
+
+    'success', TRUE,
+
+    'backup_codes', v_backup_codes
+
+  );
+
+END;
+
 $$;
 
 
@@ -1258,14 +1426,22 @@ $$;
 CREATE FUNCTION public.trigger_clean_old_2fa_attempts() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-  -- Limpiar intentos antiguos si hay más de 1000 registros
-  IF (SELECT COUNT(*) FROM two_factor_attempts) > 1000 THEN
-    PERFORM clean_old_2fa_attempts();
-  END IF;
-  RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+  -- Limpiar intentos antiguos si hay más de 1000 registros
+
+  IF (SELECT COUNT(*) FROM two_factor_attempts) > 1000 THEN
+
+    PERFORM clean_old_2fa_attempts();
+
+  END IF;
+
+  RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -1275,11 +1451,16 @@ $$;
 
 CREATE FUNCTION public.trigger_set_timestamp() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+  NEW.updated_at = NOW();
+
+  RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -1289,11 +1470,16 @@ $$;
 
 CREATE FUNCTION public.update_caja_chica_modified_column() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
+    AS $$
+
+BEGIN
+
+    NEW.updated_at = now();
+
+    RETURN NEW;
+
+END;
+
 $$;
 
 
@@ -1387,11 +1573,16 @@ COMMENT ON FUNCTION public.verify_auth_token(p_token text) IS 'Verifica un token
 CREATE FUNCTION public.verify_backup_code(p_user_id uuid, p_code text, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-  -- Implementación simplificada para evitar problemas
-  RETURN TRUE;
-END;
+    AS $$
+
+BEGIN
+
+  -- Implementación simplificada para evitar problemas
+
+  RETURN TRUE;
+
+END;
+
 $$;
 
 
@@ -1409,16 +1600,26 @@ COMMENT ON FUNCTION public.verify_backup_code(p_user_id uuid, p_code text, p_ip_
 CREATE FUNCTION public.verify_password(plain_password text, hashed_password text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $_$
-BEGIN
-    -- Si la contraseña está hasheada con bcrypt
-    IF hashed_password LIKE '$2%' THEN
-        RETURN plain_password = crypt(plain_password, hashed_password);
-    ELSE
-        -- Verificación simple para contraseñas en texto plano (temporal)
-        RETURN plain_password = hashed_password;
-    END IF;
-END;
+    AS $_$
+
+BEGIN
+
+    -- Si la contraseña está hasheada con bcrypt
+
+    IF hashed_password LIKE '$2%' THEN
+
+        RETURN plain_password = crypt(plain_password, hashed_password);
+
+    ELSE
+
+        -- Verificación simple para contraseñas en texto plano (temporal)
+
+        RETURN plain_password = hashed_password;
+
+    END IF;
+
+END;
+
 $_$;
 
 
@@ -1429,12 +1630,18 @@ $_$;
 CREATE FUNCTION public.verify_totp_code(p_user_id uuid, p_code text, p_ip_address text DEFAULT NULL::text, p_user_agent text DEFAULT NULL::text) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
-    AS $$
-BEGIN
-  -- Implementación simplificada que siempre retorna verdadero
-  -- En producción, se debe implementar la lógica real para verificar el código TOTP
-  RETURN TRUE;
-END;
+    AS $$
+
+BEGIN
+
+  -- Implementación simplificada que siempre retorna verdadero
+
+  -- En producción, se debe implementar la lógica real para verificar el código TOTP
+
+  RETURN TRUE;
+
+END;
+
 $$;
 
 
@@ -3159,7 +3366,7 @@ CREATE TABLE public.ingresos (
     fecha date NOT NULL,
     cliente_id text,
     viaje_id text,
-    concepto text NOT NULL,
+    concepto text,
     monto numeric(12,2) NOT NULL,
     numero_factura character varying(20),
     fecha_factura date,
@@ -3174,6 +3381,15 @@ CREATE TABLE public.ingresos (
     segunda_cuota numeric(12,2) DEFAULT 0,
     placa_tracto character varying(20),
     placa_carreta character varying(20),
+    total_monto numeric(12,2) DEFAULT 0,
+    total_deber numeric(12,2) DEFAULT 0,
+    observacion text,
+    num_operacion_primera_cuota character varying(50),
+    num_operacion_segunda_cuota character varying(50),
+    razon_social_cliente text,
+    ruc_cliente character varying(11),
+    conductor character varying(255),
+    documento text,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now()
 );
@@ -6177,6 +6393,54 @@ CREATE EVENT TRIGGER pgrst_drop_watch ON sql_drop
 
 
 --
--- PostgreSQL database dump complete
+-- Name: idx_ingresos_viaje_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_viaje_id ON public.ingresos USING btree (viaje_id);
+
+--
+-- Name: idx_ingresos_total_monto; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_total_monto ON public.ingresos USING btree (total_monto);
+
+--
+-- Name: idx_ingresos_total_deber; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_total_deber ON public.ingresos USING btree (total_deber);
+
+--
+-- Name: idx_observaciones_fecha; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_observaciones_fecha ON public.observaciones USING btree (fecha_creacion);
+
+--
+-- Name: idx_ingresos_observacion; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_observacion ON public.ingresos USING btree (observacion);
+
+--
+-- Name: idx_ingresos_num_op_primera; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_num_op_primera ON public.ingresos USING btree (num_operacion_primera_cuota);
+
+--
+-- Name: idx_ingresos_num_op_segunda; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_num_op_segunda ON public.ingresos USING btree (num_operacion_segunda_cuota);
+
+--
+-- Name: idx_ingresos_documento; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_ingresos_documento ON public.ingresos USING btree (documento);
+
+--
+-- Name: PostgreSQL database dump complete
 --
 

@@ -87,7 +87,7 @@ export interface Ingreso extends DataItem, RelatedEntities {
   fecha: string;
   cliente_id: string | null;
   viaje_id: string | null;
-  concepto: string;
+  concepto?: string;
   monto: number;
   numero_factura: string | null;
   fecha_factura: string | null;
@@ -102,6 +102,11 @@ export interface Ingreso extends DataItem, RelatedEntities {
   segunda_cuota: number | null;
   placa_tracto: string | null;
   placa_carreta: string | null;
+  total_monto: number | null;
+  total_deber: number | null;
+  observacion: string | null;
+  num_operacion_primera_cuota: string | null;
+  num_operacion_segunda_cuota: string | null;
   created_at?: string;
   updated_at?: string;
   cliente?: Cliente;

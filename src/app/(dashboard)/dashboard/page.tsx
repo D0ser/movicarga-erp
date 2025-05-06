@@ -5,6 +5,8 @@ import supabase from '@/lib/supabase';
 import Link from 'next/link';
 import { format, subMonths, parseISO, isWithinInterval, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as ExcelJS from 'exceljs'; // Importar ExcelJS
+import { saveAs } from 'file-saver'; // Importar saveAs
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -26,6 +28,9 @@ import {
   DollarSign,
   Calendar,
   BarChart2,
+  Scale,
+  FileText,
+  MessageSquare,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -42,6 +47,7 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import { TruckIcon, BanknoteIcon } from 'lucide-react';
 
 // Colores para gráficos
 const COLORS = [
@@ -91,7 +97,6 @@ interface Ingreso {
   placa_carreta?: string;
   created_at?: string;
   updated_at?: string;
-  // Campos para compatibilidad con implementación anterior
   montoFlete?: number;
   monto_flete?: number;
   totalMonto?: number;
@@ -100,7 +105,6 @@ interface Ingreso {
   totalDeber?: number;
   empresa?: string;
   cliente?: Cliente; // Para JOIN
-  // Campos adicionales para corregir errores
   placaTracto?: string;
   placaCarreta?: string;
   razon_social?: string;
@@ -108,10 +112,11 @@ interface Ingreso {
   serie?: string;
   numeroFactura?: string;
   observacion?: string;
-  // Nombres alternativos de campos según estructura
   total_deber?: number;
   total_a_deber?: number;
   total_monto?: number;
+  conductor?: string;
+  ruc?: string;
 }
 
 interface Egreso {
@@ -130,7 +135,6 @@ interface Egreso {
   moneda?: string;
   created_at?: string;
   updated_at?: string;
-  // Campos para compatibilidad
   importe?: number;
   ruc_proveedor?: string;
   viaje_id?: string;
@@ -161,7 +165,6 @@ interface Viaje {
   observaciones?: string;
   created_at?: string;
   updated_at?: string;
-  // Campos para compatibilidad
   codigoViaje?: string;
   codigo_viaje?: string;
   cliente?: Cliente;
@@ -241,6 +244,9 @@ export default function DashboardPage() {
     egresosTotal: 0,
   });
 
+  // Estado para ingresos de ayer (para calcular tendencia)
+  const [ingresosAyer, setIngresosAyer] = useState<number>(0);
+
   // Estados para almacenar datos
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [egresos, setEgresos] = useState<Egreso[]>([]);
@@ -260,9 +266,12 @@ export default function DashboardPage() {
   const [datosIngresosPorMes, setDatosIngresosPorMes] = useState<{ name: string; value: number }[]>(
     []
   );
-  const [datosEgresosPorTipo, setDatosEgresosPorTipo] = useState<{ name: string; value: number }[]>(
-    []
-  );
+  const [datosEgresosConFacturaPorTipo, setDatosEgresosConFacturaPorTipo] = useState<
+    { name: string; value: number }[]
+  >([]);
+  const [datosEgresosSinFacturaPorTipo, setDatosEgresosSinFacturaPorTipo] = useState<
+    { name: string; value: number }[]
+  >([]);
   const [datosFacturasPorEstado, setDatosFacturasPorEstado] = useState<
     { name: string; value: number }[]
   >([]);
@@ -274,6 +283,10 @@ export default function DashboardPage() {
     []
   );
   const [datosMontosPorEmpresa, setDatosMontosPorEmpresa] = useState<
+    { name: string; value: number }[]
+  >([]);
+  // Nuevos estados para gráficos de conductor
+  const [datosFacturasPorConductor, setDatosFacturasPorConductor] = useState<
     { name: string; value: number }[]
   >([]);
 
@@ -290,14 +303,23 @@ export default function DashboardPage() {
       setLoading(true);
       try {
         console.log('Iniciando carga de datos para periodo:', fechaInicio, 'a', fechaFin);
-        await Promise.all([
+        // Usar Promise.allSettled para garantizar que todos los métodos se ejecutan, incluso si alguno falla
+        const resultados = await Promise.allSettled([
           cargarEstadisticas(),
           cargarIngresos(),
           cargarEgresos(),
           cargarViajes(),
         ]);
+
+        // Verificar si hubo errores en alguna carga
+        const errores = resultados.filter((r) => r.status === 'rejected');
+        if (errores.length > 0) {
+          console.error('Algunos procesos de carga fallaron:', errores);
+          // No generamos datos de ejemplo si fallan las cargas
+        }
       } catch (error) {
-        console.error('Error al cargar datos:', error);
+        console.error('Error general al cargar datos:', error);
+        // No generamos datos de ejemplo en caso de error general
       } finally {
         setLoading(false);
       }
@@ -306,7 +328,7 @@ export default function DashboardPage() {
     cargarDatos();
   }, [fechaInicio, fechaFin]);
 
-  // Cargar estadísticas básicas
+  // Cargar estadísticas
   async function cargarEstadisticas() {
     try {
       console.log('Iniciando carga de estadísticas');
@@ -318,6 +340,13 @@ export default function DashboardPage() {
         ingresosTotal: 0,
         egresosTotal: 0,
       };
+      let ayerIngresos = 0; // Variable temporal para ingresos de ayer
+
+      // Calcular fecha de ayer
+      const hoy = new Date();
+      const ayer = new Date(hoy);
+      ayer.setDate(hoy.getDate() - 1);
+      const fechaAyerFormato = format(ayer, 'yyyy-MM-dd');
 
       // Cargar todas las estadísticas en paralelo para mejorar rendimiento
       const [
@@ -325,6 +354,7 @@ export default function DashboardPage() {
         vehiculosResult,
         viajesResult,
         ingresosHoyResult,
+        ingresosAyerResult, // Añadir consulta para ingresos de ayer
         ingresosPeriodoResult,
         egresosPeriodoResult,
         egresosSinFacturaResult,
@@ -339,7 +369,10 @@ export default function DashboardPage() {
         supabase.from('viajes').select('*', { count: 'exact', head: true }),
 
         // Obtener ingresos de hoy
-        supabase.from('ingresos').select('*').eq('fecha', format(new Date(), 'yyyy-MM-dd')),
+        supabase.from('ingresos').select('*').eq('fecha', format(hoy, 'yyyy-MM-dd')),
+
+        // Obtener ingresos de ayer
+        supabase.from('ingresos').select('*').eq('fecha', fechaAyerFormato),
 
         // Obtener ingresos del periodo
         supabase.from('ingresos').select('*').gte('fecha', fechaInicio).lte('fecha', fechaFin),
@@ -379,55 +412,69 @@ export default function DashboardPage() {
         console.error('Error al contar viajes:', viajesResult.error);
       }
 
-      // Procesar ingresos de hoy
+      // Procesar ingresos de hoy - Adaptado a la nueva estructura
       if (ingresosHoyResult.data && !ingresosHoyResult.error) {
         stats.ingresosHoy = ingresosHoyResult.data.reduce((sum, item) => {
-          // Normalizar el campo monto
+          // Priorizar total_monto, luego monto
           const monto =
-            typeof item.monto !== 'undefined'
-              ? item.monto
-              : typeof item.montoFlete !== 'undefined'
-                ? item.montoFlete
-                : typeof item.monto_flete !== 'undefined'
-                  ? item.monto_flete
-                  : typeof item.totalMonto !== 'undefined'
-                    ? item.totalMonto
-                    : 0;
+            typeof item.total_monto === 'number'
+              ? item.total_monto
+              : typeof item.monto === 'number'
+                ? item.monto
+                : 0;
 
           return sum + monto;
         }, 0);
-        console.log('Total ingresos hoy calculado:', stats.ingresosHoy);
+        console.log('Total ingresos hoy calculado (priorizando total_monto):', stats.ingresosHoy);
       } else {
         console.error('Error al obtener ingresos de hoy:', ingresosHoyResult.error);
       }
 
-      // Procesar ingresos del periodo
+      // Procesar ingresos de ayer - Adaptado a la nueva estructura
+      if (ingresosAyerResult.data && !ingresosAyerResult.error) {
+        ayerIngresos = ingresosAyerResult.data.reduce((sum, item) => {
+          // Priorizar total_monto, luego monto
+          const monto =
+            typeof item.total_monto === 'number'
+              ? item.total_monto
+              : typeof item.monto === 'number'
+                ? item.monto
+                : 0;
+          return sum + monto;
+        }, 0);
+        setIngresosAyer(ayerIngresos); // Guardar en el estado
+        console.log('Total ingresos ayer calculado (priorizando total_monto):', ayerIngresos);
+      } else {
+        setIngresosAyer(0);
+        console.error('Error al obtener ingresos de ayer:', ingresosAyerResult.error);
+      }
+
+      // Procesar ingresos del periodo - Adaptado a la nueva estructura
       if (ingresosPeriodoResult.data && !ingresosPeriodoResult.error) {
         stats.ingresosTotal = ingresosPeriodoResult.data.reduce((sum, item) => {
-          // Normalizar el campo monto
+          // Priorizar total_monto, luego monto
           const monto =
-            typeof item.monto !== 'undefined'
-              ? item.monto
-              : typeof item.montoFlete !== 'undefined'
-                ? item.montoFlete
-                : typeof item.monto_flete !== 'undefined'
-                  ? item.monto_flete
-                  : typeof item.totalMonto !== 'undefined'
-                    ? item.totalMonto
-                    : 0;
+            typeof item.total_monto === 'number'
+              ? item.total_monto
+              : typeof item.monto === 'number'
+                ? item.monto
+                : 0;
 
           return sum + monto;
         }, 0);
-        console.log('Total ingresos periodo calculado:', stats.ingresosTotal);
+        console.log(
+          'Total ingresos periodo calculado (priorizando total_monto):',
+          stats.ingresosTotal
+        );
       } else {
         console.error('Error al obtener ingresos del periodo:', ingresosPeriodoResult.error);
       }
 
-      // Procesar egresos del periodo (combinando ambas tablas)
+      // Procesar egresos del periodo (SOLO tabla principal 'egresos')
       let totalEgresos = 0;
 
       if (egresosPeriodoResult.data && !egresosPeriodoResult.error) {
-        totalEgresos += egresosPeriodoResult.data.reduce((sum, item) => {
+        totalEgresos = egresosPeriodoResult.data.reduce((sum, item) => {
           // Normalizar el campo monto
           const monto =
             typeof item.monto !== 'undefined'
@@ -439,17 +486,17 @@ export default function DashboardPage() {
           return sum + monto;
         }, 0);
       } else {
-        console.error('Error al obtener egresos del periodo:', egresosPeriodoResult.error);
-      }
-
-      if (egresosSinFacturaResult.data && !egresosSinFacturaResult.error) {
-        totalEgresos += egresosSinFacturaResult.data.reduce((sum, item) => sum + item.monto, 0);
-      } else {
-        console.error('Error al obtener egresos sin factura:', egresosSinFacturaResult.error);
+        console.error(
+          'Error al obtener egresos del periodo (tabla principal):',
+          egresosPeriodoResult.error
+        );
       }
 
       stats.egresosTotal = totalEgresos;
-      console.log('Total egresos periodo calculado:', stats.egresosTotal);
+      console.log(
+        'Total egresos periodo calculado (SOLO egresos con factura):',
+        stats.egresosTotal
+      );
 
       // Actualizar estado con las estadísticas calculadas
       setStats(stats);
@@ -464,113 +511,147 @@ export default function DashboardPage() {
     try {
       console.log('Consultando ingresos entre:', fechaInicio, 'y', fechaFin);
 
-      // Consulta simplificada sin usar joins que pueden no existir
+      // Usar la vista completa que puede tener más información si está disponible
+      // o mantener la consulta directa a ingresos si es más eficiente
       const { data, error } = await supabase
-        .from('ingresos')
-        .select('*')
+        .from('ingresos') // Mantener consulta a ingresos por simplicidad
+        .select(
+          `
+          id,
+          fecha,
+          monto,
+          total_monto,
+          total_deber,
+          serie_factura,
+          numero_factura,
+          placa_tracto,
+          placa_carreta,
+          detraccion_monto,
+          cliente_id,
+          razon_social_cliente,
+          conductor,
+          estado_factura,
+          observacion
+        `
+        )
         .gte('fecha', fechaInicio)
         .lte('fecha', fechaFin)
         .order('fecha', { ascending: false });
 
       console.log(
         'Resultado de consulta ingresos:',
-        error || `${data?.length || 0} registros encontrados`
+        error ? `Error: ${error.message}` : `${data?.length || 0} registros encontrados`
       );
 
       if (error) {
         console.error('Error en la consulta de ingresos:', error);
-        // No usamos datos de ejemplo, simplemente establecemos un array vacío
         setIngresos([]);
         procesarDatosIngresos([]);
         return;
       }
 
-      if (data && data.length > 0) {
-        console.log('Campos disponibles en ingresos:', Object.keys(data[0]));
-        console.log('Primer registro de ejemplo:', data[0]);
-
-        // Log para ver todos los registros (útil para diagnóstico)
-        console.log('Todos los registros de ingresos:', data);
-
-        // Si tenemos cliente_id, intentamos obtener información adicional del cliente
-        const datosNormalizados = await Promise.all(
-          data.map(async (ingreso) => {
-            console.log('Procesando ingreso:', ingreso.id, 'cliente_id:', ingreso.cliente_id);
-
-            // Si hay cliente_id, intentamos obtener información del cliente de forma independiente
-            if (ingreso.cliente_id) {
-              try {
-                const { data: clienteData } = await supabase
-                  .from('clientes')
-                  .select('*')
-                  .eq('id', ingreso.cliente_id)
-                  .single();
-
-                if (clienteData) {
-                  console.log('Cliente encontrado:', clienteData);
-                  ingreso.cliente = clienteData;
-                }
-              } catch (e) {
-                console.log('No se pudo cargar cliente:', e);
-              }
-            }
-
-            // Para clientes con cliente_id en formato texto
-            if (typeof ingreso.cliente_id === 'string' && !ingreso.cliente) {
-              // Intentar recuperar información del cliente desde el concepto si existe
-              if (ingreso.concepto && ingreso.concepto.includes('|||')) {
-                try {
-                  const parts = ingreso.concepto.split('|||');
-                  const datosJSON = JSON.parse(parts[1]);
-                  console.log('Datos extraídos del concepto:', datosJSON);
-                  if (datosJSON.cliente) {
-                    ingreso.cliente = {
-                      id: ingreso.cliente_id,
-                      razon_social: datosJSON.cliente,
-                      ruc: datosJSON.ruc || '',
-                    };
-                    console.log('Cliente recuperado del concepto:', ingreso.cliente);
-                  }
-                } catch (error) {
-                  console.error('Error al extraer cliente del concepto:', error);
-                }
-              }
-            }
-
-            // Buscar en otros campos si aún no tenemos cliente
-            if (!ingreso.cliente && ingreso.empresa) {
-              console.log('Usando campo empresa como cliente:', ingreso.empresa);
-              ingreso.cliente = {
-                id: ingreso.cliente_id || 'auto-' + Math.random().toString(36).substring(7),
-                razon_social: ingreso.empresa,
-                ruc: '',
-              };
-            }
-
-            // Normalizar campo monto
-            if (ingreso.montoFlete !== undefined && ingreso.monto === undefined) {
-              ingreso.monto = ingreso.montoFlete;
-            } else if (ingreso.monto_flete !== undefined && ingreso.monto === undefined) {
-              ingreso.monto = ingreso.monto_flete;
-            } else if (ingreso.totalMonto !== undefined && ingreso.monto === undefined) {
-              ingreso.monto = ingreso.totalMonto;
-            }
-
-            return ingreso;
-          })
-        );
-
-        setIngresos(datosNormalizados);
-        procesarDatosIngresos(datosNormalizados);
-      } else {
-        console.log('No hay datos de ingresos en el periodo seleccionado.');
-        // No usamos datos de ejemplo, simplemente establecemos un array vacío
+      if (!data || data.length === 0) {
+        console.log('No hay datos de ingresos en el período seleccionado');
         setIngresos([]);
         procesarDatosIngresos([]);
+        return;
       }
+
+      console.log('Campos disponibles en el primer registro:', Object.keys(data[0]));
+      console.log('Primer registro de ejemplo:', data[0]);
+
+      // Procesar los datos para normalizar los campos
+      const ingresosNormalizados = data
+        .map((ingreso: any) => {
+          // Usar 'any' temporalmente para evitar error de tipo inmediato
+          console.log(
+            `Procesando ingreso ${ingreso?.id || 'ID Desconocido'}, placas: ${ingreso?.placa_tracto || 'N/A'} / ${ingreso?.placa_carreta || 'N/A'}`
+          );
+
+          // Validar que ingreso no sea null o undefined antes de acceder a propiedades
+          if (!ingreso) {
+            console.warn('Se encontró un registro de ingreso nulo o indefinido');
+            return null; // O manejar de otra forma, como un objeto vacío con valores por defecto
+          }
+
+          const ingresoNormalizado: Ingreso = {
+            // Usar la interfaz Ingreso definida en este archivo
+            id: ingreso.id || '',
+            fecha: ingreso.fecha || '',
+            cliente_id: ingreso.cliente_id || '',
+            viaje_id: '', // No se está seleccionando viaje_id directamente aquí
+            concepto: '', // No se está seleccionando concepto directamente aquí
+            monto: typeof ingreso.monto === 'number' ? ingreso.monto : 0,
+            placa_tracto: ingreso.placa_tracto || null,
+            placa_carreta: ingreso.placa_carreta || null,
+            placaTracto: ingreso.placa_tracto || '',
+            placaCarreta: ingreso.placa_carreta || '',
+            totalMonto:
+              typeof ingreso.total_monto === 'number'
+                ? ingreso.total_monto
+                : typeof ingreso.monto === 'number'
+                  ? ingreso.monto
+                  : 0,
+            total_monto:
+              typeof ingreso.total_monto === 'number'
+                ? ingreso.total_monto
+                : typeof ingreso.monto === 'number'
+                  ? ingreso.monto
+                  : 0,
+            totalDeber: typeof ingreso.total_deber === 'number' ? ingreso.total_deber : 0,
+            total_deber: typeof ingreso.total_deber === 'number' ? ingreso.total_deber : 0,
+            serie: ingreso.serie_factura || '',
+            serie_factura: ingreso.serie_factura || null,
+            estado: ingreso.estado_factura || '',
+            estado_factura: ingreso.estado_factura || null,
+            detraccion: typeof ingreso.detraccion_monto === 'number' ? ingreso.detraccion_monto : 0,
+            detraccion_monto:
+              typeof ingreso.detraccion_monto === 'number' ? ingreso.detraccion_monto : null,
+            numero_factura: ingreso.numero_factura || null,
+            numeroFactura: ingreso.numero_factura || '', // Añadido para consistencia con interfaz Ingreso
+            empresa:
+              ingreso.razon_social_cliente ||
+              `Cliente ${ingreso.cliente_id?.substring(0, 8) || 'Desconocido'}`,
+            razon_social:
+              ingreso.razon_social_cliente ||
+              `Cliente ${ingreso.cliente_id?.substring(0, 8) || 'Desconocido'}`,
+            conductor: ingreso.conductor || 'No asignado',
+            // Asegurar que otros campos requeridos por la interfaz Ingreso tengan valor
+            ruc: ingreso.ruc_cliente || '', // Asumiendo que ruc_cliente también se selecciona o se infiere
+            observacion: ingreso.observacion || '',
+          };
+
+          return ingresoNormalizado;
+        })
+        .filter((ingreso): ingreso is Ingreso => ingreso !== null); // Filtrar nulos si se retornó null
+
+      console.log(`Procesados ${ingresosNormalizados.length} ingresos con información de placas`);
+
+      // Verificar la información de placas
+      const ingresosConPlacas = ingresosNormalizados.filter(
+        (ing) =>
+          (ing.placa_tracto && ing.placa_tracto.trim() !== '') ||
+          (ing.placa_carreta && ing.placa_carreta.trim() !== '')
+      );
+
+      console.log(
+        `${ingresosConPlacas.length} de ${ingresosNormalizados.length} ingresos tienen información de placas`
+      );
+
+      // Mostrar algunos ejemplos de placas encontradas
+      if (ingresosConPlacas.length > 0) {
+        console.log('Ejemplos de ingresos con placas:');
+        ingresosConPlacas.slice(0, 3).forEach((ing) => {
+          console.log(
+            `- ID: ${ing.id}, Tracto: ${ing.placa_tracto}, Carreta: ${ing.placa_carreta}`
+          );
+        });
+      }
+
+      setIngresos(ingresosNormalizados);
+      procesarDatosIngresos(ingresosNormalizados);
     } catch (error) {
       console.error('Error al cargar ingresos:', error);
-      // No usamos datos de ejemplo, simplemente establecemos un array vacío
       setIngresos([]);
       procesarDatosIngresos([]);
     }
@@ -585,14 +666,14 @@ export default function DashboardPage() {
       const [egresosResult, egresosSinFacturaResult] = await Promise.all([
         supabase
           .from('egresos')
-          .select('*')
+          .select('*') // Seleccionar todos los campos necesarios para procesar
           .gte('fecha', fechaInicio)
           .lte('fecha', fechaFin)
           .order('fecha', { ascending: false }),
 
         supabase
           .from('egresos_sin_factura')
-          .select('*')
+          .select('*') // Seleccionar todos los campos necesarios para procesar
           .gte('created_at', `${fechaInicio}T00:00:00.000Z`)
           .lte('created_at', `${fechaFin}T23:59:59.999Z`)
           .order('created_at', { ascending: false }),
@@ -604,7 +685,6 @@ export default function DashboardPage() {
       if (egresosResult.error) {
         console.error('Error en la consulta de egresos:', egresosResult.error);
       }
-
       if (egresosSinFacturaResult.error) {
         console.error(
           'Error en la consulta de egresos sin factura:',
@@ -612,11 +692,38 @@ export default function DashboardPage() {
         );
       }
 
-      // Transformar egresos_sin_factura al formato de egresos
-      const egresosSinFacturaFormateados = egresosSinFactura.map((egreso) => ({
+      console.log('Egresos con factura encontrados:', egresosStandard.length);
+      console.log('Egresos sin factura encontrados:', egresosSinFactura.length);
+
+      // Normalizar datos para manejar diferentes nombres de campo en egresos CON factura
+      const egresosStandardNormalizados = egresosStandard.map((egreso) => {
+        if (egreso.importe !== undefined && egreso.monto === undefined) {
+          egreso.monto = egreso.importe;
+        }
+        if (!egreso.tipo_egreso) {
+          egreso.tipo_egreso = egreso.tipoEgreso || egreso.tipo || egreso.categoria || 'Otros';
+        }
+        return egreso;
+      });
+
+      // Normalizar datos para manejar diferentes nombres de campo en egresos SIN factura
+      const egresosSinFacturaNormalizados = egresosSinFactura.map((egreso) => {
+        // No necesita normalización de monto, ya existe
+        // Usamos tipo_egreso directamente si existe
+        if (!egreso.tipo_egreso) {
+          egreso.tipo_egreso = 'Otros'; // Valor por defecto si no existe
+        }
+        return egreso;
+      });
+
+      // Procesar cada tipo de egreso por separado para los gráficos
+      procesarDatosEgresosSeparados(egresosStandardNormalizados, egresosSinFacturaNormalizados);
+
+      // Combinar para el estado general si es necesario (ej. para tablas, aunque aquí no se usa)
+      const egresosSinFacturaFormateados = egresosSinFacturaNormalizados.map((egreso) => ({
         id: egreso.id,
-        fecha: new Date(egreso.created_at).toISOString().split('T')[0], // Extraer fecha de created_at
-        proveedor: 'Sin factura', // No hay campo proveedor
+        fecha: new Date(egreso.created_at).toISOString().split('T')[0],
+        proveedor: 'Sin factura',
         concepto: egreso.tipo_egreso,
         monto: egreso.monto,
         moneda: egreso.moneda || 'PEN',
@@ -625,48 +732,55 @@ export default function DashboardPage() {
         created_at: egreso.created_at,
         updated_at: egreso.updated_at,
       }));
-
-      // Combinar ambos tipos de egresos
-      const datosCompletos = [...egresosStandard, ...egresosSinFacturaFormateados];
-
-      console.log(
-        'Resultado de consulta egresos:',
-        `${datosCompletos.length} registros encontrados (${egresosStandard.length} estándar + ${egresosSinFacturaFormateados.length} sin factura)`
-      );
-
-      if (datosCompletos.length > 0) {
-        console.log('Campos disponibles en egresos:', Object.keys(datosCompletos[0]));
-        console.log('Primer registro de ejemplo:', datosCompletos[0]);
-
-        // Normalizar datos para manejar diferentes nombres de campo
-        const datosNormalizados = datosCompletos.map((egreso) => {
-          // Normalizar campo monto/importe
-          if (egreso.importe !== undefined && egreso.monto === undefined) {
-            egreso.monto = egreso.importe;
-          }
-
-          // Normalizar campo tipo_egreso
-          if (!egreso.tipo_egreso) {
-            egreso.tipo_egreso = egreso.tipoEgreso || egreso.tipo || egreso.categoria || 'Otros';
-          }
-
-          return egreso;
-        });
-
-        setEgresos(datosNormalizados);
-        procesarDatosEgresos(datosNormalizados);
-      } else {
-        console.log('No hay datos de egresos en el periodo seleccionado.');
-        // No usamos datos de ejemplo, simplemente establecemos un array vacío
-        setEgresos([]);
-        procesarDatosEgresos([]);
-      }
+      const datosCompletos = [...egresosStandardNormalizados, ...egresosSinFacturaFormateados];
+      setEgresos(datosCompletos); // Actualizar estado general si se usa en otro lugar
     } catch (error) {
       console.error('Error al cargar egresos:', error);
-      // No usamos datos de ejemplo, simplemente establecemos un array vacío
       setEgresos([]);
-      procesarDatosEgresos([]);
+      // Limpiar estados de gráficos en caso de error
+      setDatosEgresosConFacturaPorTipo([]);
+      setDatosEgresosSinFacturaPorTipo([]);
     }
+  }
+
+  // Procesar datos de egresos para gráficos separados
+  function procesarDatosEgresosSeparados(datosConFactura: Egreso[], datosSinFactura: any[]) {
+    console.log('Procesando egresos CON factura:', datosConFactura.length);
+    console.log('Procesando egresos SIN factura:', datosSinFactura.length);
+
+    // Procesar egresos CON factura
+    const egresosConFacturaPorTipo: Record<string, number> = {};
+    datosConFactura.forEach((egreso) => {
+      try {
+        const tipoEgreso = egreso.tipo_egreso || 'Otros';
+        const monto = egreso.monto || 0;
+        if (tipoEgreso) {
+          egresosConFacturaPorTipo[tipoEgreso] =
+            (egresosConFacturaPorTipo[tipoEgreso] || 0) + monto;
+        }
+      } catch (error) {
+        console.error('Error procesando egreso CON factura:', egreso, error);
+      }
+    });
+    setDatosEgresosConFacturaPorTipo(formatDataForChart(egresosConFacturaPorTipo));
+    console.log('Tipos egreso CON factura:', Object.keys(egresosConFacturaPorTipo).join(', '));
+
+    // Procesar egresos SIN factura
+    const egresosSinFacturaPorTipo: Record<string, number> = {};
+    datosSinFactura.forEach((egreso) => {
+      try {
+        const tipoEgreso = egreso.tipo_egreso || 'Otros'; // Campo directo de egresos_sin_factura
+        const monto = egreso.monto || 0;
+        if (tipoEgreso) {
+          egresosSinFacturaPorTipo[tipoEgreso] =
+            (egresosSinFacturaPorTipo[tipoEgreso] || 0) + monto;
+        }
+      } catch (error) {
+        console.error('Error procesando egreso SIN factura:', egreso, error);
+      }
+    });
+    setDatosEgresosSinFacturaPorTipo(formatDataForChart(egresosSinFacturaPorTipo));
+    console.log('Tipos egreso SIN factura:', Object.keys(egresosSinFacturaPorTipo).join(', '));
   }
 
   // Cargar viajes
@@ -782,7 +896,7 @@ export default function DashboardPage() {
     try {
       console.log(`Procesando ${datos.length} ingresos para gráficas`);
 
-      // Conteo de placas de tracto
+      // Contadores para placas e ingresos
       const conteoTractos: Record<string, number> = {};
       const conteoCarretas: Record<string, number> = {};
       const montosPorTracto: Record<string, number> = {};
@@ -790,331 +904,239 @@ export default function DashboardPage() {
       const montosPorMes: Record<string, number> = {};
       const montosPorCliente: Record<string, number> = {};
       const conteoFacturasPorEstado: Record<string, number> = {};
-      const conteoFacturasPorCliente: Record<string, number> = {}; // Contador para facturas por cliente
-      // Nuevo objeto para agrupar detracciones por serie
+      const conteoFacturasPorCliente: Record<string, number> = {};
       const detraccionesPorSerie: Record<string, number> = {};
+      const conteoFacturasPorConductor: Record<string, number> = {};
+      // Nuevo contador para observaciones
+      const conteoObservaciones: Record<string, number> = {};
 
-      // Log todos los clientes detectados
-      console.log('Clientes detectados y sus campos en ingresos:');
+      // Log para depuración
+      console.log('===== PROCESANDO DATOS PARA GRÁFICOS DE VEHÍCULOS =====');
 
+      // Si no hay datos, establecer arrays vacíos
+      if (datos.length === 0) {
+        console.log('No hay datos de ingresos para procesar.');
+        setDatosViajesTracto([]);
+        setDatosViajesCarreta([]);
+        setDatosIngresosTracto([]);
+        setDatosIngresosCarreta([]);
+        setDatosIngresosPorMes([]);
+        setDatosMontosPorEmpresa([]);
+        setDatosFacturasPorEstado([]);
+        setDatosDetracciones([]);
+        setDatosViajesPorEmpresa([]);
+        // Resetear nuevos estados
+        setDatosFacturasPorConductor([]);
+        setDatosObservaciones([]);
+        return;
+      }
+
+      // Procesar cada ingreso para extraer información de placas y montos
       datos.forEach((ingreso, index) => {
-        // Mostrar todos los campos del ingreso para verificar qué nombres de campo se están usando
-        console.log(`INGRESO #${index} CAMPOS DISPONIBLES:`, Object.keys(ingreso));
-        console.log(`INGRESO #${index} VALORES:`, ingreso);
+        // Revisar todos los posibles campos donde puede estar la placa
+        const posiblesPlacasTracto = [
+          ingreso.placa_tracto,
+          ingreso.placaTracto,
+          // Evitamos usar campos que no existen en la interfaz Ingreso
+        ].filter(Boolean);
 
-        // Extraer montos normalizados para la visualización general
-        const monto =
-          typeof ingreso.monto !== 'undefined'
-            ? ingreso.monto
-            : typeof ingreso.montoFlete !== 'undefined'
-              ? ingreso.montoFlete
-              : typeof ingreso.monto_flete !== 'undefined'
-                ? ingreso.monto_flete
-                : typeof ingreso.totalMonto !== 'undefined'
-                  ? ingreso.totalMonto
-                  : 0;
+        const posiblesPlacasCarreta = [
+          ingreso.placa_carreta,
+          ingreso.placaCarreta,
+          // Evitamos usar campos que no existen en la interfaz Ingreso
+        ].filter(Boolean);
 
-        // EXACTAMENTE el campo "Total a Deber" que necesitamos mostrar en el gráfico
-        // Hay que verificar todos los posibles nombres de campo donde podría estar
-        let totalDeber = 0;
+        // Obtener la primera placa válida de cada tipo
+        const placaTracto = posiblesPlacasTracto.length > 0 ? posiblesPlacasTracto[0] : '';
+        const placaCarreta = posiblesPlacasCarreta.length > 0 ? posiblesPlacasCarreta[0] : '';
 
-        // Obtener serie de factura (normalizada)
-        const serie = ingreso.serie_factura || ingreso.serie || '';
-
-        // Registrar todos los campos relevantes para análisis
-        console.log(`INGRESO #${index} CAMPOS NUMÉRICOS:`, {
-          monto: ingreso.monto,
-          montoFlete: ingreso.montoFlete,
-          monto_flete: ingreso.monto_flete,
-          totalDeber: ingreso.totalDeber,
-          total_deber: ingreso.total_deber,
-          totalMonto: ingreso.totalMonto,
-          total_monto: ingreso.total_monto,
-          detraccion: ingreso.detraccion,
-          detraccion_monto: ingreso.detraccion_monto,
-          serie: serie,
+        // Debug completo del registro con sus placas
+        console.log(`REGISTRO #${index}:`, {
+          id: ingreso.id,
+          placaTracto,
+          placaCarreta,
+          camposOriginales: {
+            placa_tracto: ingreso.placa_tracto,
+            placaTracto: ingreso.placaTracto,
+            placa_carreta: ingreso.placa_carreta,
+            placaCarreta: ingreso.placaCarreta,
+          },
         });
 
-        // Intentar cada posible campo para el total a deber
-        if (typeof ingreso.totalDeber === 'number') {
-          totalDeber = ingreso.totalDeber;
-          console.log(`Usando campo 'totalDeber': ${totalDeber}`);
-        } else if (typeof ingreso.total_deber === 'number') {
-          totalDeber = ingreso.total_deber;
-          console.log(`Usando campo 'total_deber': ${totalDeber}`);
-        } else if (typeof ingreso.total_a_deber === 'number') {
-          totalDeber = ingreso.total_a_deber;
-          console.log(`Usando campo 'total_a_deber': ${totalDeber}`);
+        // 1. Viajes por Placa Tracto: Contar cada factura emitida con esta placa
+        if (placaTracto && placaTracto.trim() !== '') {
+          conteoTractos[placaTracto] = (conteoTractos[placaTracto] || 0) + 1;
+          console.log(
+            `✅ Contabilizando viaje para tracto ${placaTracto}: ${conteoTractos[placaTracto]}`
+          );
+        } else {
+          console.log(`❌ Sin placa de tracto para ingreso #${index}`);
         }
-        // Si no encontramos directamente el campo, calcularlo según la lógica del negocio
-        else {
-          // Fórmula típica: Monto Flete - Detracción = Total a Deber
-          const montoFlete =
-            typeof ingreso.montoFlete === 'number'
-              ? ingreso.montoFlete
-              : typeof ingreso.monto_flete === 'number'
-                ? ingreso.monto_flete
-                : typeof ingreso.monto === 'number'
-                  ? ingreso.monto
-                  : 0;
 
-          const detraccion =
-            typeof ingreso.detraccion === 'number'
-              ? ingreso.detraccion
-              : typeof ingreso.detraccion_monto === 'number'
-                ? ingreso.detraccion_monto
+        // 2. Viajes por Placa Carreta: Contar cada factura emitida con esta placa
+        if (placaCarreta && placaCarreta.trim() !== '') {
+          conteoCarretas[placaCarreta] = (conteoCarretas[placaCarreta] || 0) + 1;
+          console.log(
+            `✅ Contabilizando viaje para carreta ${placaCarreta}: ${conteoCarretas[placaCarreta]}`
+          );
+        } else {
+          console.log(`❌ Sin placa de carreta para ingreso #${index}`);
+        }
+
+        // Obtener el monto total para cada ingreso, priorizando campos en orden lógico
+        const montoTotal =
+          typeof ingreso.total_monto === 'number'
+            ? ingreso.total_monto
+            : typeof ingreso.totalMonto === 'number'
+              ? ingreso.totalMonto
+              : typeof ingreso.monto === 'number'
+                ? ingreso.monto
                 : 0;
 
-          // Si tenemos los dos campos necesarios para calcularlo
-          if (montoFlete > 0) {
-            if (detraccion > 0) {
-              totalDeber = montoFlete * 2 - detraccion; // Fórmula extraída de los datos vistos (2781 = 1110 * 2 - 654)
-              console.log(
-                `Calculando totalDeber: ${montoFlete} * 2 - ${detraccion} = ${totalDeber}`
-              );
-            } else {
-              totalDeber = montoFlete * 2; // Si no hay detracción, el cálculo es más simple
-              console.log(
-                `Calculando totalDeber sin detracción: ${montoFlete} * 2 = ${totalDeber}`
-              );
-            }
-          }
+        // 3. Ingresos por Placa Tracto: Sumar montos por cada placa
+        if (placaTracto && placaTracto.trim() !== '') {
+          montosPorTracto[placaTracto] = (montosPorTracto[placaTracto] || 0) + montoTotal;
+          console.log(
+            `💰 Sumando monto para tracto ${placaTracto}: ${montoTotal} - Total: ${montosPorTracto[placaTracto]}`
+          );
         }
 
-        // Procesar detracciones por serie
-        // Obtener el monto de detracción
-        const montoDetraccion =
-          typeof ingreso.detraccion === 'number'
-            ? ingreso.detraccion
-            : typeof ingreso.detraccion_monto === 'number'
-              ? ingreso.detraccion_monto
-              : 0;
-
-        // Si tenemos serie y hay detracción, acumular en el objeto detraccionesPorSerie
-        if (serie && montoDetraccion > 0) {
-          // Si la serie no existe en el objeto, inicializarla
-          if (!detraccionesPorSerie[serie]) {
-            detraccionesPorSerie[serie] = 0;
-          }
-          // Acumular el monto de detracción para esta serie
-          detraccionesPorSerie[serie] += montoDetraccion;
-          console.log(`Detracción de S/. ${montoDetraccion} acumulada para serie ${serie}`);
+        // 4. Ingresos por Placa Carreta: Sumar montos por cada placa
+        if (placaCarreta && placaCarreta.trim() !== '') {
+          montosPorCarreta[placaCarreta] = (montosPorCarreta[placaCarreta] || 0) + montoTotal;
+          console.log(
+            `💰 Sumando monto para carreta ${placaCarreta}: ${montoTotal} - Total: ${montosPorCarreta[placaCarreta]}`
+          );
         }
 
-        // Procesar ingresos por cliente
-        let nombreCliente = 'No especificado';
-        let origenCliente = 'ninguno';
-
-        // Intentar obtener nombre del cliente desde el objeto cliente (relación)
-        if (ingreso.cliente && ingreso.cliente.razon_social) {
-          nombreCliente = ingreso.cliente.razon_social;
-          origenCliente = 'objeto-cliente';
-        }
-        // Si no hay objeto cliente pero hay cliente_id (que puede ser uuid o texto)
-        else if (ingreso.cliente_id) {
-          nombreCliente = `Cliente ${ingreso.cliente_id.substring(0, 8)}`;
-          origenCliente = 'cliente_id';
-        }
-        // Si hay un campo empresa directamente en el ingreso
-        else if (ingreso.empresa) {
-          nombreCliente = ingreso.empresa;
-          origenCliente = 'campo-empresa';
-        }
-        // Si hay un campo razon_social directamente en el ingreso (en algunos casos viejos)
-        else if (ingreso.razon_social) {
-          nombreCliente = ingreso.razon_social;
-          origenCliente = 'campo-razon_social';
-        }
-
-        console.log(
-          `[${index}] Cliente: "${nombreCliente}" - Monto Flete: ${monto}, Total a Deber CALCULADO: ${totalDeber}`
-        );
-
-        // Procesar placa tracto - RESTAURADO
-        const placaTracto = ingreso.placa_tracto || ingreso.placaTracto || '';
-        if (placaTracto) {
-          // Contar viajes por tracto (cada ingreso = 1 viaje)
-          conteoTractos[placaTracto] = (conteoTractos[placaTracto] || 0) + 1;
-          // Sumar montos por tracto
-          montosPorTracto[placaTracto] = (montosPorTracto[placaTracto] || 0) + monto;
-        }
-
-        // Procesar placa carreta - RESTAURADO
-        const placaCarreta = ingreso.placa_carreta || ingreso.placaCarreta || '';
-        if (placaCarreta) {
-          // Contar viajes por carreta (cada ingreso = 1 viaje)
-          conteoCarretas[placaCarreta] = (conteoCarretas[placaCarreta] || 0) + 1;
-          // Sumar montos por carreta
-          montosPorCarreta[placaCarreta] = (montosPorCarreta[placaCarreta] || 0) + monto;
-        }
-
+        // Continuar procesando otros datos para los demás gráficos
+        // Procesar datos por mes
         if (ingreso.fecha) {
           try {
             const fecha = parseISO(ingreso.fecha);
             const mesAno = format(fecha, 'MMM yyyy', { locale: es });
-            montosPorMes[mesAno] = (montosPorMes[mesAno] || 0) + monto;
+            montosPorMes[mesAno] = (montosPorMes[mesAno] || 0) + montoTotal;
           } catch (error) {
             console.error('Error al procesar fecha:', ingreso.fecha, error);
           }
         }
 
-        // IMPORTANTE: Usar totalDeber para montos pendientes por cliente
+        // Procesar empresa/cliente
+        let nombreCliente = ingreso.empresa || 'No especificado';
+
+        // Montos por cliente (total a deber)
+        const totalDeber =
+          typeof ingreso.total_deber !== 'undefined'
+            ? ingreso.total_deber
+            : typeof ingreso.totalDeber !== 'undefined'
+              ? ingreso.totalDeber
+              : 0;
+
         montosPorCliente[nombreCliente] = (montosPorCliente[nombreCliente] || 0) + totalDeber;
 
-        // Contar facturas por cliente (cada ingreso = 1 factura/viaje)
+        // Facturas por cliente
         conteoFacturasPorCliente[nombreCliente] =
           (conteoFacturasPorCliente[nombreCliente] || 0) + 1;
 
-        // Procesar estado de facturas
-        const estadoFactura = ingreso.estado_factura || ingreso.estado || 'No especificado';
+        // ---- INICIO: Procesamiento para conductor ----
+        const nombreConductor = ingreso.conductor || 'No asignado';
+
+        // Facturas por Conductor
+        conteoFacturasPorConductor[nombreConductor] =
+          (conteoFacturasPorConductor[nombreConductor] || 0) + 1;
+        // ---- FIN: Procesamiento para conductor ----
+
+        // Estado de facturas
+        const estadoFactura = ingreso.estado_factura || 'No especificado';
         conteoFacturasPorEstado[estadoFactura] = (conteoFacturasPorEstado[estadoFactura] || 0) + 1;
-      });
 
-      console.log('Resumen de facturas por cliente:', conteoFacturasPorCliente);
-      console.log('Resumen de montos pendientes por cliente:', montosPorCliente);
-      console.log('Resumen de viajes por placa tracto:', conteoTractos);
-      console.log('Resumen de viajes por placa carreta:', conteoCarretas);
-      console.log('Resumen de detracciones por serie:', detraccionesPorSerie);
-
-      // Actualizar estados para los gráficos
-      setDatosViajesTracto(formatDataForChart(conteoTractos, 10)); // Mostrar hasta 10 placas
-      setDatosViajesCarreta(formatDataForChart(conteoCarretas, 10)); // Mostrar hasta 10 placas
-      setDatosIngresosTracto(formatDataForChart(montosPorTracto));
-      setDatosIngresosCarreta(formatDataForChart(montosPorCarreta));
-      setDatosIngresosPorMes(formatDataForChart(montosPorMes, 12)); // Mostrar hasta 12 meses
-      setDatosMontosPorEmpresa(formatDataForChart(montosPorCliente));
-      setDatosFacturasPorEstado(formatDataForChart(conteoFacturasPorEstado));
-      // Actualizar datos de detracciones por serie
-      setDatosDetracciones(formatDataForChart(detraccionesPorSerie, 10));
-
-      // Usar un límite mayor para mostrar más empresas (10 en lugar de 5)
-      setDatosViajesPorEmpresa(formatDataForChart(conteoFacturasPorCliente, 10));
-
-      console.log(
-        'Datos de gráfico Facturas por Empresa:',
-        formatDataForChart(conteoFacturasPorCliente, 10)
-      );
-      console.log('Datos de gráfico Montos a Deber:', formatDataForChart(montosPorCliente, 10));
-      console.log(
-        'Datos de gráfico Viajes por Placa Tracto:',
-        formatDataForChart(conteoTractos, 10)
-      );
-      console.log(
-        'Datos de gráfico Viajes por Placa Carreta:',
-        formatDataForChart(conteoCarretas, 10)
-      );
-      console.log(
-        'Datos de gráfico Detracciones por Serie:',
-        formatDataForChart(detraccionesPorSerie, 10)
-      );
-      console.log('Procesamiento de ingresos completado');
-    } catch (error) {
-      console.error('Error al procesar datos de ingresos:', error);
-    }
-  }
-
-  // Procesar datos de egresos para gráficos
-  function procesarDatosEgresos(datos: Egreso[]) {
-    console.log('Procesando datos de egresos:', datos.length);
-    // Agrupar egresos por tipo
-    const egresosPorTipo: Record<string, number> = {};
-
-    datos.forEach((egreso) => {
-      try {
-        // Normalizar campos
-        const tipoEgreso =
-          typeof egreso.tipoEgreso !== 'undefined'
-            ? egreso.tipoEgreso
-            : typeof egreso.tipo_egreso !== 'undefined'
-              ? egreso.tipo_egreso
-              : typeof egreso.tipo !== 'undefined'
-                ? egreso.tipo
-                : typeof egreso.categoria !== 'undefined'
-                  ? egreso.categoria
-                  : typeof egreso.concepto !== 'undefined'
-                    ? egreso.concepto
-                    : 'Otros';
-
-        const monto =
-          typeof egreso.monto !== 'undefined'
-            ? egreso.monto
-            : typeof egreso.importe !== 'undefined'
-              ? egreso.importe
+        // Detracciones por serie
+        const serie = ingreso.serie_factura || ingreso.serie || '';
+        const montoDetraccion =
+          typeof ingreso.detraccion_monto !== 'undefined'
+            ? ingreso.detraccion_monto
+            : typeof ingreso.detraccion !== 'undefined'
+              ? ingreso.detraccion
               : 0;
 
-        if (tipoEgreso) {
-          egresosPorTipo[tipoEgreso] = (egresosPorTipo[tipoEgreso] || 0) + monto;
+        if (serie && montoDetraccion > 0) {
+          detraccionesPorSerie[serie] = (detraccionesPorSerie[serie] || 0) + montoDetraccion;
         }
-      } catch (error) {
-        console.error('Error al procesar egreso:', egreso, error);
+
+        // ---- INICIO: Procesamiento para Observaciones ----
+        const observacion = ingreso.observacion || 'Sin observación';
+        if (observacion.trim() !== '') {
+          conteoObservaciones[observacion] = (conteoObservaciones[observacion] || 0) + 1;
+        }
+        // ---- FIN: Procesamiento para Observaciones ----
+      });
+
+      // Mostrar en consola un resumen de los datos procesados
+      console.log('===== RESUMEN DE DATOS PROCESADOS =====');
+      console.log(`Viajes por tracto: ${Object.keys(conteoTractos).length} placas diferentes`);
+      for (const [placa, conteo] of Object.entries(conteoTractos)) {
+        console.log(`- Tracto ${placa}: ${conteo} viajes`);
       }
-    });
 
-    console.log('Datos procesados de egresos:');
-    console.log('- Egresos por tipo:', Object.keys(egresosPorTipo).length);
-    console.log('- Tipos de egreso:', Object.keys(egresosPorTipo).join(', '));
+      console.log(`Viajes por carreta: ${Object.keys(conteoCarretas).length} placas diferentes`);
+      for (const [placa, conteo] of Object.entries(conteoCarretas)) {
+        console.log(`- Carreta ${placa}: ${conteo} viajes`);
+      }
 
-    setDatosEgresosPorTipo(formatDataForChart(egresosPorTipo));
+      console.log(`Ingresos por tracto: ${Object.keys(montosPorTracto).length} placas diferentes`);
+      console.log(
+        `Ingresos por carreta: ${Object.keys(montosPorCarreta).length} placas diferentes`
+      );
+
+      // Actualizar estados para los gráficos
+      setDatosViajesTracto(formatDataForChart(conteoTractos, 10));
+      setDatosViajesCarreta(formatDataForChart(conteoCarretas, 10));
+      setDatosIngresosTracto(formatDataForChart(montosPorTracto, 10));
+      setDatosIngresosCarreta(formatDataForChart(montosPorCarreta, 10));
+      setDatosIngresosPorMes(formatDataForChart(montosPorMes, 12));
+      setDatosMontosPorEmpresa(formatDataForChart(montosPorCliente, 10));
+      setDatosFacturasPorEstado(formatDataForChart(conteoFacturasPorEstado));
+      setDatosDetracciones(formatDataForChart(detraccionesPorSerie, 10));
+      setDatosViajesPorEmpresa(formatDataForChart(conteoFacturasPorCliente, 10));
+      setDatosFacturasPorConductor(formatDataForChart(conteoFacturasPorConductor, 10));
+      // Actualizar estado para gráfico de observaciones
+      setDatosObservaciones(formatDataForChart(conteoObservaciones, 10));
+
+      const montosPendientesCliente: Record<string, number> = {};
+      for (const [cliente, monto] of Object.entries(montosPorCliente)) {
+        if (monto < -0.01) {
+          // Usar el valor absoluto del monto para la gráfica
+          montosPendientesCliente[cliente] = Math.abs(monto);
+        }
+      }
+
+      setDatosMontosPorEmpresa(formatDataForChart(montosPendientesCliente, 10));
+    } catch (error) {
+      console.error('Error al procesar datos de ingresos:', error);
+      // En caso de error, establecer estados con arrays vacíos
+      setDatosViajesTracto([]);
+      setDatosViajesCarreta([]);
+      setDatosIngresosTracto([]);
+      setDatosIngresosCarreta([]);
+      setDatosIngresosPorMes([]);
+      setDatosMontosPorEmpresa([]);
+      setDatosFacturasPorEstado([]);
+      setDatosDetracciones([]);
+      setDatosViajesPorEmpresa([]);
+      // Resetear nuevos estados en caso de error
+      setDatosFacturasPorConductor([]);
+      setDatosObservaciones([]);
+    }
   }
 
   // Procesar datos de viajes para gráficos
   function procesarDatosViajes(datos: Viaje[]) {
     console.log('Procesando datos de viajes:', datos.length);
-    // Si no hay datos de viajes, generamos datos de ejemplo
     if (datos.length === 0) {
-      console.log('No hay datos de viajes para procesar. Generando datos de ejemplo');
-      const datosEjemplo = generarDatosViajeEjemplo();
-      setViajes(datosEjemplo);
-      return;
+      console.log('No hay datos de viajes para procesar.');
+      setViajes([]);
+      // No generamos datos de ejemplo, dejamos los arrays vacíos
     }
-  }
-
-  // Generar datos de ejemplo para viajes
-  function generarDatosViajeEjemplo(): Viaje[] {
-    console.log('Generando datos de ejemplo para viajes');
-    const clientes = [
-      'EMPRESA SIDERURGICA DEL PERU S.A.A.',
-      'CORPORACION ACEROS AREQUIPA S.A.',
-      'TRANSPORTES CRUZ DEL SUR S.A.C.',
-      'MINERA YANACOCHA S.R.L.',
-      'ALICORP S.A.A.',
-    ];
-    const origenes = ['Lima', 'Callao', 'Arequipa', 'Trujillo', 'Chiclayo'];
-    const destinos = ['Piura', 'Ica', 'Cusco', 'Tacna', 'Huancayo'];
-    const estados = ['Completado', 'En curso', 'Planificado'];
-
-    return Array.from({ length: 10 }, (_, i) => {
-      const fechaBase = subMonths(new Date(), Math.floor(Math.random() * 3));
-      const fechaSalida = format(addMonths(fechaBase, Math.floor(Math.random() * 3)), 'yyyy-MM-dd');
-      const precioFlete = Math.floor(Math.random() * 15000) + 5000;
-      const gastos = Math.floor(Math.random() * 3000) + 1000;
-      const nombreCliente = clientes[Math.floor(Math.random() * clientes.length)];
-
-      return {
-        id: `via-${i + 1}`,
-        codigoViaje: `VIAJE-${i + 100}`,
-        fechaSalida,
-        origen: origenes[Math.floor(Math.random() * origenes.length)],
-        destino: destinos[Math.floor(Math.random() * destinos.length)],
-        precioFlete,
-        estado: estados[Math.floor(Math.random() * estados.length)],
-        gastos,
-        // Campos necesarios para satisfacer la interfaz
-        cliente_id: `cli-${i + 1}`,
-        conductor_id: `con-${i + 1}`,
-        vehiculo_id: `veh-${i + 1}`,
-        fecha_salida: fechaSalida,
-        tarifa: precioFlete,
-        adelanto: Math.floor(precioFlete * 0.3),
-        saldo: Math.floor(precioFlete * 0.7),
-        detraccion: Math.random() > 0.5,
-        cliente: {
-          id: `cli-${i + 1}`,
-          razon_social: nombreCliente,
-          ruc: `20${Math.floor(Math.random() * 100000000)}`,
-        },
-      };
-    });
   }
 
   // Función para convertir objetos a formato para gráficos
@@ -1122,13 +1144,25 @@ export default function DashboardPage() {
     data: Record<string, number>,
     limit: number = 5
   ): { name: string; value: number }[] {
-    // Si no hay datos, devolvemos un array vacío en lugar de datos simulados
-    if (Object.keys(data).length === 0) {
-      console.log('Sin datos reales, devolviendo array vacío');
+    // Si no hay datos, devolvemos un array vacío
+    if (!data || Object.keys(data).length === 0) {
+      console.log('Sin datos para gráfico, devolviendo array vacío');
       return [];
     }
 
-    return Object.entries(data)
+    // Filtrar valores válidos (no null, undefined o NaN)
+    const validEntries = Object.entries(data).filter(
+      ([name, value]) =>
+        name && typeof value === 'number' && !isNaN(value) && value !== null && value !== undefined
+    );
+
+    if (validEntries.length === 0) {
+      console.log('No hay entradas válidas para el gráfico después de filtrar');
+      return [];
+    }
+
+    // Ordenar por valor descendente y limitar cantidad
+    return validEntries
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, limit);
@@ -1161,6 +1195,285 @@ export default function DashboardPage() {
     setPeriodoSeleccionado(periodo);
   };
 
+  // Calcular tendencia para ingresos hoy
+  const calcularTendenciaIngresosHoy = () => {
+    if (ingresosAyer === 0) {
+      // Si ayer no hubo ingresos, cualquier ingreso hoy es 100% aumento (o 0 si hoy también es 0)
+      return { value: stats.ingresosHoy > 0 ? 100 : 0, isPositive: stats.ingresosHoy > 0 };
+    }
+    const diferencia = stats.ingresosHoy - ingresosAyer;
+    const porcentajeCambio = (diferencia / ingresosAyer) * 100;
+    return { value: Math.abs(Math.round(porcentajeCambio)), isPositive: diferencia >= 0 };
+  };
+
+  // --- INICIO: Lógica de Exportación a Excel ---
+
+  // --- Función auxiliar para añadir hoja de cálculo (movida fuera de handleExportarExcel) ---
+  const addWorksheetToWorkbook = (
+    workbook: ExcelJS.Workbook, // Recibe el workbook como argumento
+    sheetName: string,
+    title: string,
+    headers: string[],
+    data: { name: string; value: number }[],
+    valueFormatter: (value: number) => string | number = (v) => v,
+    includeTotal = true
+  ) => {
+    const worksheet = workbook.addWorksheet(sheetName);
+
+    // Añadir título
+    worksheet.addRow([title]).getCell(1).font = { bold: true, size: 14 };
+    worksheet.mergeCells(1, 1, 1, headers.length);
+    worksheet.getCell(1, 1).alignment = { vertical: 'middle', horizontal: 'center' };
+    worksheet.addRow([]); // Fila vacía
+
+    // Añadir encabezados
+    const headerRow = worksheet.addRow(headers);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD3D3D3' }, // Gris claro
+      };
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' },
+      };
+    });
+
+    // Añadir datos
+    let totalValue = 0;
+    data.forEach((item) => {
+      const rowData = [item.name, valueFormatter(item.value)];
+      const dataRow = worksheet.addRow(rowData);
+      dataRow.eachCell((cell) => {
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+      // Aplicar formato de número/moneda a la segunda celda si es numérico
+      if (typeof item.value === 'number') {
+        const valueCell = dataRow.getCell(2);
+        if (valueFormatter === formatCurrency) {
+          valueCell.numFmt = '"S/."#,##0.00;[Red]\-"S/."#,##0.00';
+        } else {
+          valueCell.numFmt = '0'; // Formato numérico general
+        }
+        totalValue += item.value;
+      }
+    });
+
+    // Añadir total general si es necesario
+    if (includeTotal && data.length > 0) {
+      const totalRowData = ['Total general', valueFormatter(totalValue)];
+      const totalRow = worksheet.addRow(totalRowData);
+      totalRow.eachCell((cell) => {
+        cell.font = { bold: true };
+        cell.border = {
+          top: { style: 'thin' },
+          left: { style: 'thin' },
+          bottom: { style: 'thin' },
+          right: { style: 'thin' },
+        };
+      });
+      // Aplicar formato de número/moneda a la celda del total
+      const totalValueCell = totalRow.getCell(2);
+      if (valueFormatter === formatCurrency) {
+        totalValueCell.numFmt = '"S/."#,##0.00;[Red]\-"S/."#,##0.00';
+      } else {
+        totalValueCell.numFmt = '0';
+      }
+    }
+
+    // Ajustar ancho de columnas
+    worksheet.columns.forEach((column) => {
+      // Usar encadenamiento opcional para column?.eachCell
+      let maxLength = 0;
+      column?.eachCell({ includeEmpty: true }, (cell) => {
+        let columnLength = cell.value ? cell.value.toString().length : 10;
+        if (columnLength > maxLength) {
+          maxLength = columnLength;
+        }
+      });
+      if (column) {
+        // Comprobar si la columna existe antes de asignar el ancho
+        column.width = maxLength < 15 ? 15 : maxLength + 2;
+      }
+    });
+  };
+  // --- Fin función auxiliar ---
+
+  // --- Formateador de moneda ---
+  const formatCurrency = (value: number) => {
+    // Devolvemos el número directamente, el formato se aplica en la celda
+    return value;
+  };
+  // --- Fin formateador ---
+
+  const handleExportarExcel = async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Movicarga ERP';
+    workbook.created = new Date();
+    workbook.modified = new Date();
+
+    // --- Añadir hojas para cada gráfico/tabla usando la función auxiliar ---
+
+    // Pestaña Vehículos
+    if (datosViajesTracto.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Viajes Tracto',
+        'VIAJES POR PLACA DE TRACTO',
+        ['Placa tracto', 'Cuenta de Placa tracto'],
+        datosViajesTracto
+      );
+    }
+    if (datosViajesCarreta.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Viajes Carreta',
+        'VIAJES POR PLACA CARRETA',
+        ['Placa carreta', 'Cuenta de Placa carreta'],
+        datosViajesCarreta
+      );
+    }
+    if (datosIngresosTracto.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Ingresos Tracto',
+        'SUMA TOTAL DE INGRESOS POR TRACTO',
+        ['Placa tracto', 'Suma de Total monto'],
+        datosIngresosTracto,
+        formatCurrency
+      );
+    }
+    if (datosIngresosCarreta.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Ingresos Carreta',
+        'SUMA TOTAL DE INGRESOS POR CARRETA',
+        ['Placa carreta', 'Suma de Total monto'],
+        datosIngresosCarreta,
+        formatCurrency
+      );
+    }
+
+    // Pestaña Financiero
+    if (datosEgresosConFacturaPorTipo.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Egresos Con Factura',
+        'DISTRIBUCIÓN EGRESOS CON FACTURA',
+        ['Categoría', 'Suma de Monto'],
+        datosEgresosConFacturaPorTipo,
+        formatCurrency
+      );
+    }
+    if (datosEgresosSinFacturaPorTipo.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Egresos Sin Factura',
+        'DISTRIBUCIÓN EGRESOS SIN FACTURA',
+        ['Categoría', 'Suma de Monto'],
+        datosEgresosSinFacturaPorTipo,
+        formatCurrency
+      );
+    }
+    if (datosIngresosPorMes.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Ingresos Mes',
+        'INGRESOS POR MES',
+        ['Mes', 'Suma de Total monto'],
+        datosIngresosPorMes,
+        formatCurrency,
+        false
+      ); // Sin total general
+    }
+    if (datosFacturasPorEstado.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Estado Facturas',
+        'ESTADO DE FACTURAS',
+        ['Estado', 'Cuenta de Facturas'],
+        datosFacturasPorEstado,
+        (v) => v,
+        false
+      ); // Sin total general, formato numérico
+    }
+
+    // Pestaña Operacional
+    if (datosViajesPorEmpresa.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Facturas Empresa',
+        'FACTURAS POR EMPRESA',
+        ['Empresa', 'Número de Facturas'],
+        datosViajesPorEmpresa
+      );
+    }
+    if (datosMontosPorEmpresa.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Deuda Empresa',
+        'MONTOS A DEBER POR EMPRESA',
+        ['Empresa', 'Monto Pendiente (S/.)'],
+        datosMontosPorEmpresa,
+        formatCurrency
+      );
+    }
+    if (datosFacturasPorConductor.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Facturas Conductor',
+        'FACTURAS POR CONDUCTOR',
+        ['Conductor', 'Número de Facturas'],
+        datosFacturasPorConductor
+      );
+    }
+    if (datosObservaciones.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Observaciones',
+        'CUENTA DE OBSERVACIONES POR TIPO',
+        ['Tipo de documento', 'Cuenta de Observación'],
+        datosObservaciones
+      );
+    }
+    // Detracciones (similar a tu imagen)
+    if (datosDetracciones.length > 0) {
+      addWorksheetToWorkbook(
+        workbook,
+        'Detracciones Serie',
+        'SUMA TOTAL DE DETRACCIONES POR SERIE DE FACTURA',
+        ['Serie de factura', 'Suma de Detracción'],
+        datosDetracciones,
+        formatCurrency
+      );
+    }
+
+    // --- Generar y descargar el archivo ---
+    try {
+      const buffer = await workbook.xlsx.writeBuffer();
+      const fechaHoy = format(new Date(), 'yyyy-MM-dd');
+      const fileName = `Dashboard_Movicarga_${fechaHoy}.xlsx`;
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      saveAs(blob, fileName);
+      console.log('Archivo Excel generado y descarga iniciada.');
+    } catch (error) {
+      console.error('Error al generar el archivo Excel:', error);
+      // Aquí podrías mostrar una notificación al usuario
+    }
+  };
+  // --- FIN: Lógica de Exportación a Excel ---
+
   // Renderizado del dashboard
   return (
     <div className="space-y-6">
@@ -1168,14 +1481,23 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold">Dashboard</h1>
 
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={handleExportarExcel}>
+            {' '}
+            {/* Asociar función onClick */}
             <Calendar className="mr-2 h-4 w-4" />
             Exportar
           </Button>
-          <Button variant="outline" size="sm">
-            <BarChart2 className="mr-2 h-4 w-4" />
-            Reportes
-          </Button>
+          {/* Convertir botón Reportes a Link */}
+          <Link href="/reportes" passHref>
+            <Button variant="outline" size="sm" asChild>
+              <span>
+                {' '}
+                {/* Añadir span para que asChild funcione bien con el ícono */}
+                <BarChart2 className="mr-2 h-4 w-4" />
+                Reportes
+              </span>
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -1209,6 +1531,8 @@ export default function DashboardPage() {
                   setFechaInicio(e.target.value);
                   setPeriodoSeleccionado('personalizado');
                 }}
+                disabled={periodoSeleccionado !== 'personalizado'} // Deshabilitado si no es personalizado
+                className="disabled:opacity-70 disabled:cursor-not-allowed" // Estilos cuando está deshabilitado
               />
             </div>
 
@@ -1220,6 +1544,8 @@ export default function DashboardPage() {
                   setFechaFin(e.target.value);
                   setPeriodoSeleccionado('personalizado');
                 }}
+                disabled={periodoSeleccionado !== 'personalizado'} // Deshabilitado si no es personalizado
+                className="disabled:opacity-70 disabled:cursor-not-allowed" // Estilos cuando está deshabilitado
               />
             </div>
 
@@ -1262,7 +1588,6 @@ export default function DashboardPage() {
               title="Clientes"
               value={stats.clientesTotal}
               icon={<Users className="h-5 w-5 text-primary" />}
-              trend={{ value: 12, isPositive: true }}
               linkTo="/clientes"
             />
 
@@ -1270,7 +1595,6 @@ export default function DashboardPage() {
               title="Vehículos"
               value={stats.vehiculosTotal}
               icon={<Truck className="h-5 w-5 text-primary" />}
-              trend={{ value: 5, isPositive: true }}
               linkTo="/vehiculos"
             />
 
@@ -1278,7 +1602,6 @@ export default function DashboardPage() {
               title="Viajes"
               value={stats.viajesTotal}
               icon={<Map className="h-5 w-5 text-primary" />}
-              trend={{ value: 8, isPositive: true }}
               linkTo="/viajes"
             />
 
@@ -1286,7 +1609,7 @@ export default function DashboardPage() {
               title="Ingresos Hoy"
               value={`S/. ${stats.ingresosHoy.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               icon={<DollarSign className="h-5 w-5 text-green-500" />}
-              trend={{ value: 15, isPositive: true }}
+              trend={calcularTendenciaIngresosHoy()}
               linkTo="/ingresos"
             />
           </div>
@@ -1306,16 +1629,35 @@ export default function DashboardPage() {
                     <CardDescription>Número de viajes realizados por cada tracto</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosViajesTracto}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" name="Número de Viajes" fill="#3b82f6" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {datosViajesTracto.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosViajesTracto}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar
+                            dataKey="value"
+                            name="Número de Viajes"
+                            fill="#0ea5e9"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <TruckIcon className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de viajes para mostrar</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1325,16 +1667,35 @@ export default function DashboardPage() {
                     <CardDescription>Número de viajes realizados por cada carreta</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosViajesCarreta}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" name="Número de Viajes" fill="#eab308" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {datosViajesCarreta.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosViajesCarreta}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar
+                            dataKey="value"
+                            name="Número de Viajes"
+                            fill="#f59e0b"
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <TruckIcon className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de viajes para mostrar</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1344,32 +1705,44 @@ export default function DashboardPage() {
                     <CardDescription>Total de ingresos generados por cada tracto</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={datosIngresosTracto}
-                          nameKey="name"
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="#8884d8"
-                          label={(entry) => entry.name}
-                          labelLine
-                        >
-                          {datosIngresosTracto.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {datosIngresosTracto.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosIngresosTracto}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis
+                            tickFormatter={(value) =>
+                              `S/. ${Number(value).toLocaleString('es-PE', { maximumFractionDigits: 0 })}`
+                            }
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [
+                              `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                              'Monto', // Nombre para el tooltip
+                            ]}
+                          />
+                          <Legend />
+                          <Bar
+                            dataKey="value"
+                            name="Ingresos (S/.)"
+                            fill="#8884d8"
+                            radius={[4, 4, 0, 0]}
+                          ></Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <BanknoteIcon className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de ingresos para mostrar</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1379,32 +1752,44 @@ export default function DashboardPage() {
                     <CardDescription>Total de ingresos generados por cada carreta</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={datosIngresosCarreta}
-                          nameKey="name"
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="#8884d8"
-                          label={(entry) => entry.name}
-                          labelLine
-                        >
-                          {datosIngresosCarreta.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {datosIngresosCarreta.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosIngresosCarreta}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis
+                            tickFormatter={(value) =>
+                              `S/. ${Number(value).toLocaleString('es-PE', { maximumFractionDigits: 0 })}`
+                            }
+                          />
+                          <Tooltip
+                            formatter={(value: number) => [
+                              `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                              'Monto', // Nombre para el tooltip
+                            ]}
+                          />
+                          <Legend />
+                          <Bar
+                            dataKey="value"
+                            name="Ingresos (S/.)"
+                            fill="#82ca9d"
+                            radius={[4, 4, 0, 0]}
+                          ></Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <BanknoteIcon className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de ingresos para mostrar</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1418,31 +1803,46 @@ export default function DashboardPage() {
                     <CardDescription>Ingresos vs Egresos del periodo</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={[
-                          { name: 'Ingresos', value: stats.ingresosTotal },
-                          { name: 'Egresos', value: stats.egresosTotal },
-                          { name: 'Balance', value: stats.ingresosTotal - stats.egresosTotal },
-                        ]}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
+                    {/* Añadir comprobación de datos */}
+                    {stats.ingresosTotal === 0 && stats.egresosTotal === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <Scale className="h-16 w-16 mb-2 opacity-20" /> {/* Ícono relevante */}
+                        <p>No hay datos de balance para mostrar</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={[
+                            { name: 'Ingresos', value: stats.ingresosTotal },
+                            { name: 'Egresos', value: stats.egresosTotal },
+                            { name: 'Balance', value: stats.ingresosTotal - stats.egresosTotal },
                           ]}
-                        />
-                        <Legend />
-                        <Bar dataKey="value" name="Monto (S/.)" fill="#8884d8">
-                          <Cell fill="#4ade80" />
-                          <Cell fill="#f87171" />
-                          <Cell fill="#60a5fa" />
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip
+                            formatter={(value) => [
+                              `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                              '',
+                            ]}
+                          />
+                          <Legend />
+                          <Bar dataKey="value" name="Monto (S/.)" fill="#8884d8">
+                            <Cell fill="#4ade80" />
+                            <Cell fill="#f87171" />
+                            <Cell fill="#60a5fa" />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1451,33 +1851,110 @@ export default function DashboardPage() {
                     <CardTitle>Distribución de Egresos</CardTitle>
                     <CardDescription>Desglose de gastos por categoría</CardDescription>
                   </CardHeader>
-                  <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={datosEgresosPorTipo}
-                          nameKey="name"
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="#8884d8"
-                          label={(entry) => entry.name}
-                          labelLine
-                        >
-                          {datosEgresosPorTipo.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                  <CardContent className="h-[350px] grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Gráfico Egresos CON Factura */}
+                    <div className="flex flex-col items-center">
+                      <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                        Con Factura
+                      </h3>
+                      {datosEgresosConFacturaPorTipo.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={datosEgresosConFacturaPorTipo}
+                              nameKey="name"
+                              dataKey="value"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={60}
+                              fill="#8884d8"
+                              label={({ name, percent }) =>
+                                `${name} ${(percent * 100).toFixed(0)}%`
+                              }
+                              labelLine
+                              isAnimationActive={true}
+                              animationDuration={800}
+                            >
+                              {datosEgresosConFacturaPorTipo.map((entry, index) => (
+                                <Cell
+                                  key={`cell-cf-${index}`}
+                                  fill={COLORS[index % COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(value: number) => [
+                                `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                'Monto', // Nombre para el tooltip
+                              ]}
+                            />
+                            <Legend
+                              layout="vertical"
+                              verticalAlign="bottom"
+                              align="center"
+                              iconSize={10}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center">
+                          <BanknoteIcon className="h-12 w-12 mb-2 opacity-20" />
+                          <p className="text-xs">No hay datos de egresos con factura</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Gráfico Egresos SIN Factura */}
+                    <div className="flex flex-col items-center">
+                      <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                        Sin Factura
+                      </h3>
+                      {datosEgresosSinFacturaPorTipo.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={datosEgresosSinFacturaPorTipo}
+                              nameKey="name"
+                              dataKey="value"
+                              cx="50%"
+                              cy="50%"
+                              outerRadius={60}
+                              fill="#82ca9d"
+                              label={({ name, percent }) =>
+                                `${name} ${(percent * 100).toFixed(0)}%`
+                              }
+                              labelLine
+                              isAnimationActive={true}
+                              animationDuration={800}
+                            >
+                              {datosEgresosSinFacturaPorTipo.map((entry, index) => (
+                                <Cell
+                                  key={`cell-sf-${index}`}
+                                  fill={COLORS[(index + 5) % COLORS.length]}
+                                />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              formatter={(value: number) => [
+                                `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                'Monto', // Nombre para el tooltip
+                              ]}
+                            />
+                            <Legend
+                              layout="vertical"
+                              verticalAlign="bottom"
+                              align="center"
+                              iconSize={10}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-center">
+                          <BanknoteIcon className="h-12 w-12 mb-2 opacity-20" />
+                          <p className="text-xs">No hay datos de egresos sin factura</p>
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -1487,29 +1964,44 @@ export default function DashboardPage() {
                     <CardDescription>Tendencia de ingresos mensuales</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={datosIngresosPorMes}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          name="Ingresos"
-                          stroke="#4ade80"
-                          strokeWidth={2}
-                          dot={{ r: 4 }}
-                          activeDot={{ r: 6 }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                    {/* Añadir comprobación de datos */}
+                    {datosIngresosPorMes.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={datosIngresosPorMes}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip
+                            formatter={(value) => [
+                              `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                              '',
+                            ]}
+                          />
+                          <Legend />
+                          <Line
+                            type="monotone"
+                            dataKey="value"
+                            name="Ingresos"
+                            stroke="#4ade80"
+                            strokeWidth={2}
+                            dot={{ r: 4 }}
+                            activeDot={{ r: 6 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <TrendingUp className="h-16 w-16 mb-2 opacity-20" /> {/* Ícono relevante */}
+                        <p>No hay datos de ingresos mensuales</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1519,27 +2011,41 @@ export default function DashboardPage() {
                     <CardDescription>Distribución de facturas por estado</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={datosFacturasPorEstado}
-                          nameKey="name"
-                          dataKey="value"
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={80}
-                          fill="#8884d8"
-                          label={(entry) => `${entry.name}: ${entry.value}%`}
-                          labelLine
-                        >
-                          <Cell fill="#4ade80" />
-                          <Cell fill="#f59e0b" />
-                          <Cell fill="#ef4444" />
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    {datosFacturasPorEstado.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosFacturasPorEstado}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip formatter={(value) => [`${value} facturas`, 'Cantidad']} />
+                          <Legend />
+                          <Bar dataKey="value" name="Número de Facturas" radius={[4, 4, 0, 0]}>
+                            {datosFacturasPorEstado.map((entry, index) => {
+                              let fillColor = COLORS[index % COLORS.length];
+                              if (entry.name.toLowerCase().includes('pagado'))
+                                fillColor = '#4ade80';
+                              if (entry.name.toLowerCase().includes('pendiente'))
+                                fillColor = '#f59e0b';
+                              if (entry.name.toLowerCase().includes('vencido'))
+                                fillColor = '#ef4444';
+                              return <Cell key={`cell-${index}`} fill={fillColor} />;
+                            })}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <BanknoteIcon className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de estado de facturas</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1553,16 +2059,31 @@ export default function DashboardPage() {
                     <CardDescription>Distribución de facturas por cliente</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosViajesPorEmpresa}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => [`${value} facturas`, 'Cantidad']} />
-                        <Legend />
-                        <Bar dataKey="value" name="Número de Facturas" fill="#3b82f6" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {/* Añadir comprobación de datos */}
+                    {datosViajesPorEmpresa.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosViajesPorEmpresa}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip formatter={(value) => [`${value} facturas`, 'Cantidad']} />
+                          <Legend />
+                          <Bar dataKey="value" name="Número de Facturas" fill="#3b82f6" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <FileText className="h-16 w-16 mb-2 opacity-20" /> {/* Ícono relevante */}
+                        <p>No hay datos de facturas por empresa</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1572,45 +2093,72 @@ export default function DashboardPage() {
                     <CardDescription>Montos pendientes por cada cliente</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosMontosPorEmpresa}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                        <Bar dataKey="value" name="Monto Pendiente (S/.)" fill="#f59e0b" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {datosMontosPorEmpresa.length > 0 ? (
+                      <ResponsiveContainer key="montos-deber-data" width="100%" height="100%">
+                        <BarChart data={datosMontosPorEmpresa}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip
+                            formatter={(value) => [
+                              `S/. ${Math.abs(Number(value)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                              'Pendiente',
+                            ]}
+                          />
+                          <Legend />
+                          <Bar dataKey="value" name="Monto Pendiente (S/.)" fill="#f59e0b"></Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div
+                        key="montos-deber-no-data"
+                        className="h-full flex flex-col items-center justify-center text-muted-foreground"
+                      >
+                        <DollarSign className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay montos pendientes para mostrar</p>
+                        <p className="text-xs">(Ningún cliente debe actualmente)</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>Detracciones por Serie</CardTitle>
-                    <CardDescription>Montos de detracciones por serie de facturas</CardDescription>
+                    <CardTitle>Facturas por Conductor</CardTitle>
+                    <CardDescription>Distribución de facturas por conductor</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosDetracciones}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip
-                          formatter={(value) => [
-                            `S/. ${Number(value).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                            '',
-                          ]}
-                        />
-                        <Legend />
-                        <Bar dataKey="value" name="Monto Detracción (S/.)" fill="#a855f7" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {datosFacturasPorConductor.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosFacturasPorConductor}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis
+                            dataKey="name"
+                            angle={0}
+                            textAnchor="middle"
+                            height={60}
+                            interval={0}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <YAxis />
+                          <Tooltip formatter={(value) => [`${value} facturas`, 'Cantidad']} />
+                          <Legend />
+                          <Bar dataKey="value" name="Número de Facturas" fill="#16a34a" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <Users className="h-16 w-16 mb-2 opacity-20" />
+                        <p>No hay datos de facturas por conductor</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -1620,16 +2168,30 @@ export default function DashboardPage() {
                     <CardDescription>Frecuencia de tipos de observaciones</CardDescription>
                   </CardHeader>
                   <CardContent className="h-[350px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={datosObservaciones} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis type="number" />
-                        <YAxis dataKey="name" type="category" width={150} />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="value" name="Cantidad" fill="#ec4899" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                    {/* Añadir comprobación de datos */}
+                    {datosObservaciones.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={datosObservaciones} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" />
+                          <YAxis
+                            dataKey="name"
+                            type="category"
+                            width={150}
+                            tick={{ fontSize: 11 }}
+                          />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="value" name="Cantidad" fill="#ec4899" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                        <MessageSquare className="h-16 w-16 mb-2 opacity-20" />{' '}
+                        {/* Ícono relevante */}
+                        <p>No hay datos de observaciones</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
