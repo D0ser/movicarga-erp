@@ -226,6 +226,17 @@ export interface CajaChica extends DataItem {
   pagado?: boolean;
   created_at?: string;
   updated_at?: string;
+  total_pagado?: number;
+  numero_cuotas_pagadas?: number;
+  pagos_cuotas?: PagoCuota[];
+}
+
+export interface PagoCuota {
+  id?: string;
+  movimiento_id: string;
+  fecha_pago: string;
+  importe_cuota: number;
+  created_at?: string;
 }
 
 // Servicios para clientes
@@ -853,143 +864,268 @@ export const empresaService = {
 
 // Servicio para Caja Chica
 export const cajaChicaService = {
-  async getMovimientos() {
-    try {
-      const { data, error } = await supabase
-        .from('caja_chica')
-        .select('*')
-        .order('fecha', { ascending: false });
+  async getMovimientos(): Promise<CajaChica[]> {
+    const { data: movimientos, error } = await supabase
+      .from('caja_chica')
+      .select('*')
+      .order('fecha', { ascending: false })
+      .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      return data as CajaChica[];
-    } catch (error) {
-      console.error('Error al obtener movimientos de caja chica:', error);
-      throw error;
+    if (error) {
+      console.error('Error fetching movimientos caja chica:', error);
+      throw new Error('No se pudieron obtener los movimientos de caja chica.');
     }
-  },
 
-  async getMovimientoById(id: string) {
-    try {
-      const { data, error } = await supabase.from('caja_chica').select('*').eq('id', id).single();
+    const movimientosConDetalles = await Promise.all(
+      movimientos.map(async (mov) => {
+        let pagosCuotas: PagoCuota[] = [];
+        let totalPagadoCalculado = 0;
+        let numCuotasCalculadas = 0;
+        let esPagadoCalculado = mov.pagado;
 
-      if (error) throw error;
-      return data as CajaChica;
-    } catch (error) {
-      console.error('Error al obtener movimiento de caja chica:', error);
-      throw error;
-    }
-  },
+        if (mov.tipo === 'debe') {
+          // Obtener los pagos de cuotas detallados
+          const { data: cuotasDetalladas, error: errorCuotasDetalle } = await supabase
+            .from('pagos_cuotas_caja_chica')
+            .select('id, fecha_pago, importe_cuota, created_at')
+            .eq('movimiento_id', mov.id)
+            .order('fecha_pago', { ascending: true });
 
-  async crearMovimiento(movimiento: Omit<CajaChica, 'id' | 'created_at' | 'updated_at'>) {
-    try {
-      const { data, error } = await supabase
-        .from('caja_chica')
-        .insert([movimiento])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as CajaChica;
-    } catch (error) {
-      console.error('Error al crear movimiento de caja chica:', error);
-      throw error;
-    }
-  },
-
-  async actualizarMovimiento(id: string, movimiento: Partial<CajaChica>) {
-    try {
-      const { data, error } = await supabase
-        .from('caja_chica')
-        .update(movimiento)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as CajaChica;
-    } catch (error) {
-      console.error('Error al actualizar movimiento de caja chica:', error);
-      throw error;
-    }
-  },
-
-  async eliminarMovimiento(id: string) {
-    try {
-      const { error } = await supabase.from('caja_chica').delete().eq('id', id);
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error('Error al eliminar movimiento de caja chica:', error);
-      throw error;
-    }
-  },
-
-  async calcularSaldo() {
-    try {
-      const { data, error } = await supabase.from('caja_chica').select('tipo, importe, pagado');
-
-      if (error) throw error;
-
-      // Calcular el saldo total de la caja chica
-      const saldo = (data as CajaChica[]).reduce((total, movimiento) => {
-        if (movimiento.tipo === 'ingreso') {
-          return total + movimiento.importe;
-        } else if (movimiento.tipo === 'egreso') {
-          return total - movimiento.importe;
-        } else if (movimiento.tipo === 'debe' && movimiento.pagado) {
-          // Si está pagado, no afecta al saldo
-          return total;
-        } else if (movimiento.tipo === 'debe' && !movimiento.pagado) {
-          // Si es tipo debe y no está pagado, se resta del saldo
-          return total - movimiento.importe;
+          if (errorCuotasDetalle) {
+            console.error(
+              `Error fetching cuotas detalladas for movimiento ${mov.id}:`,
+              errorCuotasDetalle
+            );
+          } else if (cuotasDetalladas) {
+            pagosCuotas = cuotasDetalladas as PagoCuota[];
+            numCuotasCalculadas = cuotasDetalladas.length;
+            totalPagadoCalculado = cuotasDetalladas.reduce(
+              (sum, cuota) => sum + cuota.importe_cuota,
+              0
+            );
+          }
+          esPagadoCalculado = totalPagadoCalculado >= mov.importe;
         }
-        return total;
-      }, 0);
 
-      return saldo;
-    } catch (error) {
-      console.error('Error al calcular saldo de caja chica:', error);
-      throw error;
+        return {
+          ...mov,
+          total_pagado: totalPagadoCalculado,
+          numero_cuotas_pagadas: numCuotasCalculadas,
+          pagos_cuotas: pagosCuotas,
+          pagado: mov.tipo === 'debe' ? esPagadoCalculado : mov.pagado,
+        };
+      })
+    );
+    return movimientosConDetalles;
+  },
+
+  async getMovimientoById(id: string): Promise<CajaChica | null> {
+    const { data: movimiento, error } = await supabase
+      .from('caja_chica')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // No encontrado
+      console.error('Error fetching movimiento by id:', error);
+      throw new Error('Error al obtener el movimiento.');
+    }
+
+    if (movimiento && movimiento.tipo === 'debe') {
+      let pagosCuotas: PagoCuota[] = [];
+      let totalPagadoCalculado = 0;
+      let numCuotasCalculadas = 0;
+
+      const { data: cuotasDetalladas, error: errorCuotasDetalle } = await supabase
+        .from('pagos_cuotas_caja_chica')
+        .select('id, fecha_pago, importe_cuota, created_at')
+        .eq('movimiento_id', movimiento.id)
+        .order('fecha_pago', { ascending: true });
+
+      if (errorCuotasDetalle) {
+        console.error(
+          `Error fetching cuotas detalladas for movimiento ${movimiento.id}:`,
+          errorCuotasDetalle
+        );
+      } else if (cuotasDetalladas) {
+        pagosCuotas = cuotasDetalladas as PagoCuota[];
+        numCuotasCalculadas = cuotasDetalladas.length;
+        totalPagadoCalculado = cuotasDetalladas.reduce(
+          (sum, cuota) => sum + cuota.importe_cuota,
+          0
+        );
+      }
+
+      const esPagadoCalculado = totalPagadoCalculado >= movimiento.importe;
+      return {
+        ...movimiento,
+        total_pagado: totalPagadoCalculado,
+        numero_cuotas_pagadas: numCuotasCalculadas,
+        pagos_cuotas: pagosCuotas,
+        pagado: esPagadoCalculado,
+      };
+    }
+
+    return movimiento;
+  },
+
+  async crearMovimiento(
+    movimiento: Omit<
+      CajaChica,
+      'id' | 'created_at' | 'updated_at' | 'total_pagado' | 'numero_cuotas_pagadas'
+    >
+  ): Promise<CajaChica> {
+    // Para 'debe', 'pagado' es inicialmente false. Para 'ingreso'/'egreso' puede ser true o no relevante
+    const datosAGuardar = {
+      ...movimiento,
+      pagado:
+        movimiento.tipo === 'debe'
+          ? false
+          : movimiento.pagado !== undefined
+            ? movimiento.pagado
+            : true,
+    };
+
+    const { data, error } = await supabase
+      .from('caja_chica')
+      .insert(datosAGuardar)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating movimiento:', error);
+      throw new Error('Error al crear el movimiento de caja chica.');
+    }
+    return data;
+  },
+
+  async actualizarMovimiento(
+    id: string,
+    movimiento: Partial<Omit<CajaChica, 'total_pagado' | 'numero_cuotas_pagadas'>>
+  ): Promise<CajaChica> {
+    // Prevenir la actualización directa de campos calculados o controlados por cuotas
+    const { total_pagado, numero_cuotas_pagadas, ...updateData } = movimiento;
+
+    const { data, error } = await supabase
+      .from('caja_chica')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating movimiento:', error);
+      throw new Error('Error al actualizar el movimiento.');
+    }
+    // Devolver el movimiento actualizado con sus datos de cuotas recalculados
+    return this.getMovimientoById(data.id) as Promise<CajaChica>;
+  },
+
+  async eliminarMovimiento(id: string): Promise<void> {
+    // La FK en `pagos_cuotas_caja_chica` con ON DELETE CASCADE se encargará de las cuotas
+    const { error } = await supabase.from('caja_chica').delete().eq('id', id);
+    if (error) {
+      console.error('Error deleting movimiento:', error);
+      throw new Error('Error al eliminar el movimiento.');
     }
   },
 
-  async calcularSaldoDebe() {
-    try {
-      const { data, error } = await supabase
-        .from('caja_chica')
-        .select('tipo, importe, pagado')
-        .eq('tipo', 'debe')
-        .eq('pagado', false);
-
-      if (error) throw error;
-
-      // Calcular el total de deudas pendientes
-      const saldoDebe = (data as CajaChica[]).reduce((total, movimiento) => {
-        return total + movimiento.importe;
-      }, 0);
-
-      return saldoDebe;
-    } catch (error) {
-      console.error('Error al calcular saldo de debe en caja chica:', error);
-      throw error;
-    }
+  async calcularSaldo(): Promise<number> {
+    const movimientos = await this.getMovimientos();
+    let saldo = 0;
+    movimientos.forEach((mov) => {
+      if (mov.tipo === 'ingreso') {
+        saldo += mov.importe;
+      } else if (mov.tipo === 'egreso') {
+        saldo -= mov.importe;
+      } else if (mov.tipo === 'debe') {
+        // Cuando se registra un 'debe', el importe original disminuye el saldo.
+        saldo -= mov.importe;
+        // Cualquier pago realizado sobre ese 'debe' (total_pagado) representa una recuperación
+        // de dinero y, por lo tanto, debe sumarse nuevamente al saldo actual.
+        if (mov.total_pagado && mov.total_pagado > 0) {
+          saldo += mov.total_pagado;
+        }
+      }
+    });
+    return saldo;
   },
 
-  async cambiarEstadoPago(id: string, pagado: boolean) {
-    try {
-      const { data, error } = await supabase
-        .from('caja_chica')
-        .update({ pagado })
-        .eq('id', id)
-        .select()
-        .single();
+  async calcularSaldoDebe(): Promise<number> {
+    const movimientos = await this.getMovimientos(); // Esto ahora incluye total_pagado y numero_cuotas_pagadas correctos
+    let saldoDebe = 0;
+    movimientos.forEach((mov) => {
+      if (mov.tipo === 'debe' && !(mov.total_pagado && mov.total_pagado >= mov.importe)) {
+        saldoDebe += mov.importe - (mov.total_pagado || 0);
+      }
+    });
+    return saldoDebe;
+  },
 
-      if (error) throw error;
-      return data as CajaChica;
-    } catch (error) {
-      console.error('Error al cambiar estado de pago:', error);
-      throw error;
+  // NUEVO: Servicio para registrar un pago de cuota
+  async registrarPagoCuota(
+    movimientoId: string,
+    importeCuota: number,
+    fechaPago: string,
+    // Los siguientes son para validación y evitar múltiples llamadas a la BD
+    // Ya no son estrictamente necesarios aquí si getMovimientoById se usa después para refrescar,
+    // pero mantenerlos puede ser una optimización si no queremos releer el movimiento.
+    importeTotalDeuda: number,
+    totalPagadoActual: number,
+    numCuotasActual: number
+  ): Promise<PagoCuota> {
+    // Validaciones (se mantienen, ya que son previas a la inserción)
+    if (numCuotasActual >= 5) {
+      throw new Error('No se pueden registrar más de 5 cuotas para este movimiento.');
     }
+
+    // 2. Validar importe de la cuota
+    const saldoPendiente = importeTotalDeuda - totalPagadoActual;
+    if (importeCuota <= 0) {
+      throw new Error('El importe de la cuota debe ser mayor a cero.');
+    }
+    if (importeCuota > saldoPendiente) {
+      throw new Error('El importe de la cuota no puede ser mayor al saldo pendiente.');
+    }
+
+    // 3. Insertar la nueva cuota
+    const nuevaCuota: Omit<PagoCuota, 'id' | 'created_at'> = {
+      movimiento_id: movimientoId,
+      importe_cuota: importeCuota,
+      fecha_pago: fechaPago,
+    };
+
+    const { data: cuotaRegistrada, error: errorInsertCuota } = await supabase
+      .from('pagos_cuotas_caja_chica')
+      .insert(nuevaCuota)
+      .select()
+      .single();
+
+    if (errorInsertCuota) {
+      console.error('Error registrando pago de cuota:', errorInsertCuota);
+      throw new Error('Error al registrar el pago de la cuota.');
+    }
+
+    // 4. Actualizar estado 'pagado' del movimiento principal si corresponde
+    // Esta lógica se simplifica ya que getMovimientos/getMovimientoById recalculará el estado 'pagado'.
+    // Sin embargo, para una actualización inmediata sin refetch, podemos hacer esto:
+    const nuevoTotalPagado = totalPagadoActual + importeCuota;
+    if (nuevoTotalPagado >= importeTotalDeuda) {
+      const { error: errorUpdateMovimiento } = await supabase
+        .from('caja_chica')
+        .update({ pagado: true }) // Marcar como pagado en la tabla principal
+        .eq('id', movimientoId);
+
+      if (errorUpdateMovimiento) {
+        // No es crítico al punto de revertir la cuota, pero sí de loggear.
+        console.error(
+          'Error actualizando estado pagado del movimiento principal:',
+          errorUpdateMovimiento
+        );
+        // Podría considerarse una lógica de compensación si esto falla.
+      }
+    }
+    return cuotaRegistrada;
   },
 };

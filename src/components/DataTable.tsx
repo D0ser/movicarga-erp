@@ -42,6 +42,7 @@ interface DataTableProps<T extends DataItem = DataItem> {
   onDataChanged?: () => void; // Nueva prop para manejar cambios en los datos (eliminaciones, etc.)
   tableClassName?: string;
   containerClassName?: string;
+  rowStyleGetter?: (row: T) => React.CSSProperties; // Nueva propiedad
   filters?: {
     year?: boolean;
     month?: boolean;
@@ -69,6 +70,7 @@ export default function DataTable<T extends DataItem = DataItem>({
   onDataChanged,
   tableClassName,
   containerClassName,
+  rowStyleGetter,
 }: DataTableProps<T>) {
   const [sortConfig, setSortConfig] = useState({ key: defaultSort || '', direction: 'asc' });
   const [filterYear, setFilterYear] = useState<string>('');
@@ -1400,10 +1402,11 @@ export default function DataTable<T extends DataItem = DataItem>({
               ) : paginatedData.length > 0 ? (
                 paginatedData.map((item, index) => (
                   <tr
-                    key={item.id?.toString() || index}
-                    className={`transition-all duration-150 relative group ${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                    } hover:bg-blue-50/30 hover:shadow-sm ${selectedItems.has(item.id as string | number) ? 'bg-blue-50/50' : ''}`}
+                    key={(item.id as string) || index} // Usar item.id que suele ser único
+                    className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-150 ease-in-out ${
+                      selectedItems.has(item.id) ? 'bg-blue-50 dark:bg-blue-900' : ''
+                    }`}
+                    style={rowStyleGetter ? rowStyleGetter(item as T) : {}} // Aplicar estilos de fila
                   >
                     {/* Celda para checkbox */}
                     <td

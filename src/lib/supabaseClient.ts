@@ -11,6 +11,12 @@ const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
+  // Añadir una key única al storage para intentar evitar problemas de caché
+  // Esto es más una medida de diagnóstico que una solución permanente
+  // storage: {
+  //   // @ts-ignore // Ignorar temporalmente el error de tipo si es necesario
+  //   key: `storage-${new Date().getTime()}`,
+  // },
 });
 
 // Cliente mejorado con métodos abstractos para operaciones comunes en tablas

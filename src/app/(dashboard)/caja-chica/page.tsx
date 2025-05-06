@@ -21,6 +21,7 @@ import {
 import { PermissionType, usePermissions } from '@/hooks/use-permissions';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Formateador de moneda
 const formatCurrency = (value: number): string => {
@@ -58,13 +59,14 @@ export default function CajaChicaPage() {
     confirmText: 'Eliminar',
   });
 
-  // Diálogo de confirmación para marcar como pagado
-  const pagarConfirm = useConfirmDialog({
-    title: 'Marcar como Pagado',
-    description: '¿Está seguro de que desea marcar este movimiento como pagado?',
-    type: 'warning',
-    variant: 'default',
-    confirmText: 'Confirmar',
+  // Estados para el modal de registro de cuotas
+  const [showPagoCuotaModal, setShowPagoCuotaModal] = useState(false);
+  const [currentMovimientoParaPago, setCurrentMovimientoParaPago] = useState<CajaChica | null>(
+    null
+  );
+  const [pagoCuotaData, setPagoCuotaData] = useState({
+    importe: 0,
+    fecha: new Date().toISOString().split('T')[0],
   });
 
   // Cargar datos desde Supabase al iniciar
@@ -136,7 +138,7 @@ export default function CajaChicaPage() {
       }
 
       // Establecer pagado en false cuando el tipo es 'debe'
-      const movimientoData = {
+      const movimientoData: Partial<CajaChica> = {
         fecha: formData.fecha || new Date().toISOString().split('T')[0],
         tipo: formData.tipo as 'ingreso' | 'egreso' | 'debe',
         importe: formData.importe || 0,
@@ -146,7 +148,7 @@ export default function CajaChicaPage() {
       };
 
       // Crear nuevo movimiento
-      await cajaChicaService.crearMovimiento(movimientoData);
+      await cajaChicaService.crearMovimiento(movimientoData as CajaChica);
 
       // Recargar datos
       await fetchMovimientos();
@@ -182,22 +184,74 @@ export default function CajaChicaPage() {
     }
   };
 
-  const handlePagar = async (id: string) => {
-    // Usar el dialogo de confirmación
-    pagarConfirm.open();
-    const confirmed = await pagarConfirm.confirm();
+  // Funciones para el modal de pago de cuota
+  const handleOpenPagoCuotaModal = (movimiento: CajaChica) => {
+    setCurrentMovimientoParaPago(movimiento);
+    // Sugerir un importe o dejar en 0
+    const saldoPendiente = movimiento.importe - (movimiento.total_pagado || 0);
+    const cuotasRestantes = 5 - (movimiento.numero_cuotas_pagadas || 0);
+    let importeSugerido = 0;
+    if (cuotasRestantes > 0 && saldoPendiente > 0) {
+      // importeSugerido = parseFloat((saldoPendiente / cuotasRestantes).toFixed(2)); // Opcional: sugerir cuota
+    }
 
-    if (confirmed) {
-      try {
-        await cajaChicaService.cambiarEstadoPago(id, true);
-        await fetchMovimientos();
-        await fetchSaldoActual();
-        await fetchSaldoDebe();
-        notificationService.success('Movimiento marcado como pagado correctamente');
-      } catch (error) {
-        console.error('Error al marcar como pagado:', error);
-        notificationService.error('Error al marcar como pagado');
-      }
+    setPagoCuotaData({
+      importe: importeSugerido,
+      fecha: new Date().toISOString().split('T')[0],
+    });
+    setShowPagoCuotaModal(true);
+  };
+
+  const handleClosePagoCuotaModal = () => {
+    setShowPagoCuotaModal(false);
+    setCurrentMovimientoParaPago(null);
+    setPagoCuotaData({ importe: 0, fecha: new Date().toISOString().split('T')[0] });
+  };
+
+  const handlePagoCuotaInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type } = e.target;
+    setPagoCuotaData({
+      ...pagoCuotaData,
+      [name]: type === 'number' ? parseFloat(value) || 0 : value,
+    });
+  };
+
+  const handleSubmitPagoCuota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentMovimientoParaPago || pagoCuotaData.importe <= 0) {
+      notificationService.error('Por favor, ingrese un importe válido para la cuota.');
+      return;
+    }
+
+    const {
+      id,
+      importe: importeTotalDeuda,
+      total_pagado,
+      numero_cuotas_pagadas,
+    } = currentMovimientoParaPago;
+
+    try {
+      // Se asume que cajaChicaService.registrarPagoCuota existe y maneja las validaciones de negocio
+      // (ej. no exceder 5 cuotas, no pagar más del saldo pendiente)
+      // Esta función debería ser: await cajaChicaService.registrarPagoCuota(id, pagoCuotaData.importe, pagoCuotaData.fecha);
+      // Pasamos los datos adicionales para que el servicio pueda validar si es necesario
+      await cajaChicaService.registrarPagoCuota(
+        id,
+        pagoCuotaData.importe,
+        pagoCuotaData.fecha,
+        importeTotalDeuda,
+        total_pagado || 0,
+        numero_cuotas_pagadas || 0
+      );
+
+      notificationService.success('Cuota registrada correctamente.');
+      await fetchMovimientos();
+      await fetchSaldoActual();
+      await fetchSaldoDebe();
+      handleClosePagoCuotaModal();
+    } catch (error: any) {
+      console.error('Error al registrar cuota:', error);
+      notificationService.error(error.message || 'Error al registrar la cuota.');
     }
   };
 
@@ -212,8 +266,8 @@ export default function CajaChicaPage() {
     });
   };
 
-  // Icono para el botón de pagar
-  const PaymentIcon = () => (
+  // Icono para el botón de pagar/registrar cuota
+  const RegisterQuotaIcon = () => (
     <svg
       xmlns="http://www.w3.org/2000/svg"
       className="h-4 w-4"
@@ -230,14 +284,25 @@ export default function CajaChicaPage() {
     </svg>
   );
 
-  // Botón para marcar como pagado
-  const PayButton = ({ onClick }: { onClick: () => void }) => (
+  // Botón para marcar como pagado / registrar cuota
+  const RegisterQuotaButton = ({
+    onClick,
+    disabled,
+  }: {
+    onClick: () => void;
+    disabled?: boolean;
+  }) => (
     <button
       onClick={onClick}
-      className="bg-green-100 text-green-700 hover:bg-green-200 p-1.5 rounded-md"
-      title="Marcar como pagado"
+      className={`p-1.5 rounded-md ${
+        disabled
+          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+      }`}
+      title={disabled ? 'Límite de cuotas alcanzado o deuda pagada' : 'Registrar Pago de Cuota'}
+      disabled={disabled}
     >
-      <PaymentIcon />
+      <RegisterQuotaIcon />
     </button>
   );
 
@@ -251,25 +316,32 @@ export default function CajaChicaPage() {
     {
       header: 'Tipo',
       accessor: 'tipo',
-      cell: (value, row) => (
-        <span
-          className={`px-2 py-1 rounded-full text-xs font-medium ${
-            row.tipo === 'ingreso'
-              ? 'bg-green-100 text-green-800'
+      cell: (value, row) => {
+        const totalPagado = row.total_pagado || 0;
+        const esDebePagadoTotalmente = row.tipo === 'debe' && totalPagado >= row.importe;
+
+        return (
+          <span
+            className={`px-2 py-1 rounded-full text-xs font-medium ${
+              row.tipo === 'ingreso'
+                ? 'bg-green-100 text-green-800'
+                : row.tipo === 'egreso'
+                  ? 'bg-red-100 text-red-800'
+                  : esDebePagadoTotalmente
+                    ? 'bg-green-100 text-green-800'
+                    : 'bg-yellow-100 text-yellow-800'
+            }`}
+          >
+            {row.tipo === 'ingreso'
+              ? 'Ingreso'
               : row.tipo === 'egreso'
-                ? 'bg-red-100 text-red-800'
-                : 'bg-yellow-100 text-yellow-800'
-          }`}
-        >
-          {row.tipo === 'ingreso'
-            ? 'Ingreso'
-            : row.tipo === 'egreso'
-              ? 'Egreso'
-              : row.pagado
-                ? 'Debe (Pagado)'
-                : 'Debe'}
-        </span>
-      ),
+                ? 'Egreso'
+                : esDebePagadoTotalmente
+                  ? 'Debe (Pagado)'
+                  : 'Debe'}
+          </span>
+        );
+      },
     },
     {
       header: 'Concepto',
@@ -294,16 +366,60 @@ export default function CajaChicaPage() {
     {
       header: 'Estado',
       accessor: 'pagado',
-      cell: (value, row) =>
-        row.tipo === 'debe' && (
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              row.pagado ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-            }`}
-          >
-            {row.pagado ? 'Pagado' : 'Pendiente'}
-          </span>
-        ),
+      cell: (value, row) => {
+        if (row.tipo === 'debe') {
+          const totalPagado = row.total_pagado || 0;
+          const numCuotas = row.numero_cuotas_pagadas || 0;
+          // const saldoPendiente = row.importe - totalPagado; // No usado aquí directamente
+
+          let statusElement;
+          if (totalPagado >= row.importe) {
+            statusElement = (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Pagado Total ({numCuotas} cuota{numCuotas === 1 ? '' : 's'})
+              </span>
+            );
+          } else if (totalPagado > 0) {
+            statusElement = (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Parcial: {formatCurrency(totalPagado)} / {formatCurrency(row.importe)} ({numCuotas}
+                /5)
+              </span>
+            );
+          } else {
+            statusElement = (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                Pendiente
+              </span>
+            );
+          }
+
+          if (row.pagos_cuotas && row.pagos_cuotas.length > 0) {
+            return (
+              <TooltipProvider>
+                <Tooltip delayDuration={100}>
+                  <TooltipTrigger asChild>
+                    <div>{statusElement}</div>
+                  </TooltipTrigger>
+                  <TooltipContent className="bg-gray-800 text-white p-2 rounded-md shadow-lg">
+                    <p className="font-semibold mb-1">Historial de Pagos:</p>
+                    <ul className="list-disc list-inside text-xs">
+                      {row.pagos_cuotas.map((cuota) => (
+                        <li key={cuota.id}>
+                          {format(new Date(cuota.fecha_pago), 'dd/MM/yyyy')}:{' '}
+                          {formatCurrency(cuota.importe_cuota)}
+                        </li>
+                      ))}
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            );
+          }
+          return statusElement;
+        }
+        return null;
+      },
     },
     {
       header: 'Observaciones',
@@ -312,194 +428,317 @@ export default function CajaChicaPage() {
     {
       header: 'Acciones',
       accessor: 'id',
-      cell: (value, row) => (
-        <DeletePermission>
-          <ActionButtonGroup>
-            {row.tipo === 'debe' && !row.pagado && (
-              <PayButton onClick={() => handlePagar(row.id)} />
-            )}
-            <DeleteButton onClick={() => handleDelete(row.id)} />
-          </ActionButtonGroup>
-        </DeletePermission>
-      ),
+      cell: (value, row) => {
+        const totalPagado = row.total_pagado || 0;
+        const numCuotas = row.numero_cuotas_pagadas || 0;
+        const puedePagarMasCuotas =
+          row.tipo === 'debe' && totalPagado < row.importe && numCuotas < 5;
+
+        return (
+          <DeletePermission>
+            <ActionButtonGroup>
+              {puedePagarMasCuotas && (
+                <RegisterQuotaButton onClick={() => handleOpenPagoCuotaModal(row)} />
+              )}
+              <DeleteButton onClick={() => handleDelete(row.id)} />
+            </ActionButtonGroup>
+          </DeletePermission>
+        );
+      },
     },
   ];
 
   return (
-    <div className="container px-4 mx-auto">
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Caja Chica</h1>
+    <TooltipProvider>
+      <div className="container px-4 mx-auto">
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+            <h1 className="text-2xl font-bold text-gray-800">Caja Chica</h1>
 
-          <div className="mt-4 md:mt-0 flex flex-col md:flex-row md:items-center gap-4">
-            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-              <p className="text-sm text-gray-500 mb-1">Saldo Actual:</p>
-              <p
-                className={`text-xl font-bold ${saldoActual >= 0 ? 'text-green-600' : 'text-red-600'}`}
-              >
-                {formatCurrency(saldoActual)}
-              </p>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
-              <p className="text-sm text-gray-500 mb-1">Total Debe Pendiente:</p>
-              <p className="text-xl font-bold text-yellow-600">{formatCurrency(saldoDebe)}</p>
-            </div>
-
-            <CreatePermission>
-              <button
-                onClick={() => setShowForm(true)}
-                className="bg-[#262475] hover:bg-[#1a1a5c] text-white px-4 py-2 rounded-lg transition-colors duration-300 flex items-center justify-center"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5 mr-2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
+            <div className="mt-4 md:mt-0 flex flex-col md:flex-row md:items-center gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+                <p className="text-sm text-gray-500 mb-1">Saldo Actual:</p>
+                <p
+                  className={`text-xl font-bold ${saldoActual >= 0 ? 'text-green-600' : 'text-red-600'}`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-                Nuevo Movimiento
-              </button>
-            </CreatePermission>
+                  {formatCurrency(saldoActual)}
+                </p>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg shadow-sm">
+                <p className="text-sm text-gray-500 mb-1">Total Debe Pendiente:</p>
+                <p className="text-xl font-bold text-yellow-600">{formatCurrency(saldoDebe)}</p>
+              </div>
+
+              <CreatePermission>
+                <button
+                  onClick={() => setShowForm(true)}
+                  className="bg-[#262475] hover:bg-[#1a1a5c] text-white px-4 py-2 rounded-lg transition-colors duration-300 flex items-center justify-center"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5 mr-2"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  Nuevo Movimiento
+                </button>
+              </CreatePermission>
+            </div>
           </div>
+
+          {/* Tabla de movimientos */}
+          <ViewPermission>
+            <DataTable
+              columns={columns}
+              data={movimientos}
+              title="Movimientos de Caja Chica"
+              isLoading={loading}
+              filters={{
+                searchField: 'concepto',
+                year: true,
+                month: true,
+              }}
+            />
+          </ViewPermission>
         </div>
 
-        {/* Tabla de movimientos */}
-        <ViewPermission>
-          <DataTable
-            columns={columns}
-            data={movimientos}
-            title="Movimientos de Caja Chica"
-            isLoading={loading}
-            filters={{
-              searchField: 'concepto',
-              year: true,
-              month: true,
-            }}
-          />
-        </ViewPermission>
-      </div>
+        {/* Modal para nuevo movimiento */}
+        <Modal
+          isOpen={showForm}
+          onClose={() => setShowForm(false)}
+          title="Nuevo Movimiento de Caja Chica"
+        >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Fecha (solo lectura - fecha actual) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
+                <input
+                  type="date"
+                  name="fecha"
+                  value={formData.fecha}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">La fecha es siempre la actual</p>
+              </div>
 
-      {/* Modal para nuevo movimiento */}
-      <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title="Nuevo Movimiento de Caja Chica"
-      >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Fecha (solo lectura - fecha actual) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-              <input
-                type="date"
-                name="fecha"
-                value={formData.fecha}
-                readOnly
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-100 cursor-not-allowed"
-              />
-              <p className="text-xs text-gray-500 mt-1">La fecha es siempre la actual</p>
+              {/* Tipo (ingreso/egreso/debe) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="tipo"
+                  value={formData.tipo}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
+                  required
+                >
+                  <option value="ingreso">Ingreso</option>
+                  <option value="egreso">Egreso</option>
+                  <option value="debe">Debe</option>
+                </select>
+                {formData.tipo === 'debe' && (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    Este monto quedará como deuda pendiente y restará del saldo hasta que sea
+                    marcado como pagado.
+                  </p>
+                )}
+              </div>
             </div>
 
-            {/* Tipo (ingreso/egreso/debe) */}
+            {/* Importe */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo <span className="text-red-500">*</span>
+                Importe <span className="text-red-500">*</span>
               </label>
-              <select
-                name="tipo"
-                value={formData.tipo}
+              <input
+                type="number"
+                name="importe"
+                value={formData.importe}
+                onChange={handleInputChange}
+                step="0.01"
+                min="0.01"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
+                required
+              />
+            </div>
+
+            {/* Concepto */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Concepto <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="concepto"
+                value={formData.concepto}
                 onChange={handleInputChange}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
                 required
+              />
+            </div>
+
+            {/* Observaciones */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
+              <textarea
+                name="observaciones"
+                value={formData.observaciones}
+                onChange={handleInputChange}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
               >
-                <option value="ingreso">Ingreso</option>
-                <option value="egreso">Egreso</option>
-                <option value="debe">Debe</option>
-              </select>
-              {formData.tipo === 'debe' && (
-                <p className="text-xs text-yellow-600 mt-1">
-                  Este monto quedará como deuda pendiente y restará del saldo hasta que sea marcado
-                  como pagado.
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white bg-[#262475] hover:bg-[#1a1a5c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
+              >
+                Guardar
+              </button>
+            </div>
+          </form>
+        </Modal>
+
+        {/* Diálogo de confirmación de eliminación */}
+        <ConfirmDialog {...deleteConfirm.dialogProps} />
+
+        {/* Modal para registrar pago de cuota */}
+        {currentMovimientoParaPago && (
+          <Modal
+            isOpen={showPagoCuotaModal}
+            onClose={handleClosePagoCuotaModal}
+            title={`Registrar Pago para: ${currentMovimientoParaPago.concepto}`}
+          >
+            <form onSubmit={handleSubmitPagoCuota} className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600">
+                  Deuda Total: {formatCurrency(currentMovimientoParaPago.importe)}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Total Pagado: {formatCurrency(currentMovimientoParaPago.total_pagado || 0)}
+                </p>
+                <p className="text-sm font-medium text-yellow-700">
+                  Saldo Pendiente:{' '}
+                  {formatCurrency(
+                    currentMovimientoParaPago.importe -
+                      (currentMovimientoParaPago.total_pagado || 0)
+                  )}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Cuotas Pagadas: {currentMovimientoParaPago.numero_cuotas_pagadas || 0} / 5
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="fecha_pago_cuota"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Fecha de Pago
+                </label>
+                <input
+                  type="date"
+                  id="fecha_pago_cuota"
+                  name="fecha"
+                  value={pagoCuotaData.fecha}
+                  onChange={handlePagoCuotaInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
+                  required
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="importe_cuota"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  Importe de la Cuota <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  id="importe_cuota"
+                  name="importe"
+                  value={pagoCuotaData.importe}
+                  onChange={handlePagoCuotaInputChange}
+                  step="0.01"
+                  min="0.01"
+                  max={parseFloat(
+                    (
+                      currentMovimientoParaPago.importe -
+                      (currentMovimientoParaPago.total_pagado || 0)
+                    ).toFixed(2)
+                  )}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
+                  required
+                />
+                {pagoCuotaData.importe >
+                  parseFloat(
+                    (
+                      currentMovimientoParaPago.importe -
+                      (currentMovimientoParaPago.total_pagado || 0)
+                    ).toFixed(2)
+                  ) && (
+                  <p className="text-xs text-red-500 mt-1">
+                    El importe no puede exceder el saldo pendiente.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleClosePagoCuotaModal}
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white bg-[#262475] hover:bg-[#1a1a5c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
+                  disabled={
+                    (currentMovimientoParaPago.numero_cuotas_pagadas || 0) >= 5 ||
+                    pagoCuotaData.importe <= 0 ||
+                    pagoCuotaData.importe >
+                      parseFloat(
+                        (
+                          currentMovimientoParaPago.importe -
+                          (currentMovimientoParaPago.total_pagado || 0)
+                        ).toFixed(2)
+                      )
+                  }
+                >
+                  Registrar Pago
+                </button>
+              </div>
+              {(currentMovimientoParaPago.numero_cuotas_pagadas || 0) >= 5 && (
+                <p className="text-xs text-red-500 mt-2 text-center">
+                  Ya se alcanzó el límite de 5 cuotas para este movimiento.
                 </p>
               )}
-            </div>
-          </div>
-
-          {/* Importe */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Importe <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              name="importe"
-              value={formData.importe}
-              onChange={handleInputChange}
-              step="0.01"
-              min="0.01"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
-              required
-            />
-          </div>
-
-          {/* Concepto */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Concepto <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              name="concepto"
-              value={formData.concepto}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
-              required
-            />
-          </div>
-
-          {/* Observaciones */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones</label>
-            <textarea
-              name="observaciones"
-              value={formData.observaciones}
-              onChange={handleInputChange}
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#262475] focus:border-[#262475]"
-            />
-          </div>
-
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 rounded-md shadow-sm text-sm font-medium text-white bg-[#262475] hover:bg-[#1a1a5c] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#262475]"
-            >
-              Guardar
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Diálogo de confirmación de eliminación */}
-      <ConfirmDialog {...deleteConfirm.dialogProps} />
-
-      {/* Diálogo de confirmación para marcar como pagado */}
-      <ConfirmDialog {...pagarConfirm.dialogProps} />
-    </div>
+            </form>
+          </Modal>
+        )}
+      </div>
+    </TooltipProvider>
   );
 }
