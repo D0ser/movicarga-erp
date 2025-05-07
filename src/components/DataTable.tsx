@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -47,7 +47,11 @@ interface DataTableProps<T extends DataItem = DataItem> {
     year?: boolean;
     month?: boolean;
     searchField?: string;
-    searchFields?: Array<{ accessor: string; label: string }>;
+    searchFields?: Array<{
+      accessor: string;
+      label: string;
+      inputType?: 'text' | 'date' | 'dateRange';
+    }>;
     customFilters?: Array<{
       name: string;
       label: string;
@@ -76,6 +80,8 @@ export default function DataTable<T extends DataItem = DataItem>({
   const [filterYear, setFilterYear] = useState<string>('');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const [selectedSearchField, setSelectedSearchField] = useState<string>(
     filters?.searchFields && filters.searchFields.length > 0
       ? filters.searchFields[0].accessor
@@ -97,6 +103,7 @@ export default function DataTable<T extends DataItem = DataItem>({
   // Estado para mostrar la notificación de confirmación
   const [showConfirmationNotification, setShowConfirmationNotification] = useState(false);
   const [deletedCount, setDeletedCount] = useState(0);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   // Obtener años y meses únicos para los filtros
   const years = useMemo(() => {
@@ -160,33 +167,59 @@ export default function DataTable<T extends DataItem = DataItem>({
     return sortedData.filter((item) => {
       // Filtro por año
       if (filterYear && filters?.year) {
-        const itemYear =
-          item.fecha instanceof Date
-            ? item.fecha.getFullYear()
-            : new Date(item.fecha as string).getFullYear();
-        if (itemYear.toString() !== filterYear) return false;
+        const itemDate = item.fecha instanceof Date ? item.fecha : new Date(item.fecha as string);
+        if (isNaN(itemDate.getTime()) || itemDate.getFullYear().toString() !== filterYear)
+          return false;
       }
 
       // Filtro por mes
       if (filterMonth && filters?.month) {
-        const itemMonth =
-          item.fecha instanceof Date
-            ? item.fecha.getMonth()
-            : new Date(item.fecha as string).getMonth();
-        if (itemMonth.toString() !== filterMonth) return false;
+        const itemDate = item.fecha instanceof Date ? item.fecha : new Date(item.fecha as string);
+        if (isNaN(itemDate.getTime()) || itemDate.getMonth().toString() !== filterMonth)
+          return false;
       }
 
-      // Filtro por término de búsqueda
-      if (searchTerm) {
-        if (filters?.searchFields && filters.searchFields.length > 0) {
-          // Si hay múltiples campos de búsqueda predefinidos, buscar en el campo seleccionado
-          const searchValue = item[selectedSearchField]?.toString().toLowerCase() || '';
-          if (!searchValue.includes(searchTerm.toLowerCase())) return false;
-        } else if (filters?.searchField) {
-          // Si solo había un campo de búsqueda original pero el usuario seleccionó otro
-          const searchValue = item[selectedSearchField]?.toString().toLowerCase() || '';
-          if (!searchValue.includes(searchTerm.toLowerCase())) return false;
+      const currentSearchFieldConfig = filters?.searchFields?.find(
+        (sf) => sf.accessor === selectedSearchField
+      );
+      const searchInputType = currentSearchFieldConfig?.inputType || 'text';
+
+      // Filtro por rango de fechas
+      if (searchInputType === 'dateRange' && currentSearchFieldConfig && (dateFrom || dateTo)) {
+        const itemDateStr = item[currentSearchFieldConfig.accessor]?.toString();
+        if (!itemDateStr) return false;
+
+        try {
+          // Asegurar formato de fecha adecuado para comparación
+          let itemDate: Date;
+
+          // Manejar diferentes formatos de fecha
+          if (itemDateStr.includes('T')) {
+            // Si ya tiene formato ISO con hora
+            itemDate = new Date(itemDateStr);
+          } else {
+            // Si solo tiene la fecha (YYYY-MM-DD)
+            itemDate = new Date(itemDateStr + 'T00:00:00Z');
+          }
+
+          if (dateFrom) {
+            const fromDate = new Date(dateFrom + 'T00:00:00Z');
+            console.log('Filtrando por fecha desde:', fromDate, 'Item fecha:', itemDate);
+            if (itemDate < fromDate) return false;
+          }
+          if (dateTo) {
+            const toDate = new Date(dateTo + 'T00:00:00Z');
+            console.log('Filtrando por fecha hasta:', toDate, 'Item fecha:', itemDate);
+            if (itemDate > toDate) return false;
+          }
+        } catch (e) {
+          console.error('Error parsing item date for range filter:', itemDateStr, e);
+          return false;
         }
+      } else if (searchInputType !== 'dateRange' && searchTerm) {
+        // Filtro por término de búsqueda (texto o fecha exacta)
+        const searchValue = item[selectedSearchField]?.toString().toLowerCase() || '';
+        if (!searchValue.includes(searchTerm.toLowerCase())) return false;
       }
 
       // Filtros personalizados
@@ -206,6 +239,8 @@ export default function DataTable<T extends DataItem = DataItem>({
     filterYear,
     filterMonth,
     searchTerm,
+    dateFrom,
+    dateTo,
     selectedSearchField,
     filters,
     customFilterValues,
@@ -1033,13 +1068,42 @@ export default function DataTable<T extends DataItem = DataItem>({
       </div>
 
       {/* Sección de filtros - colapsable en móvil */}
-      {(filters?.year || filters?.month || filters?.searchField || filters?.customFilters) && (
+      {(filters?.year ||
+        filters?.month ||
+        filters?.searchField ||
+        filters?.searchFields ||
+        filters?.customFilters) && (
         <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-          <details className="sm:hidden">
-            <summary className="text-sm font-medium text-gray-700 cursor-pointer flex items-center">
+          {/* Sección de filtros para móvil */}
+          <div className="sm:hidden">
+            <button
+              onClick={() => setMobileFiltersOpen(!mobileFiltersOpen)}
+              className="w-full flex items-center justify-between text-sm font-medium text-gray-700 cursor-pointer py-2 focus:outline-none"
+              aria-expanded={mobileFiltersOpen}
+              aria-controls="mobile-filters-content"
+            >
+              <span className="flex items-center">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-4 w-4 mr-1.5 text-primary"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  />
+                </svg>
+                Filtros
+              </span>
               <svg
+                className={`w-5 h-5 transform transition-transform duration-300 ease-in-out ${
+                  mobileFiltersOpen ? 'rotate-180' : ''
+                }`}
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 mr-1.5 text-primary"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -1048,129 +1112,136 @@ export default function DataTable<T extends DataItem = DataItem>({
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  d="M19 9l-7 7-7-7"
                 />
               </svg>
-              Filtros
-            </summary>
-            <div className="mt-3 space-y-3 pt-2 border-t border-gray-200">{renderFilters()}</div>
-          </details>
+            </button>
+            <div
+              id="mobile-filters-content"
+              className={`
+                transition-all duration-500 ease-in-out overflow-hidden
+                ${mobileFiltersOpen ? 'max-h-[1000px] opacity-100 mt-3 pt-3 border-t border-gray-200' : 'max-h-0 opacity-0 pt-0 mt-0'}
+              `}
+            >
+              <div className="space-y-3">{renderFilters()}</div>
+            </div>
+          </div>
+          {/* Filtros para pantallas grandes */}
           <div className="hidden sm:block">
             <div className="flex flex-wrap gap-3 items-end">{renderFilters()}</div>
           </div>
         </div>
       )}
 
-      {/* Vista de tarjetas para móvil */}
+      {/* Vista de tarjetas */}
       {isCardView ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-6 bg-gray-50">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4 md:p-6 bg-gray-50">
           {isLoading ? (
-            <div className="col-span-full flex justify-center py-8">
-              <Spinner size="md" />
+            <div className="col-span-full flex justify-center py-12">
+              <Spinner size="lg" />
             </div>
           ) : paginatedData.length > 0 ? (
             paginatedData.map((item, index) => (
               <div
                 key={item.id?.toString() || index}
-                className={`group bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden transform hover:-translate-y-2 relative border ${
-                  selectedItems.has(item.id as string | number)
-                    ? 'border-primary bg-blue-50/30'
-                    : 'border-transparent hover:border-primary/20'
-                }`}
+                className={`
+                  group bg-white rounded-lg shadow-lg hover:shadow-xl 
+                  transition-all duration-300 overflow-hidden relative border-l-4 
+                  ${
+                    selectedItems.has(item.id as string | number)
+                      ? 'border-primary shadow-primary/30' // Borde y sombra más pronunciados si está seleccionada
+                      : item.estado === 'Vigente' ||
+                          item.estado === 'Activo' ||
+                          item.estado === 'Completado'
+                        ? 'border-green-500'
+                        : item.estado === 'Anulada' ||
+                            item.estado === 'Inactivo' ||
+                            item.estado === 'Cancelado'
+                          ? 'border-red-500'
+                          : item.estado === 'Pendiente' || item.estado === 'Programado'
+                            ? 'border-yellow-500'
+                            : 'border-gray-300' // Borde por defecto
+                  }
+                `}
               >
                 {/* Checkbox para selección en tarjeta */}
-                <div className="absolute top-2 left-2 z-20">
+                <div className="absolute top-3 right-3 z-20">
                   <input
                     type="checkbox"
                     checked={item.id ? selectedItems.has(item.id as string | number) : false}
                     onChange={() => item.id && toggleItemSelection(item.id as string | number)}
-                    className="h-4 w-4 text-primary rounded border-gray-300 focus:ring-primary"
+                    className="h-5 w-5 text-primary rounded border-gray-400 focus:ring-primary focus:ring-offset-1"
                   />
                 </div>
 
-                {/* Efecto de iluminación en hover */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
-
-                {/* Banda superior decorativa */}
-                <div className="h-1.5 bg-gradient-to-r from-primary via-primary/80 to-secondary w-full absolute top-0 left-0 transform origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-500"></div>
-
-                <div className="p-6 space-y-4 relative">
-                  {/* Icono decorativo superior */}
-                  <div className="absolute -right-8 -top-8 bg-primary/5 w-20 h-20 rounded-full flex items-center justify-center transform rotate-12 group-hover:rotate-0 group-hover:scale-110 transition-all duration-500"></div>
-
-                  {/* Primera columna con tratamiento especial - título principal */}
-                  {columns.length > 0 && columns[0].header !== 'Acciones' && (
-                    <div
-                      key={`${item.id}-${columns[0].accessor}`}
-                      className="mb-4 pb-2 border-b border-gray-100 relative z-10"
-                    >
-                      <div className="text-xs font-semibold text-primary/60 tracking-wide uppercase">
-                        {columns[0].header}
-                      </div>
-                      <div className="text-lg font-bold text-gray-900 group-hover:text-primary transition-colors">
-                        {columns[0].cell
-                          ? (() => {
-                              const cellContent = columns[0].cell(
-                                item[columns[0].accessor],
-                                item as T
-                              );
-                              if (
-                                React.isValidElement(cellContent) &&
-                                cellContent.props.className?.includes('justify-end')
-                              ) {
-                                return React.cloneElement(cellContent as React.ReactElement, {
-                                  className: cellContent.props.className.replace(
-                                    'justify-end',
-                                    'justify-start'
-                                  ),
-                                });
-                              }
-                              return cellContent;
-                            })()
-                          : item[columns[0].accessor]?.toString() || ''}
-                      </div>
+                {/* Contenido Principal de la Tarjeta */}
+                <div className="p-5 space-y-4">
+                  {/* Sección Superior: Titulo Principal (usualmente el primer campo) y un campo destacado (ej. Estado) */}
+                  {columns.length > 0 && (
+                    <div className="flex justify-between items-start mb-3 pb-3 border-b border-gray-200">
+                      {columns[0].header !== 'Acciones' && (
+                        <div className="flex-grow pr-2">
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {columns[0].header}
+                          </p>
+                          <h3 className="text-lg font-semibold text-gray-800 group-hover:text-primary transition-colors truncate">
+                            {columns[0].cell
+                              ? columns[0].cell(item[columns[0].accessor], item as T)
+                              : item[columns[0].accessor]?.toString() || 'N/A'}
+                          </h3>
+                        </div>
+                      )}
+                      {/* Mostrar el campo 'Estado' o similar si existe y no es la columna de acciones */}
+                      {columns.find(
+                        (col) => col.accessor === 'estado' && col.header !== 'Acciones'
+                      ) && (
+                        <div className="flex-shrink-0 text-right">
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {columns.find((col) => col.accessor === 'estado')?.header || 'Estado'}
+                          </p>
+                          <div className="text-sm font-medium">
+                            {columns
+                              .find((col) => col.accessor === 'estado')
+                              ?.cell?.(item.estado, item as T) ||
+                              item.estado ||
+                              'N/A'}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Resto de columnas */}
-                  <div className="grid grid-cols-2 gap-4">
-                    {columns.map((column, colIndex) =>
-                      column.header !== 'Acciones' && colIndex !== 0 ? (
-                        <div
-                          key={`${item.id}-${column.accessor}`}
-                          className="space-y-1 relative z-10"
-                        >
-                          <div className="text-xs font-semibold text-gray-400 tracking-wide uppercase">
+                  {/* Campos en dos columnas */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    {columns.map((column, colIndex) => {
+                      // Omitir el primer campo (ya mostrado como título), el campo de estado (ya mostrado arriba) y las acciones
+                      if (
+                        column.header === 'Acciones' ||
+                        colIndex === 0 ||
+                        column.accessor === 'estado'
+                      ) {
+                        return null;
+                      }
+                      return (
+                        <div key={`${item.id}-${column.accessor}`} className="space-y-0.5">
+                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                             {column.header}
-                          </div>
-                          <div className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition-colors">
+                          </p>
+                          <p className="text-sm text-gray-700 group-hover:text-gray-800 break-words">
                             {column.cell
-                              ? (() => {
-                                  const cellContent = column.cell(item[column.accessor], item as T);
-                                  // Si el contenido es un div con justify-end, lo ajustamos
-                                  if (
-                                    React.isValidElement(cellContent) &&
-                                    cellContent.props.className?.includes('justify-end')
-                                  ) {
-                                    return React.cloneElement(cellContent as React.ReactElement, {
-                                      className: cellContent.props.className.replace(
-                                        'justify-end',
-                                        'justify-start'
-                                      ),
-                                    });
-                                  }
-                                  return cellContent;
-                                })()
-                              : item[column.accessor]?.toString() || ''}
-                          </div>
+                              ? column.cell(item[column.accessor], item as T)
+                              : item[column.accessor]?.toString() || (
+                                  <span className="text-gray-400">-</span>
+                                )}
+                          </p>
                         </div>
-                      ) : null
-                    )}
+                      );
+                    })}
                   </div>
 
                   {/* Botones de acción */}
                   {columns.find((col) => col.header === 'Acciones') && (
-                    <div className="mt-6 pt-4 border-t border-gray-100 flex flex-wrap gap-2 justify-center">
+                    <div className="mt-5 pt-4 border-t border-gray-200 flex items-center justify-end space-x-3">
                       {(() => {
                         const actionColumn = columns.find((col) => col.header === 'Acciones');
                         if (!actionColumn) return null;
@@ -1182,102 +1253,91 @@ export default function DataTable<T extends DataItem = DataItem>({
                             ) as React.ReactElement)
                           : null;
 
-                        if (!cellContent || !cellContent.props || !cellContent.props.children) {
-                          return cellContent;
-                        }
-
                         if (
-                          cellContent.type === 'div' &&
-                          Array.isArray(cellContent.props.children)
+                          !cellContent ||
+                          !cellContent.props ||
+                          (!React.isValidElement(cellContent.props.children) &&
+                            !Array.isArray(cellContent.props.children))
                         ) {
-                          return cellContent.props.children.map(
-                            (child: React.ReactElement, btnIndex: number) => {
-                              if (!child || child.type !== 'button') return child;
-
-                              const buttonText = child.props.children;
-                              const buttonClass = child.props.className || '';
-                              const buttonOnClick = child.props.onClick;
-
-                              let icon = '';
-                              let bgColor = 'bg-gray-50';
-                              let textColor = 'text-gray-700';
-                              let hoverEffect =
-                                'hover:bg-gray-600 hover:text-white hover:scale-105';
-
-                              if (
-                                buttonClass.includes('blue') ||
-                                (typeof buttonText === 'string' && buttonText.includes('Edit'))
-                              ) {
-                                icon =
-                                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />';
-                                bgColor = 'bg-blue-50';
-                                textColor = 'text-blue-700';
-                                hoverEffect = 'hover:bg-blue-600 hover:text-white hover:scale-105';
-                              } else if (
-                                buttonClass.includes('red') ||
-                                (typeof buttonText === 'string' && buttonText.includes('Elim'))
-                              ) {
-                                icon =
-                                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />';
-                                bgColor = 'bg-red-50';
-                                textColor = 'text-red-700';
-                                hoverEffect = 'hover:bg-red-600 hover:text-white hover:scale-105';
-                              } else if (
-                                buttonClass.includes('yellow') ||
-                                (typeof buttonText === 'string' && buttonText.includes('Desactiv'))
-                              ) {
-                                icon =
-                                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />';
-                                bgColor = 'bg-amber-50';
-                                textColor = 'text-amber-700';
-                                hoverEffect = 'hover:bg-amber-600 hover:text-white hover:scale-105';
-                              } else if (
-                                buttonClass.includes('green') ||
-                                (typeof buttonText === 'string' &&
-                                  (buttonText.includes('Activ') ||
-                                    buttonText.includes('Apro') ||
-                                    buttonText.includes('Pagar')))
-                              ) {
-                                icon =
-                                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />';
-                                bgColor = 'bg-green-50';
-                                textColor = 'text-green-700';
-                                hoverEffect = 'hover:bg-green-600 hover:text-white hover:scale-105';
-                              } else if (
-                                buttonClass.includes('purple') ||
-                                (typeof buttonText === 'string' && buttonText.includes('Cambiar'))
-                              ) {
-                                icon =
-                                  '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />';
-                                bgColor = 'bg-purple-50';
-                                textColor = 'text-purple-700';
-                                hoverEffect =
-                                  'hover:bg-purple-600 hover:text-white hover:scale-105';
-                              }
-
-                              return (
-                                <button
-                                  key={btnIndex}
-                                  onClick={buttonOnClick}
-                                  className={`${bgColor} ${textColor} ${hoverEffect} px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-all duration-300 flex items-center gap-2`}
-                                  title={typeof buttonText === 'string' ? buttonText : ''}
-                                >
-                                  <svg
-                                    className="h-4 w-4"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    dangerouslySetInnerHTML={{ __html: icon }}
-                                  ></svg>
-                                  {buttonText}
-                                </button>
-                              );
-                            }
+                          // Si cellContent no tiene children válidos o no es un ActionButtonGroup, renderizarlo directamente (o un placeholder)
+                          return (
+                            cellContent || <span className="text-xs text-gray-400">No actions</span>
                           );
                         }
 
-                        return cellContent;
+                        // Asumiendo que cellContent.props.children es un array de botones o ActionButtonGroup
+                        let actionButtons = cellContent.props.children;
+                        // Verificar si cellContent.type es una función y luego acceder a displayName
+                        if (
+                          typeof cellContent.type === 'function' &&
+                          (cellContent.type as React.FC & { displayName?: string }).displayName ===
+                            'ActionButtonGroup'
+                        ) {
+                          actionButtons = cellContent.props.children;
+                        }
+
+                        return React.Children.map(
+                          actionButtons,
+                          (child: React.ReactNode, btnIndex: number) => {
+                            // Asegurarse de que child sea un ReactElement válido antes de acceder a props
+                            if (!React.isValidElement(child) || child.type !== 'button')
+                              return child;
+
+                            // Extraer clases originales y onClick
+                            const originalClassName = child.props.className || '';
+                            const onClickHandler = child.props.onClick;
+
+                            // Determinar el tipo de botón (Edit, Delete, u Otro)
+                            let buttonType = 'default';
+                            if (
+                              originalClassName.includes('blue') ||
+                              child.props.title?.toLowerCase().includes('editar')
+                            )
+                              buttonType = 'edit';
+                            if (
+                              originalClassName.includes('red') ||
+                              child.props.title?.toLowerCase().includes('eliminar')
+                            )
+                              buttonType = 'delete';
+
+                            let newClassName = `
+                            px-3 py-1.5 rounded-md text-xs font-medium border
+                            flex items-center justify-center space-x-1.5
+                            transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-1
+                          `;
+                            let iconSvg = '';
+
+                            if (buttonType === 'edit') {
+                              newClassName +=
+                                ' border-blue-500 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white focus:ring-blue-400';
+                              iconSvg =
+                                '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>';
+                            } else if (buttonType === 'delete') {
+                              newClassName +=
+                                ' border-red-500 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-400';
+                              iconSvg =
+                                '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>';
+                            } else {
+                              // Botón genérico/otro
+                              newClassName +=
+                                ' border-gray-300 bg-gray-50 text-gray-700 hover:bg-gray-600 hover:text-white focus:ring-gray-400';
+                              // Podrías añadir un ícono genérico o dejarlo sin ícono
+                            }
+
+                            return (
+                              <button
+                                key={btnIndex}
+                                type="button"
+                                className={newClassName}
+                                onClick={onClickHandler}
+                                title={child.props.title || ''}
+                              >
+                                <span dangerouslySetInnerHTML={{ __html: iconSvg }} />
+                                <span>{child.props.children}</span>
+                              </button>
+                            );
+                          }
+                        );
                       })()}
                     </div>
                   )}
@@ -1285,25 +1345,25 @@ export default function DataTable<T extends DataItem = DataItem>({
               </div>
             ))
           ) : (
-            <div className="col-span-full flex flex-col items-center py-12 text-gray-500 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-10 w-10 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              </div>
-              <p className="text-lg font-medium mb-1">No se encontraron registros</p>
-              <p className="text-sm text-gray-400">Intenta modificar los filtros de búsqueda</p>
+            <div className="col-span-full text-center py-12">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="mx-auto h-12 w-12 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                />
+              </svg>
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No hay datos</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                No se encontraron registros para mostrar.
+              </p>
             </div>
           )}
         </div>
@@ -1723,15 +1783,57 @@ export default function DataTable<T extends DataItem = DataItem>({
 
   // Renderizar filtros
   function renderFilters() {
+    // Componente auxiliar para el filtro de rango de fechas
+    const DateRangeFilter = () => {
+      return (
+        <div className="w-full space-y-2 sm:flex sm:space-y-0 sm:space-x-2">
+          <div className="w-full sm:w-1/2">
+            <label htmlFor="date-from" className="block text-xs font-medium text-gray-500 mb-1">
+              Desde
+            </label>
+            <input
+              type="date"
+              id="date-from"
+              value={dateFrom || ''}
+              onChange={(e) => setDateFrom(e.target.value)}
+              max={dateTo || undefined}
+              className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            />
+          </div>
+          <div className="w-full sm:w-1/2">
+            <label htmlFor="date-to" className="block text-xs font-medium text-gray-500 mb-1">
+              Hasta
+            </label>
+            <input
+              type="date"
+              id="date-to"
+              value={dateTo || ''}
+              onChange={(e) => setDateTo(e.target.value)}
+              min={dateFrom || undefined}
+              className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            />
+          </div>
+        </div>
+      );
+    };
+
+    const isMultiField = filters?.searchFields && filters.searchFields.length > 1;
+    const baseInputClasses =
+      'h-10 w-full px-3 py-2 border border-gray-300 shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm';
+
     return (
-      <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-        {filters?.year && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">Año</label>
+      <>
+        {/* Filtro por año */}
+        {filters?.year && years.length > 0 && (
+          <div className="w-full sm:w-auto">
+            <label htmlFor="filterYear" className="sr-only">
+              Año
+            </label>
             <select
+              id="filterYear"
               value={filterYear}
               onChange={(e) => setFilterYear(e.target.value)}
-              className="border border-gray-300 rounded-md bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
+              className="h-10 border border-gray-300 rounded-md bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
               aria-label="Filtrar por año"
             >
               <option value="">Todos los años</option>
@@ -1744,13 +1846,17 @@ export default function DataTable<T extends DataItem = DataItem>({
           </div>
         )}
 
+        {/* Filtro por mes */}
         {filters?.month && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">Mes</label>
+          <div className="w-full sm:w-auto">
+            <label htmlFor="filterMonth" className="sr-only">
+              Mes
+            </label>
             <select
+              id="filterMonth"
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
-              className="border border-gray-300 rounded-md bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
+              className="h-10 border border-gray-300 rounded-md bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
               aria-label="Filtrar por mes"
             >
               <option value="">Todos los meses</option>
@@ -1763,54 +1869,20 @@ export default function DataTable<T extends DataItem = DataItem>({
           </div>
         )}
 
-        {(filters?.searchField || (filters?.searchFields && filters.searchFields.length > 0)) && (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">Buscar</label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              {/* Selector de campo de búsqueda (siempre visible ahora) */}
-              {filters?.searchField && !filters?.searchFields && (
-                // Crear un searchFields a partir del único searchField para usar la misma lógica
+        {/* Campo de búsqueda */}
+        {(filters?.searchField || filters?.searchFields) && (
+          <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
+            {filters?.searchFields && filters.searchFields.length > 1 ? (
+              <div className="flex flex-col w-full space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center">
                 <select
                   value={selectedSearchField}
                   onChange={(e) => {
                     setSelectedSearchField(e.target.value);
-                    setCurrentPage(1);
+                    setSearchTerm(''); // Resetear término de búsqueda al cambiar de campo
+                    setDateFrom(''); // Resetear fechas
+                    setDateTo('');
                   }}
-                  className="border border-gray-300 rounded-md bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
-                  aria-label="Seleccionar campo de búsqueda"
-                >
-                  <option value={filters.searchField}>
-                    {/* Convertir camelCase o snake_case a formato legible */}
-                    {filters.searchField
-                      .replace(/([A-Z])/g, ' $1')
-                      .replace(/_/g, ' ')
-                      .replace(/^\w/, (c) => c.toUpperCase())}
-                  </option>
-                  {/* Incluir todos los demás campos disponibles para búsqueda */}
-                  {columns
-                    .filter(
-                      (col) =>
-                        col.accessor !== filters.searchField &&
-                        col.header !== 'Acciones' &&
-                        typeof col.accessor === 'string'
-                    )
-                    .map((col) => (
-                      <option key={col.accessor} value={col.accessor}>
-                        {col.header}
-                      </option>
-                    ))}
-                </select>
-              )}
-              {/* Selector de campo de búsqueda (para múltiples campos predefinidos) */}
-              {filters?.searchFields && filters.searchFields.length > 0 && (
-                <select
-                  value={selectedSearchField}
-                  onChange={(e) => {
-                    setSelectedSearchField(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  className="border border-gray-300 rounded-md bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
-                  aria-label="Seleccionar campo de búsqueda"
+                  className="h-10 w-full rounded-md border-gray-300 py-2 pl-3 pr-7 text-gray-500 focus:border-primary focus:ring-primary sm:text-sm sm:w-auto sm:rounded-l-md sm:rounded-r-none"
                 >
                   {filters.searchFields.map((field) => (
                     <option key={field.accessor} value={field.accessor}>
@@ -1818,91 +1890,122 @@ export default function DataTable<T extends DataItem = DataItem>({
                     </option>
                   ))}
                 </select>
-              )}
-              {/* Campo de búsqueda */}
-              <div className="relative flex-grow">
-                <input
-                  type="text"
-                  placeholder={`Buscar por ${
-                    filters?.searchFields && filters.searchFields.length > 0
-                      ? filters.searchFields.find((f) => f.accessor === selectedSearchField)
-                          ?.label || selectedSearchField
-                      : selectedSearchField
-                          .replace(/([A-Z])/g, ' $1')
-                          .replace(/_/g, ' ')
-                          .replace(/^\w/, (c) => c.toUpperCase())
-                  }`}
-                  value={searchTerm}
-                  onChange={(e) => {
-                    setSearchTerm(e.target.value);
-                    setCurrentPage(1); // Resetear a primera página al buscar
-                  }}
-                  className="border border-gray-300 rounded-md bg-white pl-9 pr-8 py-1.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
-                  aria-label="Buscar"
-                />
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-4 w-4 text-gray-500 absolute left-3 top-1/2 transform -translate-y-1/2"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm('')}
-                    className="absolute right-2.5 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
+                {(() => {
+                  const foundConfig = filters?.searchFields?.find(
+                    (sf) => sf.accessor === selectedSearchField
+                  );
+                  const currentSearchFieldConfig = foundConfig
+                    ? foundConfig
+                    : filters?.searchField
+                      ? {
+                          accessor: filters.searchField,
+                          label:
+                            filters.searchFields?.find((f) => f.accessor === filters.searchField)
+                              ?.label || 'Término',
+                          inputType: 'text' as const,
+                        }
+                      : undefined;
+
+                  const searchInputType = currentSearchFieldConfig?.inputType || 'text';
+                  let placeholderText = `Buscar ${currentSearchFieldConfig?.label?.toLowerCase() || 'término'}...`;
+                  // isMultiField y baseInputClasses se usan desde el ámbito de renderFilters()
+
+                  if (searchInputType === 'date') {
+                    placeholderText = '';
+                  }
+
+                  if (searchInputType === 'dateRange') {
+                    return <DateRangeFilter />;
+                  } else {
+                    return (
+                      <input
+                        type={searchInputType === 'date' ? 'date' : 'text'}
+                        id="search-term"
+                        placeholder={placeholderText}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
                       />
-                    </svg>
-                  </button>
-                )}
+                    );
+                  }
+                })()}
               </div>
-            </div>
+            ) : (
+              /* Reemplazar renderSearchInput(selectedSearchField) con la lógica inline para el caso de un solo campo */
+              (() => {
+                const foundConfig = filters?.searchFields?.find(
+                  (sf) => sf.accessor === selectedSearchField
+                );
+                const currentSearchFieldConfig = foundConfig
+                  ? foundConfig
+                  : filters?.searchField
+                    ? {
+                        accessor: filters.searchField,
+                        label:
+                          filters.searchFields?.find((f) => f.accessor === filters.searchField)
+                            ?.label || 'Término',
+                        inputType: 'text' as const,
+                      }
+                    : undefined;
+
+                const searchInputType = currentSearchFieldConfig?.inputType || 'text';
+                let placeholderText = `Buscar ${currentSearchFieldConfig?.label?.toLowerCase() || 'término'}...`;
+                // isMultiField y baseInputClasses se usan desde el ámbito de renderFilters()
+                // En este contexto, isMultiField (del ámbito de renderFilters) será false.
+
+                if (searchInputType === 'date') {
+                  placeholderText = '';
+                }
+
+                if (searchInputType === 'dateRange') {
+                  return <DateRangeFilter />;
+                } else {
+                  return (
+                    <input
+                      type={searchInputType === 'date' ? 'date' : 'text'}
+                      id="search-term"
+                      placeholder={placeholderText}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                    />
+                  );
+                }
+              })()
+            )}
           </div>
         )}
 
-        {filters?.customFilters?.map((customFilter) => (
-          <div key={customFilter.name} className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-500">{customFilter.label}</label>
-            <select
-              value={customFilterValues[customFilter.name] || ''}
-              onChange={(e) => {
-                setCustomFilterValues((prev) => ({ ...prev, [customFilter.name]: e.target.value }));
-                setCurrentPage(1); // Resetear a primera página al filtrar
-              }}
-              className="border border-gray-300 rounded-md bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
-              aria-label={`Filtrar por ${customFilter.label}`}
-            >
-              <option value="">{`Todos ${customFilter.label.toLowerCase()}`}</option>
-              {customFilter.options.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        ))}
-      </div>
+        {/* Filtros personalizados */}
+        {filters?.customFilters &&
+          filters.customFilters.map((customFilter) => (
+            <div key={customFilter.name} className="w-full sm:w-auto">
+              <label htmlFor={customFilter.name} className="sr-only">
+                {customFilter.label}
+              </label>
+              <select
+                id={`custom-filter-${customFilter.name}`}
+                value={customFilterValues[customFilter.name] || ''}
+                onChange={(e) => {
+                  setCustomFilterValues((prev) => ({
+                    ...prev,
+                    [customFilter.name]: e.target.value,
+                  }));
+                  setCurrentPage(1);
+                }}
+                className="h-10 border border-gray-300 rounded-md bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
+                aria-label={`Filtrar por ${customFilter.label}`}
+              >
+                <option value="">{`Todos ${customFilter.label.toLowerCase()}`}</option>
+                {customFilter.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+      </>
     );
   }
 }

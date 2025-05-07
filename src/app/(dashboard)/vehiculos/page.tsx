@@ -282,23 +282,35 @@ export default function VehiculosPage() {
       header: 'SOAT Hasta',
       accessor: 'fecha_soat',
       cell: (value: unknown, row: VehiculoDataItem) => {
-        const dateValue = row.fecha_soat;
+        const dateValue = row.fecha_soat as string;
         if (!dateValue) return <div className="text-center">No disponible</div>;
 
-        const fechaVencimiento = new Date(dateValue);
+        const fechaVencimiento = parseISO(dateValue);
         const fechaActual = new Date();
+        fechaActual.setHours(0, 0, 0, 0);
 
-        // Calcular días restantes
-        const diferenciaDias = Math.ceil(
-          (fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        let diferenciaDias: number;
+        try {
+          const fechaVencimientoNormalizada = parseISO(dateValue);
+          fechaVencimientoNormalizada.setHours(0, 0, 0, 0);
 
-        // Aplicar colores según el vencimiento
+          if (isNaN(fechaVencimientoNormalizada.getTime())) {
+            diferenciaDias = -Infinity;
+          } else {
+            diferenciaDias = Math.ceil(
+              (fechaVencimientoNormalizada.getTime() - fechaActual.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+          }
+        } catch (e) {
+          console.error('Error parsing date for SOAT:', dateValue, e);
+          diferenciaDias = -Infinity;
+        }
+
         let colorClass = '';
         let icon = null;
 
         if (diferenciaDias < 0) {
-          // Vencido
           colorClass = 'bg-red-100 text-red-800';
           icon = (
             <svg
@@ -317,7 +329,6 @@ export default function VehiculosPage() {
             </svg>
           );
         } else if (diferenciaDias <= 30) {
-          // Por vencer en menos de 30 días
           colorClass = 'bg-yellow-100 text-yellow-800';
           icon = (
             <svg
@@ -336,7 +347,6 @@ export default function VehiculosPage() {
             </svg>
           );
         } else {
-          // Vigente
           colorClass = 'bg-green-100 text-green-800';
           icon = (
             <svg
@@ -356,13 +366,20 @@ export default function VehiculosPage() {
           );
         }
 
+        let formattedDate = 'Fecha inválida';
+        if (fechaVencimiento && !isNaN(fechaVencimiento.getTime())) {
+          formattedDate = format(fechaVencimiento, 'dd/MM/yyyy');
+        } else if (diferenciaDias === -Infinity) {
+          formattedDate = dateValue || 'No disponible';
+        }
+
         return (
           <div className="flex justify-center">
             <span
               className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}
             >
               {icon}
-              {format(fechaVencimiento, 'dd/MM/yyyy')}
+              {formattedDate}
             </span>
           </div>
         );
@@ -372,23 +389,35 @@ export default function VehiculosPage() {
       header: 'Rev. Técnica',
       accessor: 'fecha_revision_tecnica',
       cell: (value: unknown, row: VehiculoDataItem) => {
-        const dateValue = row.fecha_revision_tecnica;
+        const dateValue = row.fecha_revision_tecnica as string;
         if (!dateValue) return <div className="text-center">No disponible</div>;
 
-        const fechaVencimiento = new Date(dateValue);
+        const fechaVencimiento = parseISO(dateValue);
         const fechaActual = new Date();
+        fechaActual.setHours(0, 0, 0, 0);
 
-        // Calcular días restantes
-        const diferenciaDias = Math.ceil(
-          (fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24)
-        );
+        let diferenciaDias: number;
+        try {
+          const fechaVencimientoNormalizada = parseISO(dateValue);
+          fechaVencimientoNormalizada.setHours(0, 0, 0, 0);
 
-        // Aplicar colores según el vencimiento
+          if (isNaN(fechaVencimientoNormalizada.getTime())) {
+            diferenciaDias = -Infinity;
+          } else {
+            diferenciaDias = Math.ceil(
+              (fechaVencimientoNormalizada.getTime() - fechaActual.getTime()) /
+                (1000 * 60 * 60 * 24)
+            );
+          }
+        } catch (e) {
+          console.error('Error parsing date for Rev. Tecnica:', dateValue, e);
+          diferenciaDias = -Infinity;
+        }
+
         let colorClass = '';
         let icon = null;
 
         if (diferenciaDias < 0) {
-          // Vencido
           colorClass = 'bg-red-100 text-red-800';
           icon = (
             <svg
@@ -407,7 +436,6 @@ export default function VehiculosPage() {
             </svg>
           );
         } else if (diferenciaDias <= 30) {
-          // Por vencer en menos de 30 días
           colorClass = 'bg-yellow-100 text-yellow-800';
           icon = (
             <svg
@@ -426,7 +454,6 @@ export default function VehiculosPage() {
             </svg>
           );
         } else {
-          // Vigente
           colorClass = 'bg-green-100 text-green-800';
           icon = (
             <svg
@@ -446,13 +473,20 @@ export default function VehiculosPage() {
           );
         }
 
+        let formattedDate = 'Fecha inválida';
+        if (fechaVencimiento && !isNaN(fechaVencimiento.getTime())) {
+          formattedDate = format(fechaVencimiento, 'dd/MM/yyyy');
+        } else if (diferenciaDias === -Infinity) {
+          formattedDate = dateValue || 'No disponible';
+        }
+
         return (
           <div className="flex justify-center">
             <span
               className={`px-2 py-1 rounded-full text-xs font-medium flex items-center ${colorClass}`}
             >
               {icon}
-              {format(fechaVencimiento, 'dd/MM/yyyy')}
+              {formattedDate}
             </span>
           </div>
         );
@@ -585,12 +619,9 @@ export default function VehiculosPage() {
       processedValue = parseFloat(value) || 0;
     } else if (type === 'date' && value) {
       // Asegurar que la fecha tiene el formato correcto para enviar a la base de datos
-      try {
-        // Convertir a formato ISO y luego tomar solo la parte de la fecha
-        processedValue = new Date(value).toISOString().split('T')[0];
-      } catch (error) {
-        console.error('Error al procesar fecha:', error);
-      }
+      // El valor de un input type="date" moderno ya es una cadena YYYY-MM-DD.
+      // Se usa directamente para evitar conversiones de zona horaria innecesarias.
+      processedValue = value;
     }
 
     // Actualizar el estado del formulario
@@ -619,27 +650,30 @@ export default function VehiculosPage() {
       cleanData.tipo_vehiculo = 'Tracto';
     }
 
-    // Asegura que las fechas estén en el formato correcto
-    if (cleanData.fecha_adquisicion && typeof cleanData.fecha_adquisicion === 'string') {
-      const date = new Date(cleanData.fecha_adquisicion);
-      if (!isNaN(date.getTime())) {
-        cleanData.fecha_adquisicion = date.toISOString().split('T')[0];
-      }
-    }
+    // Las fechas ya deberían estar en formato YYYY-MM-DD desde handleInputChange.
+    // No se necesita reprocesamiento aquí si ya están como strings en el formato correcto.
+    // Se eliminan las conversiones new Date().toISOString().split('T')[0]
 
-    if (cleanData.fecha_soat && typeof cleanData.fecha_soat === 'string') {
-      const date = new Date(cleanData.fecha_soat);
-      if (!isNaN(date.getTime())) {
-        cleanData.fecha_soat = date.toISOString().split('T')[0];
-      }
-    }
+    // if (cleanData.fecha_adquisicion && typeof cleanData.fecha_adquisicion === 'string') {
+    //   const date = new Date(cleanData.fecha_adquisicion);
+    //   if (!isNaN(date.getTime())) {
+    //     cleanData.fecha_adquisicion = date.toISOString().split('T')[0];
+    //   }
+    // }
 
-    if (cleanData.fecha_revision_tecnica && typeof cleanData.fecha_revision_tecnica === 'string') {
-      const date = new Date(cleanData.fecha_revision_tecnica);
-      if (!isNaN(date.getTime())) {
-        cleanData.fecha_revision_tecnica = date.toISOString().split('T')[0];
-      }
-    }
+    // if (cleanData.fecha_soat && typeof cleanData.fecha_soat === 'string') {
+    //   const date = new Date(cleanData.fecha_soat);
+    //   if (!isNaN(date.getTime())) {
+    //     cleanData.fecha_soat = date.toISOString().split('T')[0];
+    //   }
+    // }
+
+    // if (cleanData.fecha_revision_tecnica && typeof cleanData.fecha_revision_tecnica === 'string') {
+    //   const date = new Date(cleanData.fecha_revision_tecnica);
+    //   if (!isNaN(date.getTime())) {
+    //     cleanData.fecha_revision_tecnica = date.toISOString().split('T')[0];
+    //   }
+    // }
 
     console.log('Datos limpios y validados:', cleanData);
     return cleanData;

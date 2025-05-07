@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DataTable, { Column, DataItem } from '@/components/DataTable';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import {
   EditButton,
   DeleteButton,
@@ -231,7 +231,7 @@ export default function EgresosPage() {
         }
 
         try {
-          const date = new Date(value as string);
+          const date = parseISO(value as string);
           if (isNaN(date.getTime())) {
             return <div className="flex justify-center">Fecha inválida</div>;
           }
@@ -1021,7 +1021,14 @@ export default function EgresosPage() {
           filters={{
             year: true,
             month: true,
-            searchField: 'destino',
+            searchFields: [
+              { accessor: 'destino', label: 'Destino' },
+              { accessor: 'factura', label: 'Factura' },
+              { accessor: 'tipoEgreso', label: 'Tipo Egreso' },
+              { accessor: 'observacion', label: 'Observación' },
+              { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
+              { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+            ],
           }}
           tableClassName="whitespace-nowrap"
           containerClassName="overflow-x-auto"

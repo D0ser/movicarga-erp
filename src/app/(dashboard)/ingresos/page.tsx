@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DataTable from '@/components/DataTable';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import type { Column } from '@/components/DataTable';
 import {
   serieService,
@@ -358,7 +358,7 @@ export default function IngresosPage() {
   };
 
   // Función para calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
-  const calcularEstadoAutomatico = (fechaVencimiento: Date, totalDeber: number): string => {
+  const calcularEstadoAutomatico = (fechaVencimientoInput: Date, totalDeber: number): string => {
     // Primero, verificar si está pagado
     if (Math.abs(totalDeber) < 0.01) {
       // Usar una pequeña tolerancia para comparación de flotantes
@@ -369,6 +369,10 @@ export default function IngresosPage() {
     const hoy = new Date();
     // Resetear horas, minutos, segundos y milisegundos para comparar solo las fechas
     hoy.setHours(0, 0, 0, 0);
+
+    // Clonar y normalizar la fecha de vencimiento de entrada a medianoche
+    const fechaVencimiento = new Date(fechaVencimientoInput.getTime());
+    fechaVencimiento.setHours(0, 0, 0, 0);
 
     // Calcular la diferencia en días
     const tiempoRestante = fechaVencimiento.getTime() - hoy.getTime();
@@ -452,7 +456,7 @@ export default function IngresosPage() {
           }
 
           // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
-          const fechaVencimientoObj = new Date(fechaVencimiento);
+          const fechaVencimientoObj = parseISO(fechaVencimiento); // Usar parseISO
           // Pasar totalDeber a la función
           const estadoAutomatico = calcularEstadoAutomatico(fechaVencimientoObj, totalDeber);
 
@@ -540,7 +544,7 @@ export default function IngresosPage() {
         }
 
         try {
-          const date = new Date(value as string);
+          const date = parseISO(value as string); // Usar parseISO
           if (isNaN(date.getTime())) {
             return <div className="text-center">Fecha inválida</div>;
           }
@@ -1069,12 +1073,30 @@ export default function IngresosPage() {
       header: 'Fecha Vencimiento',
       accessor: 'fechaVencimiento',
       cell: (value) => {
-        const fechaVencimiento = new Date(value as string);
+        const dateString = value as string;
+        if (!dateString) return <div className="text-center">-</div>; // Manejar valor nulo o undefined
+
+        let fechaVencimiento: Date;
+        try {
+          fechaVencimiento = parseISO(dateString);
+          if (isNaN(fechaVencimiento.getTime())) {
+            return <div className="text-center">Fecha inválida</div>;
+          }
+        } catch (error) {
+          console.error('Error parsing fechaVencimiento:', dateString, error);
+          return <div className="text-center">Error de formato</div>;
+        }
+
         const fechaActual = new Date();
+        fechaActual.setHours(0, 0, 0, 0); // Normalizar fecha actual a medianoche
+
+        // Normalizar fechaVencimiento a medianoche para la comparación de días
+        const fechaVencimientoNormalizada = new Date(fechaVencimiento.getTime());
+        fechaVencimientoNormalizada.setHours(0, 0, 0, 0);
 
         // Calcular días restantes
         const diferenciaDias = Math.ceil(
-          (fechaVencimiento.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24)
+          (fechaVencimientoNormalizada.getTime() - fechaActual.getTime()) / (1000 * 60 * 60 * 24)
         );
 
         // Aplicar colores según el vencimiento
@@ -1332,19 +1354,26 @@ export default function IngresosPage() {
 
       // Calcular fecha de vencimiento
       if (name === 'fecha' || name === 'diasCredito') {
-        const fecha = name === 'fecha' ? new Date(value) : new Date(prev.fecha || '');
+        const fechaInputString = name === 'fecha' ? value : prev.fecha;
+        let fechaBase: Date;
+        try {
+          fechaBase = fechaInputString ? parseISO(fechaInputString) : new Date(); // Usar parseISO para la fecha base
+          if (isNaN(fechaBase.getTime())) throw new Error('Fecha base inválida');
+        } catch (e) {
+          console.error('Error parsing fecha base in handleInputChange', fechaInputString, e);
+          fechaBase = new Date(); // Fallback a la fecha actual si el parseo falla
+        }
+
         const diasCredito = name === 'diasCredito' ? parseInt(value) || 0 : prev.diasCredito || 0;
 
-        if (fecha && !isNaN(fecha.getTime())) {
-          const fechaVencimiento = new Date(fecha);
-          fechaVencimiento.setDate(fecha.getDate() + diasCredito);
-          newData.fechaVencimiento = fechaVencimiento.toISOString().split('T')[0];
+        const fechaVencimientoObj = new Date(fechaBase.getTime()); // Clonar fechaBase
+        fechaVencimientoObj.setDate(fechaBase.getDate() + diasCredito);
 
-          // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
-          // Asegurarse de que totalDeber existe en newData, si no usar el del estado previo o 0
-          const totalDeberActual = newData.totalDeber ?? prev.totalDeber ?? 0;
-          newData.estado = calcularEstadoAutomatico(fechaVencimiento, totalDeberActual);
-        }
+        newData.fechaVencimiento = format(fechaVencimientoObj, 'yyyy-MM-dd'); // Formatear a YYYY-MM-DD
+
+        // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
+        const totalDeberActual = newData.totalDeber ?? prev.totalDeber ?? 0;
+        newData.estado = calcularEstadoAutomatico(fechaVencimientoObj, totalDeberActual); // calcularEstadoAutomatico espera un Date object
       }
 
       // Validar que la placa seleccionada corresponda al tipo de vehículo correcto
@@ -1506,7 +1535,9 @@ export default function IngresosPage() {
       // );
 
       // Calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
-      const fechaVencimiento = new Date(formData.fechaVencimiento || new Date());
+      const fechaVencimiento = formData.fechaVencimiento
+        ? parseISO(formData.fechaVencimiento)
+        : new Date(); // Usar parseISO si es string
       // Usar el totalDeber recalculado
       const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, totalDeberFinal);
 
@@ -1744,7 +1775,7 @@ export default function IngresosPage() {
     const totalDeberFinal = Math.abs(diferencia) < 0.0000001 ? 0 : diferencia;
 
     // Calcular el estado basado en la fecha de vencimiento y total a deber
-    const fechaVencimiento = new Date(ingreso.fechaVencimiento);
+    const fechaVencimiento = parseISO(ingreso.fechaVencimiento); // Usar parseISO
     // Usar el totalDeber recalculado
     const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, totalDeberFinal);
 
@@ -2595,7 +2626,9 @@ export default function IngresosPage() {
                 { accessor: 'observacion', label: 'Observación' },
                 { accessor: 'documentoGuiaRemit', label: 'Guía Remitente' },
                 { accessor: 'guiaTransp', label: 'Guía Transportista' },
-                { accessor: 'documento', label: 'Documento' }, // Agregar filtro para documento
+                { accessor: 'documento', label: 'Documento' },
+                { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
+                { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
               ],
             }}
             onDataFiltered={handleDataFiltered}

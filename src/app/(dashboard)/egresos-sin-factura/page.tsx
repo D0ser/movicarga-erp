@@ -691,7 +691,14 @@ export default function EgresosSinFacturaPage() {
               filters={{
                 year: true,
                 month: true,
-                searchField: 'concepto',
+                searchFields: [
+                  { accessor: 'concepto', label: 'Concepto' },
+                  { accessor: 'numero_cheque', label: 'N° Cheque' },
+                  { accessor: 'numero_liquidacion', label: 'N° Liquidación' },
+                  { accessor: 'tipo_egreso', label: 'Tipo Egreso' },
+                  { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
+                  { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+                ],
               }}
             />
           </Loading>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DataTable, { DataItem, Column } from '@/components/DataTable';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { cajaChicaService, CajaChica } from '@/lib/supabaseServices';
 import notificationService from '@/components/notifications/NotificationService';
 import {
@@ -42,7 +42,7 @@ export default function CajaChicaPage() {
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<Partial<CajaChica>>({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: format(new Date(), 'yyyy-MM-dd'),
     tipo: 'ingreso',
     importe: 0,
     concepto: '',
@@ -66,7 +66,7 @@ export default function CajaChicaPage() {
   );
   const [pagoCuotaData, setPagoCuotaData] = useState({
     importe: 0,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: format(new Date(), 'yyyy-MM-dd'),
   });
 
   // Cargar datos desde Supabase al iniciar
@@ -197,7 +197,7 @@ export default function CajaChicaPage() {
 
     setPagoCuotaData({
       importe: importeSugerido,
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: format(new Date(), 'yyyy-MM-dd'),
     });
     setShowPagoCuotaModal(true);
   };
@@ -205,7 +205,7 @@ export default function CajaChicaPage() {
   const handleClosePagoCuotaModal = () => {
     setShowPagoCuotaModal(false);
     setCurrentMovimientoParaPago(null);
-    setPagoCuotaData({ importe: 0, fecha: new Date().toISOString().split('T')[0] });
+    setPagoCuotaData({ importe: 0, fecha: format(new Date(), 'yyyy-MM-dd') });
   };
 
   const handlePagoCuotaInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -257,7 +257,7 @@ export default function CajaChicaPage() {
 
   const resetForm = () => {
     setFormData({
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: format(new Date(), 'yyyy-MM-dd'),
       tipo: 'ingreso',
       importe: 0,
       concepto: '',
@@ -311,7 +311,15 @@ export default function CajaChicaPage() {
     {
       header: 'Fecha',
       accessor: 'fecha',
-      cell: (value, row) => format(new Date(row.fecha), 'dd/MM/yyyy'),
+      cell: (value, row) => {
+        if (!row.fecha) return null;
+        try {
+          return format(parseISO(row.fecha), 'dd/MM/yyyy');
+        } catch (error) {
+          console.error('Error parsing date in CajaChica table:', row.fecha, error);
+          return 'Fecha inválida';
+        }
+      },
     },
     {
       header: 'Tipo',
@@ -503,7 +511,12 @@ export default function CajaChicaPage() {
               title="Movimientos de Caja Chica"
               isLoading={loading}
               filters={{
-                searchField: 'concepto',
+                searchFields: [
+                  { accessor: 'concepto', label: 'Concepto' },
+                  { accessor: 'observaciones', label: 'Observaciones' },
+                  { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
+                  { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+                ],
                 year: true,
                 month: true,
               }}

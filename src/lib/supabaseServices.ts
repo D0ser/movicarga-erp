@@ -239,6 +239,22 @@ export interface PagoCuota {
   created_at?: string;
 }
 
+// Nuevas interfaces para filtros y paginación de Detracciones
+export interface DetraccionFilters {
+  searchTerm?: string;
+  startDate?: string;
+  endDate?: string;
+  clienteId?: string;
+  // Aquí puedes añadir otros campos de filtro que necesites en el futuro
+  // por ejemplo: tipo_bien, tipo_operacion, ruc_proveedor, etc.
+}
+
+export interface GetDetraccionesParams {
+  filters?: DetraccionFilters;
+  page?: number;
+  pageSize?: number;
+}
+
 // Servicios para clientes
 export const clienteService = {
   getClientes: async (): Promise<Cliente[]> => {
@@ -547,66 +563,75 @@ export const egresoSinFacturaService = {
 
 // Servicios para detracciones
 export const detraccionService = {
-  getDetracciones: async (): Promise<Detraccion[]> => {
-    // Obtener detracciones sin relaciones anidadas
-    const { data, error } = await supabase
-      .from('detracciones')
-      .select('*')
-      .order('fecha_deposito', { ascending: false });
+  getDetracciones: async (
+    params: GetDetraccionesParams = {}
+  ): Promise<{ data: Detraccion[]; count: number }> => {
+    const { filters = {}, page = 1, pageSize = 15 } = params;
 
-    if (error) throw error;
-
-    // Procesar manualmente las relaciones
-    const detraccionesCompletas = await Promise.all(
-      data.map(async (det) => {
-        let detraccionProcesada = { ...det };
-
-        // Obtener cliente si existe el ID
-        if (det.cliente_id) {
-          try {
-            const cliente = await clienteService.getClienteById(det.cliente_id);
-            if (cliente) {
-              detraccionProcesada.cliente = cliente;
-            }
-          } catch (error) {
-            console.error('Error al obtener cliente de detracción:', error);
-          }
-        }
-
-        // Obtener ingreso si existe el ID
-        if (det.ingreso_id) {
-          try {
-            const { data: ingreso, error: ingresoError } = await supabase
-              .from('ingresos')
-              .select('*')
-              .eq('id', det.ingreso_id)
-              .single();
-
-            if (!ingresoError && ingreso) {
-              detraccionProcesada.ingreso = ingreso;
-            }
-          } catch (error) {
-            console.error('Error al obtener ingreso de detracción:', error);
-          }
-        }
-
-        // Obtener viaje si existe el ID
-        if (det.viaje_id) {
-          try {
-            const viaje = await viajeService.getViajeById(det.viaje_id);
-            if (viaje) {
-              detraccionProcesada.viaje = viaje;
-            }
-          } catch (error) {
-            console.error('Error al obtener viaje de detracción:', error);
-          }
-        }
-
-        return detraccionProcesada;
-      })
+    let query = supabase.from('detracciones').select(
+      `*,
+        cliente:clientes(razon_social, ruc),
+        viaje:viajes(origen, destino, fecha_salida),
+        ingreso:ingresos(concepto, monto, numero_factura)`,
+      { count: 'exact' }
     );
 
-    return detraccionesCompletas;
+    // Aplicar filtros
+    if (filters.searchTerm) {
+      const searchTermProcessed = `%${filters.searchTerm}%`;
+      // Se buscan coincidencias en numero_constancia, observaciones, y en los campos razon_social y ruc de la tabla clientes relacionada.
+      // Nota: El filtrado en campos relacionados como 'cliente.razon_social' debe hacerse con el nombre de la columna en la tabla 'detracciones'
+      // que referencia a la tabla 'clientes' (ej. cliente_id) y luego un join, o si Supabase lo permite directamente como 'cliente(razon_social).ilike...'
+      // Para simplificar y asumiendo que la búsqueda directa en campos relacionados así no es soportada directamente por `or` en Supabase de esta manera exacta,
+      // una forma más robusta sería filtrar primero IDs de clientes y luego usarlos, o usar funciones RPC de Supabase para búsquedas complejas.
+      // Por ahora, vamos a buscar en los campos directos de 'detracciones' y dejaremos la búsqueda en campos relacionados para una mejora posterior si es necesario.
+      query = query.or(
+        `numero_constancia.ilike.${searchTermProcessed},observaciones.ilike.${searchTermProcessed}`
+      );
+      // Si necesitas buscar en los campos del cliente directamente, tendrías que hacer algo como:
+      // const { data: clienteIds } = await supabase.from('clientes').select('id').or(`razon_social.ilike.${searchTermProcessed},ruc.ilike.${searchTermProcessed}`);
+      // if (clienteIds && clienteIds.length > 0) {
+      //   query = query.in('cliente_id', clienteIds.map(c => c.id));
+      // }
+      // O, idealmente, si tu RLS y la estructura de la BD lo permiten, podrías intentar filtrar en la relación así:
+      // query = query.or(`numero_constancia.ilike.${searchTermProcessed},observaciones.ilike.${searchTermProcessed},clientes.razon_social.ilike.${searchTermProcessed},clientes.ruc.ilike.${searchTermProcessed}`);
+      // Pero esto último depende de cómo Supabase maneje los joins implícitos en las condiciones 'or'. La forma más segura es buscar en campos directos o usar RPC.
+    }
+    if (filters.startDate) {
+      query = query.gte('fecha_deposito', filters.startDate);
+    }
+    if (filters.endDate) {
+      query = query.lte('fecha_deposito', filters.endDate);
+    }
+    if (filters.clienteId) {
+      query = query.eq('cliente_id', filters.clienteId);
+    }
+
+    query = query.order('fecha_deposito', { ascending: false });
+
+    if (page && pageSize) {
+      const startIndex = (page - 1) * pageSize;
+      const endIndex = startIndex + pageSize - 1;
+      query = query.range(startIndex, endIndex);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching detracciones:', error.message);
+      throw new Error(`Error al obtener detracciones: ${error.message}`);
+    }
+
+    return { data: data || [], count: count || 0 };
+  },
+
+  getDetraccionById: async (id: string): Promise<Detraccion | null> => {
+    const { data, error } = await supabase.from('detracciones').select('*').eq('id', id).single();
+    if (error) {
+      if (error.code === 'PGRST116') return null;
+      throw error;
+    }
+    return data;
   },
 
   createDetraccion: async (

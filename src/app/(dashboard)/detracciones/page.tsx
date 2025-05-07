@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import DataTable, { DataItem, Column } from '@/components/DataTable';
 import { format } from 'date-fns';
 import {
@@ -11,7 +11,12 @@ import {
   ActionButton,
   ActivateIcon,
 } from '@/components/ActionIcons';
-import { detraccionService, Detraccion as DetraccionType, Cliente } from '@/lib/supabaseServices';
+import {
+  detraccionService,
+  Detraccion as DetraccionType,
+  Cliente,
+  DetraccionFilters,
+} from '@/lib/supabaseServices';
 import supabase, { testSupabaseConnection as testConnection } from '@/lib/supabase';
 import { clienteService } from '@/lib/supabaseServices';
 import Modal from '@/components/Modal';
@@ -21,6 +26,15 @@ import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { Loading } from '@/components/ui/loading';
 import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -68,9 +82,9 @@ interface Detraccion extends DataItem {
     fecha_salida: string;
   };
   ingreso?: {
-    concepto: string;
-    monto: number;
-    numero_factura: string;
+    concepto?: string | null;
+    monto?: number | null;
+    numero_factura?: string | null;
   };
 }
 
@@ -78,6 +92,11 @@ interface TipoCliente {
   id: string;
   nombre: string;
   descripcion?: string;
+}
+
+// Interfaz para los filtros aplicados
+interface AppliedFilters extends DetraccionFilters {
+  // podrías añadir más campos específicos del frontend aquí si es necesario
 }
 
 export default function DetraccionesPage() {
@@ -89,6 +108,14 @@ export default function DetraccionesPage() {
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [selectedCsvOrigen, setSelectedCsvOrigen] = useState<string>('');
   const [tiposCliente, setTiposCliente] = useState<TipoCliente[]>([]);
+
+  // Nuevos estados para filtros y paginación
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [appliedFilters, setAppliedFilters] = useState<AppliedFilters>({});
+  const [allClientes, setAllClientes] = useState<Cliente[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(15); // O el valor que prefieras
+  const [totalDetracciones, setTotalDetracciones] = useState<number>(0);
 
   // Estado para el formulario de importación CSV
   const [showImportForm, setShowImportForm] = useState(false);
@@ -105,6 +132,12 @@ export default function DetraccionesPage() {
 
   // Toast para notificaciones
   const { toast } = useToast();
+
+  // Nuevos estados para filtros temporales (antes de aplicar)
+  const [tempSearchTerm, setTempSearchTerm] = useState<string>('');
+  const [tempClienteId, setTempClienteId] = useState<string>('');
+  const [tempStartDate, setTempStartDate] = useState<string>('');
+  const [tempEndDate, setTempEndDate] = useState<string>('');
 
   // Hooks de confirmación
   const deleteConfirm = useConfirmDialog({
@@ -126,35 +159,87 @@ export default function DetraccionesPage() {
   const { hasPermission } = usePermissions();
 
   // Cargar datos de detracciones desde Supabase
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const backendFilters: DetraccionFilters = {};
+      if (appliedFilters.searchTerm) backendFilters.searchTerm = appliedFilters.searchTerm;
+      if (appliedFilters.clienteId) backendFilters.clienteId = appliedFilters.clienteId;
+      if (appliedFilters.startDate) backendFilters.startDate = appliedFilters.startDate;
+      if (appliedFilters.endDate) backendFilters.endDate = appliedFilters.endDate;
+
+      const params = {
+        filters: backendFilters,
+        page: currentPage,
+        pageSize: itemsPerPage,
+      };
+      const { data, count } = await detraccionService.getDetracciones(params);
+      setDetracciones(data);
+      setTotalDetracciones(count);
+
+      actualizarOrigenesCsv(data);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'Error al cargar los datos. Por favor, inténtelo de nuevo.';
+      setError(errorMessage);
+      toast({
+        title: 'Error',
+        description: errorMessage,
+        variant: 'destructive',
+      });
+      console.error('Error fetching detracciones:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [appliedFilters, currentPage, itemsPerPage, toast]);
+
   useEffect(() => {
-    const fetchData = async () => {
+    // Carga inicial de datos de detracciones y clientes
+    fetchData();
+
+    const fetchClientes = async () => {
       try {
-        setLoading(true);
-        // Cargar detracciones
-        const data = await detraccionService.getDetracciones();
-        setDetracciones(data);
-
-        // Cargar tipos de cliente
-        const { data: tiposClienteData, error: tiposError } = await supabase
-          .from('tipo_cliente')
-          .select('*')
-          .order('nombre');
-
-        if (tiposError) throw tiposError;
-        setTiposCliente(tiposClienteData);
-
-        // Actualizar orígenes CSV con años
-        actualizarOrigenesCsv(data);
+        const clientesData = await clienteService.getClientes();
+        setAllClientes(clientesData);
       } catch (err) {
-        setError('Error al cargar los datos. Por favor, inténtelo de nuevo.');
-        console.error('Error:', err);
-      } finally {
-        setLoading(false);
+        console.error('Error fetching clientes:', err);
+        toast({
+          title: 'Error',
+          description: 'No se pudieron cargar los clientes para el filtro.',
+          variant: 'destructive',
+        });
       }
     };
+    fetchClientes();
+  }, [fetchData, toast]);
 
-    fetchData();
-  }, []);
+  const handleApplyFilters = () => {
+    setCurrentPage(1); // Reset page to 1 when applying new filters
+    setAppliedFilters({
+      searchTerm: tempSearchTerm,
+      clienteId: tempClienteId,
+      startDate: tempStartDate,
+      endDate: tempEndDate,
+    });
+  };
+
+  const handleClearFilters = () => {
+    setTempSearchTerm('');
+    setTempClienteId('');
+    setTempStartDate('');
+    setTempEndDate('');
+    setCurrentPage(1);
+    setAppliedFilters({});
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setCurrentPage(newPage);
+  };
+
+  const totalPages = Math.ceil(totalDetracciones / itemsPerPage);
 
   // Columnas para la tabla de detracciones
   const columns: Column<Detraccion>[] = [
@@ -433,12 +518,15 @@ export default function DetraccionesPage() {
   // Función para actualizar la lista de orígenes CSV desde la base de datos
   const actualizarOrigenesCsvDesdeDB = async () => {
     try {
-      const data = await detraccionService.getDetracciones();
-      if (data && data.length > 0) {
-        actualizarOrigenesCsv(data);
+      // Llamamos a getDetracciones. Si esta función debe obtener todos los orígenes sin paginar,
+      // se necesitaría un parámetro adicional en getDetracciones o una función de servicio diferente.
+      // Por ahora, asumirá los parámetros por defecto (primera página).
+      const { data: detraccionesData, count } = await detraccionService.getDetracciones({}); // Pasamos un objeto vacío para usar los defaults
+      if (detraccionesData && detraccionesData.length > 0) {
+        actualizarOrigenesCsv(detraccionesData);
       }
     } catch (error) {
-      // Manejar silenciosamente, no interrumpir la UI por esto
+      console.error('Error al actualizar orígenes CSV desde DB:', error); // Es buena idea loguear el error aunque sea silencioso para la UI
     }
   };
 
@@ -871,36 +959,223 @@ export default function DetraccionesPage() {
     }
   };
 
+  // Renderizado del componente
+  if (error && !detracciones.length) {
+    return <div className="p-4 text-red-500">Error: {error}</div>;
+  }
+
   return (
-    <div className="p-4 space-y-6">
-      {error && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4" role="alert">
-          <p>{error}</p>
+    <div className="p-4 md:p-6 lg:p-8">
+      <h1 className="text-2xl font-semibold mb-6 text-gray-800">Gestión de Detracciones</h1>
+
+      {/* Sección de Filtros */}
+      <div className="mb-6 p-4 bg-white shadow rounded-lg">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+          <div>
+            <label htmlFor="searchTerm" className="block text-sm font-medium text-gray-700 mb-1">
+              Buscar
+            </label>
+            <Input
+              id="searchTerm"
+              type="text"
+              placeholder="N° Constancia, Observación..."
+              value={tempSearchTerm}
+              onChange={(e) => setTempSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="clienteId" className="block text-sm font-medium text-gray-700 mb-1">
+              Cliente
+            </label>
+            <Select value={tempClienteId} onValueChange={setTempClienteId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Todos los Clientes" />
+              </SelectTrigger>
+              <SelectContent>
+                {allClientes.map((cliente) => (
+                  <SelectItem key={cliente.id} value={cliente.id}>
+                    {cliente.razon_social} ({cliente.ruc})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha Desde
+            </label>
+            <Input
+              id="startDate"
+              type="date"
+              value={tempStartDate}
+              onChange={(e) => setTempStartDate(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+              Fecha Hasta
+            </label>
+            <Input
+              id="endDate"
+              type="date"
+              value={tempEndDate}
+              onChange={(e) => setTempEndDate(e.target.value)}
+              className="w-full"
+            />
+          </div>
         </div>
-      )}
-
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Gestión de Detracciones</h1>
-        <div className="flex space-x-2">
-          <CreatePermission>
-            <button
-              onClick={() => setShowImportForm(!showImportForm)}
-              className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-            >
-              Importar CSV
-            </button>
-          </CreatePermission>
-
-          <DeletePermission>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-            >
-              Eliminar por CSV
-            </button>
-          </DeletePermission>
+        <div className="mt-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+          <Button
+            onClick={handleApplyFilters}
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Aplicar Filtros
+          </Button>
+          <Button onClick={handleClearFilters} variant="outline" className="w-full sm:w-auto">
+            Limpiar Filtros
+          </Button>
         </div>
       </div>
+
+      {/* Contenedor de acciones y tabla */}
+      <div className="mb-4 flex flex-col sm:flex-row justify-between items-center">
+        {/* <CreatePermission permission={PermissionType.CREATE_DETRACCION}> */}
+        <Button
+          onClick={() => setShowImportForm(!showImportForm)}
+          className="bg-green-600 hover:bg-green-700 text-white mb-2 sm:mb-0 w-full sm:w-auto"
+        >
+          Registrar Detracción
+        </Button>
+        {/* </CreatePermission> */}
+        <DeletePermission>
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
+          >
+            Eliminar por CSV
+          </button>
+        </DeletePermission>
+      </div>
+
+      {loading && !detracciones.length ? (
+        <Loading />
+      ) : error && !detracciones.length ? (
+        <div className="text-center text-red-500 py-4">{error}</div>
+      ) : !loading && !detracciones.length && Object.keys(appliedFilters).length > 0 ? (
+        <div className="text-center text-gray-500 py-4">
+          No se encontraron detracciones con los filtros aplicados.
+        </div>
+      ) : !loading && !detracciones.length ? (
+        <div className="text-center text-gray-500 py-4">No hay detracciones registradas.</div>
+      ) : (
+        <>
+          <DataTable columns={columns} data={detracciones} title="Registro de Detracciones" />
+          {/* Sección de Paginación */}
+          {totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row justify-between items-center">
+              <div className="text-sm text-gray-700 mb-2 sm:mb-0">
+                Página {currentPage} de {totalPages} (Total: {totalDetracciones} registros)
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage <= 1}
+                  variant="outline"
+                  size="sm"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage >= totalPages}
+                  variant="outline"
+                  size="sm"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Modales y Diálogos de Confirmación */}
+      <Modal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setSelectedCsvOrigen('');
+        }}
+        title="Eliminar Detracciones por CSV"
+        description="Seleccione el archivo CSV del que desea eliminar todas las detracciones."
+        size="md"
+      >
+        <Loading isLoading={isDeleting} overlay message="Eliminando detracciones...">
+          {csvOrigenes.length > 0 ? (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                Seleccione el archivo CSV del que desea eliminar todas las detracciones:
+              </p>
+
+              <div className="mb-4">
+                <div className="flex space-x-2">
+                  <select
+                    value={selectedCsvOrigen}
+                    onChange={(e) => setSelectedCsvOrigen(e.target.value)}
+                    className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Seleccione un archivo</option>
+                    {csvOrigenes.map((item) => (
+                      <option key={item.origen} value={item.origen}>
+                        {item.origen} ({item.año})
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    onClick={actualizarOrigenesCsvDesdeDB}
+                    className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
+                    title="Actualizar lista de orígenes CSV desde la base de datos"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
+                  disabled={!selectedCsvOrigen || isDeleting}
+                  className={`px-4 py-2 rounded-md ${!selectedCsvOrigen || isDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
+                >
+                  {isDeleting ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                No hay archivos CSV registrados en el sistema.
+              </p>
+            </>
+          )}
+        </Loading>
+      </Modal>
 
       {/* Modal para importación CSV */}
       <Modal
@@ -1014,110 +1289,9 @@ export default function DetraccionesPage() {
         </Loading>
       </Modal>
 
-      {/* Modal para eliminar por CSV */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => {
-          setShowDeleteModal(false);
-          setSelectedCsvOrigen('');
-        }}
-        title="Eliminar Detracciones por CSV"
-        description="Seleccione el archivo CSV del que desea eliminar todas las detracciones."
-        size="md"
-      >
-        <Loading isLoading={isDeleting} overlay message="Eliminando detracciones...">
-          {csvOrigenes.length > 0 ? (
-            <>
-              <p className="text-sm text-gray-600 mb-4">
-                Seleccione el archivo CSV del que desea eliminar todas las detracciones:
-              </p>
-
-              <div className="mb-4">
-                <div className="flex space-x-2">
-                  <select
-                    value={selectedCsvOrigen}
-                    onChange={(e) => setSelectedCsvOrigen(e.target.value)}
-                    className="flex-grow mt-1 block border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Seleccione un archivo</option>
-                    {csvOrigenes.map((item) => (
-                      <option key={item.origen} value={item.origen}>
-                        {item.origen} ({item.año})
-                      </option>
-                    ))}
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={actualizarOrigenesCsvDesdeDB}
-                    className="mt-1 bg-blue-500 text-white px-2 py-2 rounded hover:bg-blue-600"
-                    title="Actualizar lista de orígenes CSV desde la base de datos"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => handleDeleteByCsv(selectedCsvOrigen)}
-                  disabled={!selectedCsvOrigen || isDeleting}
-                  className={`px-4 py-2 rounded-md ${!selectedCsvOrigen || isDeleting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700'}`}
-                >
-                  {isDeleting ? 'Eliminando...' : 'Eliminar'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-gray-600 mb-4">
-                No hay archivos CSV registrados en el sistema.
-              </p>
-            </>
-          )}
-        </Loading>
-      </Modal>
-
       {/* Diálogos de confirmación */}
       <ConfirmDialog {...deleteConfirm.dialogProps} />
       <ConfirmDialog {...deleteCsvConfirm.dialogProps} />
-
-      <DataTable
-        columns={columns}
-        data={detracciones}
-        title="Registro de Detracciones"
-        defaultSort="fecha_deposito"
-        isLoading={loading}
-        filters={{
-          year: false,
-          month: false,
-          searchFields: [
-            { accessor: 'nombre_proveedor', label: 'Proveedor' },
-            { accessor: 'ruc_proveedor', label: 'RUC' },
-            { accessor: 'numero_constancia', label: 'N° Constancia' },
-            { accessor: 'periodo_tributario', label: 'Periodo Tributario' },
-            { accessor: 'tipo_bien', label: 'Tipo Bien' },
-            { accessor: 'tipo_comprobante', label: 'Tipo Comprobante' },
-            { accessor: 'serie_comprobante', label: 'Serie' },
-            { accessor: 'numero_comprobante', label: 'Número' },
-            { accessor: 'numero_pago_detracciones', label: 'N° Pago' },
-            { accessor: 'nombre_razon_social_adquiriente', label: 'Razón Social Adq.' },
-            { accessor: 'origen_csv', label: 'Archivo CSV' },
-          ],
-        }}
-      />
     </div>
   );
 }
