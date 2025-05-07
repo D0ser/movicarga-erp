@@ -25,6 +25,7 @@ import {
   CuentaBanco,
 } from '@/lib/supabaseServices';
 import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
+import { UserRole } from '@/types/users';
 
 // Inicialización del cliente Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -70,7 +71,7 @@ export default function EgresosPage() {
   ];
 
   // Hook para permisos de usuario
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole } = usePermissions();
 
   // Toast para notificaciones
   const { toast } = useToast();
@@ -778,6 +779,18 @@ export default function EgresosPage() {
     handleChangeEstado(id, 'Aprobado');
   };
 
+  // Maneja los datos filtrados de la tabla
+  const handleDataFiltered = (filteredData: any[]) => {
+    // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
+    console.log('Datos filtrados:', filteredData.length);
+  };
+
+  // Maneja cambios en los datos (después de eliminaciones, etc.)
+  const handleDataChange = () => {
+    // Recargar los datos cuando hay cambios
+    cargarEgresos();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -1017,7 +1030,10 @@ export default function EgresosPage() {
           columns={columns}
           data={egresos}
           title="Registro de Egresos"
-          defaultSort="fecha"
+          isLoading={loading}
+          onDataFiltered={handleDataFiltered}
+          onDataChanged={handleDataChange}
+          isViewer={userRole === UserRole.VIEWER}
           filters={{
             year: true,
             month: true,

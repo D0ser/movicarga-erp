@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DataTable from '@/components/DataTable';
 import { format, parseISO } from 'date-fns';
 import type { Column } from '@/components/DataTable';
@@ -29,6 +29,7 @@ import {
   DeletePermission,
 } from '@/components/permission-guard';
 import { usePermissions } from '@/hooks/use-permissions';
+import { UserRole } from '@/types/users';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -163,11 +164,14 @@ function TotalDeberCard({ ingresosFiltrados }: { ingresosFiltrados: Ingreso[] })
 }
 
 export default function IngresosPage() {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole } = usePermissions();
   // Estado para almacenar los ingresos
   const [ingresos, setIngresos] = useState<Ingreso[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  // Añadir explícitamente estados para los filtros de año y mes
+  const [filterYear, setFilterYear] = useState<string>('');
+  const [filterMonth, setFilterMonth] = useState<string>('');
   const [formData, setFormData] = useState<Partial<Ingreso>>({
     fecha: new Date().toISOString().split('T')[0],
     serie: '',
@@ -231,6 +235,9 @@ export default function IngresosPage() {
   // Estado para los ingresos filtrados
   const [ingresosFiltrados, setIngresosFiltrados] = useState<Ingreso[]>(ingresos);
 
+  // Ref para controlar la carga inicial en el useEffect de filtros
+  const initialFiltersLoadDone = useRef(false);
+
   // Estado para el modal de número de operación
   const [showNumOperacionModal, setShowNumOperacionModal] = useState(false);
   const [cuotaSeleccionada, setCuotaSeleccionada] = useState<'primera' | 'segunda'>('primera');
@@ -284,6 +291,12 @@ export default function IngresosPage() {
     const cargarDatosIniciales = async () => {
       try {
         setLoading(true);
+
+        // Obtener fecha actual para cargar solo el mes actual
+        const fechaActual = new Date();
+        const mesActual = fechaActual.getMonth();
+        const anioActual = fechaActual.getFullYear();
+
         // Cargar clientes, conductores, vehículos y series
         const [clientesData, conductoresData, vehiculosData, seriesData, observacionesData] =
           await Promise.all([
@@ -312,8 +325,11 @@ export default function IngresosPage() {
         });
         setSerieColors(coloresMap);
 
-        // Cargar ingresos desde Supabase
-        await refrescarIngresos(); // Usar la nueva función de refresco
+        // Cargar ingresos desde Supabase solo del mes actual por defecto
+        await refrescarIngresos(mesActual, anioActual);
+        // Establecer los filtros iniciales para que el DataTable los muestre
+        setFilterYear(anioActual.toString());
+        setFilterMonth(mesActual.toString());
       } catch (error) {
         console.error('Error al cargar datos iniciales:', error);
         toast({
@@ -330,11 +346,16 @@ export default function IngresosPage() {
   }, []); // Dejar el array de dependencias vacío para que se ejecute solo al montar
 
   // Función para refrescar los ingresos (usada en carga inicial y después de cambios)
-  const refrescarIngresos = async () => {
+  const refrescarIngresos = async (mes?: number, anio?: number) => {
     try {
       setLoading(true);
-      const ingresosFromSupabase = await cargarIngresos();
-      const ingresosConEstadoActualizado = ingresosFromSupabase.map((ingreso) => {
+      console.log(`refrescarIngresos - Cargando para Mes: ${mes}, Año: ${anio}`);
+      const ingresosFromSupabase = await cargarIngresos(mes, anio);
+
+      // Asegurarnos que ingresosFromSupabase es un array antes de mapear
+      const ingresosAProcesar = Array.isArray(ingresosFromSupabase) ? ingresosFromSupabase : [];
+
+      const ingresosConEstadoActualizado = ingresosAProcesar.map((ingreso) => {
         const fechaVencimiento = new Date(ingreso.fechaVencimiento);
         const estadoAutomatico = calcularEstadoAutomatico(fechaVencimiento, ingreso.totalDeber);
         return {
@@ -342,11 +363,19 @@ export default function IngresosPage() {
           estado: estadoAutomatico,
         };
       });
+
+      // Reemplazar los ingresos actuales con los nuevos datos filtrados
       setIngresos(ingresosConEstadoActualizado);
-      // setIngresosFiltrados se actualiza mediante el useEffect que depende de [ingresos]
+      console.log(
+        `refrescarIngresos - ${ingresosConEstadoActualizado.length} ingresos establecidos.`
+      );
     } catch (error) {
       console.error('Error al refrescar ingresos:', error);
-      handleError('No se pudieron refrescar los ingresos.');
+      toast({
+        title: 'Error',
+        description: 'No se pudieron refrescar los ingresos.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -354,7 +383,10 @@ export default function IngresosPage() {
 
   // Función para manejar cuando los datos cambian (ej. después de eliminar en lote)
   const handleDataChange = () => {
-    refrescarIngresos();
+    // Usar los filtros actuales de mes y año
+    const mesActual = filterMonth ? parseInt(filterMonth) : new Date().getMonth();
+    const anioActual = filterYear ? parseInt(filterYear) : new Date().getFullYear();
+    refrescarIngresos(mesActual, anioActual);
   };
 
   // Función para calcular el estado automáticamente basado en la fecha de vencimiento y total a deber
@@ -390,13 +422,54 @@ export default function IngresosPage() {
   };
 
   // Función para cargar ingresos desde Supabase
-  const cargarIngresos = async () => {
+  const cargarIngresos = async (mes?: number, anio?: number): Promise<Ingreso[]> => {
     try {
-      const ingresosSupabase = await ingresoService.getIngresos();
+      console.log(`cargarIngresos - Solicitando todos los ingresos del servicio.`);
+      // 1. Obtener TODOS los ingresos del servicio.
+      const todosLosIngresos = await ingresoService.getIngresos();
+
+      if (!todosLosIngresos) {
+        console.log('cargarIngresos - El servicio no devolvió ingresos.');
+        return [];
+      }
+      console.log(
+        `cargarIngresos - Recibidos ${todosLosIngresos.length} ingresos en total del servicio.`
+      );
+
+      // 2. Filtrar en el frontend según mes y/o año si se proporcionan.
+      let ingresosFiltrados = todosLosIngresos;
+
+      // Solo filtrar si al menos mes o año están definidos y no son string vacíos
+      if (mes !== undefined || anio !== undefined) {
+        console.log(`cargarIngresos - Aplicando filtros en frontend. Mes: ${mes}, Año: ${anio}`);
+        ingresosFiltrados = todosLosIngresos.filter((ing) => {
+          const fechaIngreso = new Date(ing.fecha);
+          const mesIngreso = fechaIngreso.getMonth();
+          const anioIngreso = fechaIngreso.getFullYear();
+
+          // Coincide si el filtro específico (mes o año) no está definido O si el valor coincide
+          const coincideMes = mes === undefined || mesIngreso === mes;
+          const coincideAnio = anio === undefined || anioIngreso === anio;
+
+          return coincideMes && coincideAnio;
+        });
+        console.log(
+          `cargarIngresos - Después del filtrado en frontend: ${ingresosFiltrados.length} ingresos.`
+        );
+      } else {
+        console.log(
+          'cargarIngresos - No se proporcionaron filtros de mes/año específicos para el frontend, devolviendo todos los ingresos del servicio.'
+        );
+      }
+
+      // if (!ingresosFiltrados || ingresosFiltrados.length === 0) { // Comentado para devolver array vacío si es el caso
+      //   console.log('No se encontraron registros para el filtro aplicado');
+      //   return [];
+      // }
 
       // Transformar los datos al formato esperado por la interfaz
       const ingresosFormateados = await Promise.all(
-        ingresosSupabase.map(async (ing) => {
+        ingresosFiltrados.map(async (ing) => {
           // Obtener datos del cliente si tenemos cliente_id
           let datosCliente = { razon_social: '', ruc: '' };
           if (ing.cliente_id) {
@@ -514,6 +587,59 @@ export default function IngresosPage() {
       setIngresosFiltrados(ingresos);
     }
   }, [ingresos]);
+
+  // Nuevo useEffect para reaccionar a los cambios en los filtros de mes y año del DataTable
+  useEffect(() => {
+    const mesSeleccionado =
+      filterMonth === '' ? undefined : filterMonth ? parseInt(filterMonth) : undefined;
+    const anioSeleccionado =
+      filterYear === '' ? undefined : filterYear ? parseInt(filterYear) : undefined;
+
+    if (!initialFiltersLoadDone.current) {
+      // Marcamos que la carga inicial de filtros ya pasó para las siguientes ejecuciones.
+      // La carga de datos REAL inicial (mes/año actual) se hace en el useEffect principal de carga.
+      initialFiltersLoadDone.current = true;
+      console.log(
+        `useEffect[filterMonth, filterYear] - Primera ejecución, initialFiltersLoadDone = true. Filtros actuales: Mes: ${mesSeleccionado}, Año: ${anioSeleccionado}`
+      );
+
+      // Verificamos si los filtros por defecto seteados por la carga inicial necesitan acción
+      // Esto es más una salvaguarda, no debería ser necesario si la lógica de carga inicial es correcta.
+      const fechaActual = new Date();
+      const mesActualPorDefecto = fechaActual.getMonth();
+      const anioActualPorDefecto = fechaActual.getFullYear();
+
+      if (
+        (mesSeleccionado !== undefined && mesSeleccionado !== mesActualPorDefecto) ||
+        (anioSeleccionado !== undefined && anioSeleccionado !== anioActualPorDefecto)
+      ) {
+        console.log(
+          `useEffect[filterMonth, filterYear] - Ajuste post-carga inicial detectado. Mes: ${mesSeleccionado}, Año: ${anioSeleccionado}. Refrescando...`
+        );
+        refrescarIngresos(mesSeleccionado, anioSeleccionado);
+      } else {
+        console.log(
+          `useEffect[filterMonth, filterYear] - Filtros (${mesSeleccionado}, ${anioSeleccionado}) coinciden con carga inicial por defecto (${mesActualPorDefecto}, ${anioActualPorDefecto}) o son undefined. No se refresca en primera ejecución.`
+        );
+      }
+      return;
+    }
+
+    // Para todas las ejecuciones subsecuentes (cambios de filtro por el usuario):
+    console.log(
+      `useEffect[filterMonth, filterYear] - Cambio de filtro por usuario. Mes: ${mesSeleccionado}, Año: ${anioSeleccionado}. Refrescando...`
+    );
+    refrescarIngresos(mesSeleccionado, anioSeleccionado);
+  }, [filterMonth, filterYear]);
+
+  // Función para manejar cuando los datos filtrados cambian en el DataTable
+  const handleDataFiltered = (filteredData: Ingreso[]) => {
+    // Esta función es llamada por el DataTable cuando sus filtros internos cambian los datos.
+    // Actualizamos el estado ingresosFiltrados para reflejar estos cambios en la UI (como los totales).
+    if (JSON.stringify(filteredData) !== JSON.stringify(ingresosFiltrados)) {
+      setIngresosFiltrados(filteredData);
+    }
+  };
 
   const handleError = (message: string) => {
     toast({
@@ -1788,14 +1914,6 @@ export default function IngresosPage() {
     setShowForm(true);
   };
 
-  // Función para manejar cuando cambian los filtros
-  const handleDataFiltered = (filteredData: Ingreso[]) => {
-    // Evitar actualizaciones innecesarias si los datos son los mismos
-    if (JSON.stringify(filteredData) !== JSON.stringify(ingresosFiltrados)) {
-      setIngresosFiltrados(filteredData);
-    }
-  };
-
   // Resetear el formulario para un nuevo ingreso
   const resetForm = () => {
     const hoy = new Date().toISOString().split('T')[0];
@@ -2612,14 +2730,19 @@ export default function IngresosPage() {
             columns={columns}
             data={ingresos}
             title="Registro de Ingresos"
-            defaultSort="fecha"
+            isLoading={loading}
+            onDataFiltered={handleDataFiltered}
+            onDataChanged={handleDataChange}
+            rowStyleGetter={getRowStyleForIngreso}
+            isViewer={userRole === UserRole.VIEWER}
             filters={{
               year: true,
               month: true,
               searchFields: [
-                { accessor: 'empresa', label: 'Empresa' },
-                { accessor: 'ruc', label: 'RUC' },
-                { accessor: 'numeroFactura', label: 'N° Factura' },
+                { accessor: 'numeroFactura', label: 'Nº Factura' },
+                { accessor: 'serie', label: 'Serie' },
+                { accessor: 'razon_social_cliente', label: 'Cliente' },
+                { accessor: 'ruc_cliente', label: 'RUC Cliente' },
                 { accessor: 'conductor', label: 'Conductor' },
                 { accessor: 'placaTracto', label: 'Placa Tracto' },
                 { accessor: 'placaCarreta', label: 'Placa Carreta' },
@@ -2627,13 +2750,39 @@ export default function IngresosPage() {
                 { accessor: 'documentoGuiaRemit', label: 'Guía Remitente' },
                 { accessor: 'guiaTransp', label: 'Guía Transportista' },
                 { accessor: 'documento', label: 'Documento' },
-                { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
-                { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+                { accessor: 'fecha', label: 'Fecha Exacta', inputType: 'date' },
+                // Para 'Rango de Fechas', el accessor real en los datos es 'fecha',
+                // pero usamos 'fechaRango' aquí como una clave lógica para que DataTable
+                // sepa que debe renderizar dos datepickers y aplicar lógica de rango.
+                // DataTable internamente necesitará saber que 'fechaRango' opera sobre el campo 'fecha' de los datos.
+                {
+                  accessor: 'fechaRango',
+                  label: 'Rango de Fechas',
+                  inputType: 'dateRange',
+                  underlyingField: 'fecha',
+                },
+              ],
+              customFilters: [
+                {
+                  name: 'estado',
+                  label: 'Estado',
+                  options: [
+                    { value: 'Vigente', label: 'Vigente' },
+                    { value: 'Vence hoy', label: 'Vence hoy' },
+                    { value: 'Próximo a vencerse', label: 'Próximo a vencerse' },
+                    { value: 'Pagado', label: 'Pagado' },
+                    { value: 'Vencido', label: 'Vencido' },
+                    // Podrías considerar si "Anulada" sigue siendo un estado válido aquí
+                    // Si los ingresos "Anulada" se filtran por observación y no por este estado, puedes quitarla.
+                    // { value: 'Anulada', label: 'Anulada' },
+                  ],
+                },
               ],
             }}
-            onDataFiltered={handleDataFiltered}
-            rowStyleGetter={getRowStyleForIngreso}
-            onDataChanged={handleDataChange} // Asegurarse de pasar handleDataChange
+            currentFilterYear={filterYear}
+            onFilterYearChange={setFilterYear}
+            currentFilterMonth={filterMonth}
+            onFilterMonthChange={setFilterMonth}
           />
 
           {/* Sección de totales */}

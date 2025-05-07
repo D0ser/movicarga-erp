@@ -22,6 +22,7 @@ import { PermissionType, usePermissions } from '@/hooks/use-permissions';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { UserRole } from '@/types/users';
 
 // Formateador de moneda
 const formatCurrency = (value: number): string => {
@@ -34,7 +35,7 @@ const formatCurrency = (value: number): string => {
 
 // Componente para la página de Caja Chica
 export default function CajaChicaPage() {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [movimientos, setMovimientos] = useState<CajaChica[]>([]);
   const [saldoActual, setSaldoActual] = useState(0);
@@ -107,6 +108,12 @@ export default function CajaChicaPage() {
       console.error('Error al calcular saldo de debe:', error);
       notificationService.error('No se pudo calcular el saldo de deudas');
     }
+  };
+
+  // Maneja los datos filtrados de la tabla
+  const handleDataFiltered = (filteredData: CajaChica[]) => {
+    // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
+    console.log('Datos filtrados:', filteredData.length);
   };
 
   const handleInputChange = (
@@ -508,8 +515,10 @@ export default function CajaChicaPage() {
             <DataTable
               columns={columns}
               data={movimientos}
-              title="Movimientos de Caja Chica"
+              title="Registro de Movimientos de Caja Chica"
               isLoading={loading}
+              onDataFiltered={handleDataFiltered}
+              isViewer={userRole === UserRole.VIEWER}
               filters={{
                 searchFields: [
                   { accessor: 'concepto', label: 'Concepto' },

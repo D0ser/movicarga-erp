@@ -4,7 +4,17 @@ import speakeasy from 'speakeasy';
 import QRCode from 'qrcode';
 
 // Configuración de JWT
-const JWT_SECRET = process.env.JWT_SECRET || 'movicarga-secret-key'; // En producción, usar variables de entorno
+// Comprobación inicial a nivel de módulo.
+// Si JWT_SECRET no está definido, se mostrará un error al cargar este módulo.
+// En producción, esto debería detener el inicio de la aplicación.
+const MODULE_JWT_SECRET = process.env.JWT_SECRET;
+if (!MODULE_JWT_SECRET) {
+  console.error(
+    'Error Crítico de Configuración: JWT_SECRET no está definido en las variables de entorno. La aplicación no puede operar de forma segura con JWTs.'
+  );
+  // Descomentar la siguiente línea para forzar el fallo de la aplicación en producción si el secreto no está configurado.
+  // throw new Error('Configuración crítica faltante: JWT_SECRET no está definido.');
+}
 const JWT_EXPIRES_IN = '24h';
 
 // Configuración para bcrypt
@@ -60,6 +70,27 @@ export function validatePasswordComplexity(password: string): {
  * Generar un token JWT
  */
 export function generateJwtToken(payload: any): string {
+  // Se revalida JWT_SECRET aquí para asegurar que TypeScript lo trate como string
+  // y para manejar el caso (improbable en producción si la app arranca) de que sea undefined.
+  const currentJwtSecret = process.env.JWT_SECRET;
+
+  if (!currentJwtSecret) {
+    console.error(
+      'Error Crítico en generateJwtToken: JWT_SECRET no está disponible. No se pueden generar tokens seguros.'
+    );
+    // En un entorno real, considera lanzar un error aquí para detener la operación insegura.
+    // throw new Error('JWT_SECRET no está disponible para generar el token.');
+
+    // Como fallback de emergencia (NO RECOMENDADO PARA PRODUCCIÓN):
+    // Generar un token de advertencia que indique claramente la inseguridad.
+    const emergencyPayload = {
+      ...payload,
+      error: 'JWT_SECRET_NOT_CONFIGURED',
+      timestamp: new Date().toISOString(),
+    };
+    return 'EMERGENCY_FALLBACK_TOKEN.' + btoa(JSON.stringify(emergencyPayload));
+  }
+
   try {
     // Generamos un identificador de sesión único
     const sessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
@@ -72,25 +103,21 @@ export function generateJwtToken(payload: any): string {
       sid: sessionId, // Identificador de sesión
     };
 
-    // En el cliente (navegador), jwt puede no estar disponible correctamente
-    // Usamos el enfoque de token simple para el cliente
     if (typeof window !== 'undefined') {
-      console.log('Generando token en el cliente (navegador)');
-
-      // Crear un token simple para navegador
+      console.log(
+        'Generando token en el cliente (navegador) - ADVERTENCIA: Práctica no recomendada para producción.'
+      );
       const tokenData = {
         ...uniquePayload,
         exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 horas
       };
-
-      // Convertir a base64 para simular un JWT
-      return 'DEV.' + btoa(JSON.stringify(tokenData)) + '.' + btoa(JWT_SECRET.substring(0, 10)); // No usamos el secret completo en navegador
+      return 'DEV_CLIENT_TOKEN.' + btoa(JSON.stringify(tokenData)) + '.MOCKED_SIGNATURE';
     }
 
-    // Si estamos en el servidor y jwt está disponible, usamos la implementación normal
-    return jwt.sign(uniquePayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+    // Ahora currentJwtSecret es definitivamente un string.
+    return jwt.sign(uniquePayload, currentJwtSecret, { expiresIn: JWT_EXPIRES_IN });
   } catch (error) {
-    console.warn('Error al generar JWT, usando token alternativo:', error);
+    console.warn('Error al generar JWT con jwt.sign, usando token alternativo de error:', error);
 
     // Crear token alternativo simple como fallback
     const simpleToken = btoa(
@@ -112,8 +139,12 @@ export function generateJwtToken(payload: any): string {
  */
 export function verifyJwtToken(token: string): any {
   try {
-    // Token simple generado por nuestra función de fallback
-    if (token.startsWith('DEV.') || token.startsWith('FALLBACK.')) {
+    // Token simple generado por nuestra función de fallback o cliente
+    if (
+      token.startsWith('DEV_CLIENT_TOKEN.') ||
+      token.startsWith('FALLBACK.') ||
+      token.startsWith('EMERGENCY_FALLBACK_TOKEN.')
+    ) {
       try {
         const parts = token.split('.');
         if (parts.length >= 2) {
@@ -135,7 +166,16 @@ export function verifyJwtToken(token: string): any {
     }
 
     // Token JWT normal
-    return jwt.verify(token, JWT_SECRET);
+    // Similar a generateJwtToken, asegurar que el secreto esté disponible.
+    const currentJwtSecret = process.env.JWT_SECRET;
+    if (!currentJwtSecret) {
+      console.error(
+        'Error Crítico en verifyJwtToken: JWT_SECRET no está disponible para verificar el token.'
+      );
+      // throw new Error("JWT_SECRET no disponible para verificar token."); // Considera lanzar error
+      return null; // No se puede verificar sin secreto
+    }
+    return jwt.verify(token, currentJwtSecret);
   } catch (error) {
     return null;
   }

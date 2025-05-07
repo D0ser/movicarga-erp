@@ -12,6 +12,7 @@ import { usePermissions, PermissionType } from '@/hooks/use-permissions';
 import { Loading } from '@/components/ui/loading';
 import supabase from '@/lib/supabase';
 import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
+import { UserRole } from '@/types/users';
 
 export default function EgresosSinFacturaPage() {
   // Cargar datos de Supabase
@@ -77,24 +78,31 @@ export default function EgresosSinFacturaPage() {
     checkAuth();
   }, [hasPermission, userRole]);
 
-  useEffect(() => {
-    async function cargarDatos() {
-      try {
-        setLoading(true);
-        const [egresosData, tiposData] = await Promise.all([
-          egresoSinFacturaService.getEgresosSinFactura(),
-          tipoEgresoSFService.getTiposEgresoSF(),
-        ]);
-        setEgresosSinFactura(egresosData);
-        setTiposEgresoSF(tiposData);
-      } catch (error) {
-        console.error('Error al cargar datos:', error);
-        notificationService.error('No se pudieron cargar los datos. Inténtelo de nuevo más tarde.');
-      } finally {
-        setLoading(false);
-      }
-    }
+  // Maneja los datos filtrados de la tabla
+  const handleDataFiltered = (filteredData: EgresoSinFactura[]) => {
+    // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
+    console.log('Datos filtrados:', filteredData.length);
+  };
 
+  // Extraída del useEffect para poder usarla en otros lugares
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const [egresosData, tiposData] = await Promise.all([
+        egresoSinFacturaService.getEgresosSinFactura(),
+        tipoEgresoSFService.getTiposEgresoSF(),
+      ]);
+      setEgresosSinFactura(egresosData);
+      setTiposEgresoSF(tiposData);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      notificationService.error('No se pudieron cargar los datos. Inténtelo de nuevo más tarde.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     cargarDatos();
   }, []);
 
@@ -687,7 +695,10 @@ export default function EgresosSinFacturaPage() {
               columns={columns}
               data={egresosSinFactura}
               title="Registro de Egresos sin Factura"
-              defaultSort="fecha"
+              isLoading={loading}
+              onDataFiltered={handleDataFiltered}
+              onDataChanged={cargarDatos}
+              isViewer={userRole === UserRole.VIEWER}
               filters={{
                 year: true,
                 month: true,

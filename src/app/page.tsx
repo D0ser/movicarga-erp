@@ -31,12 +31,6 @@ export default function Login() {
   } | null>(null);
   const router = useRouter();
 
-  // Usuarios predeterminados (en una app real, esto estaría en el backend)
-  const users = [
-    { username: 'c.llanos', password: '3525913', role: 'admin' },
-    { username: 'usuario', password: 'password', role: 'user' },
-  ];
-
   // Verificar si hay credenciales guardadas al cargar la página
   useEffect(() => {
     // Variable para controlar si debemos continuar con la redirección
@@ -106,30 +100,6 @@ export default function Login() {
         setLoginBlockInfo(blockStatus);
       }
 
-      // Primero intentamos autenticar con los usuarios hardcodeados (para desarrollo/pruebas)
-      const hardcodedUser = users.find(
-        (user) => user.username === username && user.password === password
-      );
-
-      if (hardcodedUser) {
-        // Registrar inicio de sesión exitoso
-        await recordLoginAttempt({
-          username,
-          isSuccessful: true,
-        });
-
-        // Limpiar intentos fallidos
-        await clearFailedAttempts(username);
-
-        // Autenticación exitosa con usuario hardcodeado
-        finishLogin({
-          id: 'hardcoded-id',
-          username: hardcodedUser.username,
-          role: hardcodedUser.role,
-        });
-        return;
-      }
-
       // Si no es un usuario hardcodeado, buscar en Supabase
       // Extraer nombre y apellido del username (formato: nombre.apellido)
       let nombre = username;
@@ -182,15 +152,21 @@ export default function Login() {
         }
 
         // Verificar la contraseña hasheada
-        // Si no hay hash aún (migración), usar verificación simple
         let passwordCorrect = false;
 
         if (userFromDB.password_hash && userFromDB.password_hash.startsWith('$2')) {
           // La contraseña está hasheada con bcrypt
           passwordCorrect = await verifyPassword(password, userFromDB.password_hash);
         } else if (userFromDB.password_hash) {
-          // Contraseña en texto plano (temporal)
-          passwordCorrect = userFromDB.password_hash === password;
+          // En lugar de comparar en texto plano, consideramos esto un fallo si el hash no es bcrypt
+          console.warn(
+            `Contraseña para el usuario ${username} no está hasheada con bcrypt o falta hash. Se deniega el acceso.`
+          );
+          passwordCorrect = false;
+        } else {
+          // No hay password_hash o no es de bcrypt, se considera incorrecto.
+          console.warn(`No se encontró un hash de contraseña válido para el usuario ${username}.`);
+          passwordCorrect = false;
         }
 
         if (!passwordCorrect) {

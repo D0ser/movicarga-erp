@@ -30,10 +30,11 @@ import {
 import { PermissionType, usePermissions } from '@/hooks/use-permissions';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import { useConfirmDialog } from '@/hooks/use-confirm-dialog';
+import { UserRole } from '@/types/users';
 
 // Componente para la página de viajes
 export default function ViajesPage() {
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [viajes, setViajes] = useState<Viaje[]>([]);
   const [filteredViajes, setFilteredViajes] = useState<Viaje[]>([]);
@@ -1029,229 +1030,38 @@ export default function ViajesPage() {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Cliente
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Ruta
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Conductor / Vehículo
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Fecha / Estado
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Tarifa
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredViajes.map((viaje) => (
-                  <tr key={viaje.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-800 font-medium">
-                            {viaje.cliente?.razon_social?.charAt(0) || '?'}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {viaje.cliente?.razon_social}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {viaje.cliente?.ruc || 'Sin RUC'}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 text-gray-400 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                          {viaje.origen}
-                        </div>
-                        <div className="flex items-center mt-1">
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 text-red-500 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                            />
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                          </svg>
-                          {viaje.destino}
-                        </div>
-                      </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        {viaje.carga || 'Sin información de carga'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {viaje.conductor?.nombres} {viaje.conductor?.apellidos}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {viaje.vehiculo?.placa || 'Sin vehículo asignado'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {viaje.fecha_salida
-                          ? new Date(viaje.fecha_salida).toLocaleDateString('es-ES', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })
-                          : 'Sin fecha'}
-                      </div>
-                      <span
-                        className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${viaje.estado === 'Programado' ? 'bg-yellow-100 text-yellow-800' : ''} 
-                        ${viaje.estado === 'En Ruta' ? 'bg-blue-100 text-blue-800' : ''} 
-                        ${viaje.estado === 'Completado' ? 'bg-green-100 text-green-800' : ''} 
-                        ${viaje.estado === 'Cancelado' ? 'bg-red-100 text-red-800' : ''}`}
-                      >
-                        {viaje.estado}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        S/ {viaje.tarifa.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Adelanto: S/ {viaje.adelanto.toFixed(2)}
-                        <br />
-                        Saldo: S/ {viaje.saldo.toFixed(2)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                      <div className="flex justify-center space-x-2">
-                        <EditPermission>
-                          <button
-                            onClick={() => handleEdit(viaje)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                          </button>
-                        </EditPermission>
-                        <EditPermission>
-                          <button
-                            onClick={() => handleChangeStatus(viaje.id)}
-                            className="text-yellow-600 hover:text-yellow-900"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                          </button>
-                        </EditPermission>
-                        <DeletePermission>
-                          <button
-                            onClick={() => handleDelete(viaje.id)}
-                            className="text-red-600 hover:text-red-900"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        </DeletePermission>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <DataTable
+              columns={columns}
+              data={viajes}
+              title="Registro de Viajes"
+              isLoading={loading}
+              onDataFiltered={filterViajes}
+              onDataChanged={fetchViajes}
+              isViewer={userRole === UserRole.VIEWER}
+              filters={{
+                year: true,
+                month: true,
+                searchFields: [
+                  { accessor: 'cliente.razon_social', label: 'Cliente' },
+                  { accessor: 'origen', label: 'Origen' },
+                  { accessor: 'destino', label: 'Destino' },
+                  { accessor: 'conductor.nombres', label: 'Conductor' },
+                  { accessor: 'vehiculo.placa', label: 'Placa' },
+                ],
+                customFilters: [
+                  {
+                    name: 'estado',
+                    label: 'Estado',
+                    options: [
+                      { value: 'Programado', label: 'Programado' },
+                      { value: 'En Ruta', label: 'En Ruta' },
+                      { value: 'Completado', label: 'Completado' },
+                      { value: 'Cancelado', label: 'Cancelado' },
+                    ],
+                  },
+                ],
+              }}
+            />
           </div>
         </div>
       </ViewPermission>

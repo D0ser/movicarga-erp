@@ -32,6 +32,14 @@ export interface Column<T extends DataItem = DataItem> {
   cell?: (value: unknown, row: T) => React.ReactNode;
 }
 
+// Definición más específica para los campos de búsqueda
+export interface SearchField {
+  accessor: string;
+  label: string;
+  inputType?: 'text' | 'date' | 'dateRange';
+  underlyingField?: string; // Nueva propiedad opcional
+}
+
 interface DataTableProps<T extends DataItem = DataItem> {
   columns: Column<T>[];
   data: T[];
@@ -43,15 +51,19 @@ interface DataTableProps<T extends DataItem = DataItem> {
   tableClassName?: string;
   containerClassName?: string;
   rowStyleGetter?: (row: T) => React.CSSProperties; // Nueva propiedad
+  isViewer?: boolean; // Nueva prop para identificar si el usuario es un viewer
+
+  // Nuevas props para controlar filtros de mes y año desde el padre
+  currentFilterYear?: string;
+  onFilterYearChange?: (year: string) => void;
+  currentFilterMonth?: string;
+  onFilterMonthChange?: (month: string) => void;
+
   filters?: {
     year?: boolean;
     month?: boolean;
-    searchField?: string;
-    searchFields?: Array<{
-      accessor: string;
-      label: string;
-      inputType?: 'text' | 'date' | 'dateRange';
-    }>;
+    searchField?: string; // Para un campo de búsqueda simple y global (menos usado ahora)
+    searchFields?: SearchField[]; // Usar la nueva interfaz SearchField
     customFilters?: Array<{
       name: string;
       label: string;
@@ -75,10 +87,27 @@ export default function DataTable<T extends DataItem = DataItem>({
   tableClassName,
   containerClassName,
   rowStyleGetter,
+  isViewer = false, // Valor por defecto es false
+  // Destructurar nuevas props
+  currentFilterYear,
+  onFilterYearChange,
+  currentFilterMonth,
+  onFilterMonthChange,
 }: DataTableProps<T>) {
+  // Usar estados internos para los select, sincronizados con las props
+  const [internalFilterYear, setInternalFilterYear] = useState<string>(currentFilterYear || '');
+  const [internalFilterMonth, setInternalFilterMonth] = useState<string>(currentFilterMonth || '');
+
+  // Sincronizar estados internos si las props cambian desde el padre
+  useEffect(() => {
+    setInternalFilterYear(currentFilterYear || '');
+  }, [currentFilterYear]);
+
+  useEffect(() => {
+    setInternalFilterMonth(currentFilterMonth || '');
+  }, [currentFilterMonth]);
+
   const [sortConfig, setSortConfig] = useState({ key: defaultSort || '', direction: 'asc' });
-  const [filterYear, setFilterYear] = useState<string>('');
-  const [filterMonth, setFilterMonth] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -165,64 +194,72 @@ export default function DataTable<T extends DataItem = DataItem>({
   // Filtrar datos
   const filteredData = useMemo(() => {
     return sortedData.filter((item) => {
-      // Filtro por año
-      if (filterYear && filters?.year) {
+      // Filtro por año (de los selectores dedicados)
+      if (internalFilterYear && filters?.year) {
         const itemDate = item.fecha instanceof Date ? item.fecha : new Date(item.fecha as string);
-        if (isNaN(itemDate.getTime()) || itemDate.getFullYear().toString() !== filterYear)
+        if (isNaN(itemDate.getTime()) || itemDate.getFullYear().toString() !== internalFilterYear)
           return false;
       }
 
-      // Filtro por mes
-      if (filterMonth && filters?.month) {
+      // Filtro por mes (de los selectores dedicados)
+      if (internalFilterMonth && filters?.month) {
         const itemDate = item.fecha instanceof Date ? item.fecha : new Date(item.fecha as string);
-        if (isNaN(itemDate.getTime()) || itemDate.getMonth().toString() !== filterMonth)
+        if (isNaN(itemDate.getTime()) || itemDate.getMonth().toString() !== internalFilterMonth)
           return false;
       }
 
+      // Lógica para el filtro de búsqueda principal (searchFields)
       const currentSearchFieldConfig = filters?.searchFields?.find(
         (sf) => sf.accessor === selectedSearchField
-      );
-      const searchInputType = currentSearchFieldConfig?.inputType || 'text';
+      ) as SearchField | undefined; // Castear a SearchField para acceder a underlyingField
 
-      // Filtro por rango de fechas
-      if (searchInputType === 'dateRange' && currentSearchFieldConfig && (dateFrom || dateTo)) {
-        const itemDateStr = item[currentSearchFieldConfig.accessor]?.toString();
-        if (!itemDateStr) return false;
+      if (currentSearchFieldConfig) {
+        const searchInputType = currentSearchFieldConfig.inputType || 'text';
+        const accessor = currentSearchFieldConfig.accessor;
+        // Usar la nueva propiedad con chequeo opcional, aunque ya la casteamos
+        const underlyingField = currentSearchFieldConfig.underlyingField || accessor;
 
-        try {
-          // Asegurar formato de fecha adecuado para comparación
-          let itemDate: Date;
-
-          // Manejar diferentes formatos de fecha
-          if (itemDateStr.includes('T')) {
-            // Si ya tiene formato ISO con hora
-            itemDate = new Date(itemDateStr);
-          } else {
-            // Si solo tiene la fecha (YYYY-MM-DD)
-            itemDate = new Date(itemDateStr + 'T00:00:00Z');
+        if (searchInputType === 'date') {
+          if (searchTerm) {
+            // searchTerm aquí contendrá la fecha del datepicker
+            const itemDateStr = item[accessor]?.toString();
+            if (!itemDateStr) return false;
+            // Comparar solo la parte de la fecha YYYY-MM-DD
+            const itemDate = new Date(itemDateStr).toISOString().split('T')[0];
+            if (itemDate !== searchTerm) return false;
           }
+        } else if (searchInputType === 'dateRange') {
+          const itemDateStr = item[underlyingField]?.toString(); // Usa underlyingField
+          if (!itemDateStr) return false;
 
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom + 'T00:00:00Z');
-            console.log('Filtrando por fecha desde:', fromDate, 'Item fecha:', itemDate);
-            if (itemDate < fromDate) return false;
+          try {
+            const itemDate = new Date(itemDateStr);
+            itemDate.setHours(0, 0, 0, 0); // Normalizar a medianoche para comparación
+
+            if (dateFrom) {
+              const fromDate = new Date(dateFrom);
+              fromDate.setHours(0, 0, 0, 0);
+              if (itemDate < fromDate) return false;
+            }
+            if (dateTo) {
+              const toDate = new Date(dateTo);
+              toDate.setHours(0, 0, 0, 0);
+              if (itemDate > toDate) return false;
+            }
+          } catch (e) {
+            console.error('Error parsing date for range filter:', itemDateStr, e);
+            return false; // Si hay error en parseo, no incluir el item
           }
-          if (dateTo) {
-            const toDate = new Date(dateTo + 'T00:00:00Z');
-            console.log('Filtrando por fecha hasta:', toDate, 'Item fecha:', itemDate);
-            if (itemDate > toDate) return false;
+        } else {
+          // Búsqueda de texto normal
+          if (searchTerm) {
+            const searchValue = item[accessor]?.toString().toLowerCase() || '';
+            if (!searchValue.includes(searchTerm.toLowerCase())) return false;
           }
-        } catch (e) {
-          console.error('Error parsing item date for range filter:', itemDateStr, e);
-          return false;
         }
-      } else if (searchInputType !== 'dateRange' && searchTerm) {
-        // Filtro por término de búsqueda (texto o fecha exacta)
-        const searchValue = item[selectedSearchField]?.toString().toLowerCase() || '';
-        if (!searchValue.includes(searchTerm.toLowerCase())) return false;
       }
 
-      // Filtros personalizados
+      // Filtros personalizados (como el de estado)
       if (filters?.customFilters) {
         for (const customFilter of filters.customFilters) {
           const filterValue = customFilterValues[customFilter.name];
@@ -236,13 +273,13 @@ export default function DataTable<T extends DataItem = DataItem>({
     });
   }, [
     sortedData,
-    filterYear,
-    filterMonth,
-    searchTerm,
-    dateFrom,
-    dateTo,
-    selectedSearchField,
-    filters,
+    internalFilterYear,
+    internalFilterMonth,
+    searchTerm, // Asegurarse que searchTerm está en las dependencias
+    dateFrom, // Añadir dateFrom
+    dateTo, // Añadir dateTo
+    selectedSearchField, // Añadir selectedSearchField
+    filters, // filters prop si searchFields puede cambiar
     customFilterValues,
   ]);
 
@@ -945,26 +982,28 @@ export default function DataTable<T extends DataItem = DataItem>({
               </svg>
               Exportar
             </button>
-            <button
-              onClick={() => executeBulkAction('delete')}
-              className="bg-red-50 text-red-600 px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 hover:bg-red-600 hover:text-white transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-                className="w-4 h-4"
+            {!isViewer && (
+              <button
+                onClick={() => executeBulkAction('delete')}
+                className="bg-red-50 text-red-600 px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1.5 hover:bg-red-600 hover:text-white transition-colors"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                />
-              </svg>
-              Eliminar
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.5}
+                  stroke="currentColor"
+                  className="w-4 h-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                  />
+                </svg>
+                Eliminar
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1831,8 +1870,14 @@ export default function DataTable<T extends DataItem = DataItem>({
             </label>
             <select
               id="filterYear"
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
+              value={internalFilterYear} // Usar estado interno
+              onChange={(e) => {
+                const newYear = e.target.value;
+                setInternalFilterYear(newYear); // Actualizar estado interno
+                if (onFilterYearChange) {
+                  onFilterYearChange(newYear); // Notificar al padre
+                }
+              }}
               className="h-10 border border-gray-300 rounded-md bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
               aria-label="Filtrar por año"
             >
@@ -1854,8 +1899,14 @@ export default function DataTable<T extends DataItem = DataItem>({
             </label>
             <select
               id="filterMonth"
-              value={filterMonth}
-              onChange={(e) => setFilterMonth(e.target.value)}
+              value={internalFilterMonth} // Usar estado interno
+              onChange={(e) => {
+                const newMonth = e.target.value;
+                setInternalFilterMonth(newMonth); // Actualizar estado interno
+                if (onFilterMonthChange) {
+                  onFilterMonthChange(newMonth); // Notificar al padre
+                }
+              }}
               className="h-10 border border-gray-300 rounded-md bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary/50 shadow-sm"
               aria-label="Filtrar por mes"
             >
@@ -1872,107 +1923,78 @@ export default function DataTable<T extends DataItem = DataItem>({
         {/* Campo de búsqueda */}
         {(filters?.searchField || filters?.searchFields) && (
           <div className="w-full sm:w-auto flex-grow sm:flex-grow-0">
-            {filters?.searchFields && filters.searchFields.length > 1 ? (
-              <div className="flex flex-col w-full space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center">
-                <select
-                  value={selectedSearchField}
-                  onChange={(e) => {
-                    setSelectedSearchField(e.target.value);
-                    setSearchTerm(''); // Resetear término de búsqueda al cambiar de campo
-                    setDateFrom(''); // Resetear fechas
-                    setDateTo('');
-                  }}
-                  className="h-10 w-full rounded-md border-gray-300 py-2 pl-3 pr-7 text-gray-500 focus:border-primary focus:ring-primary sm:text-sm sm:w-auto sm:rounded-l-md sm:rounded-r-none"
-                >
-                  {filters.searchFields.map((field) => (
-                    <option key={field.accessor} value={field.accessor}>
-                      {field.label}
-                    </option>
-                  ))}
-                </select>
-                {(() => {
-                  const foundConfig = filters?.searchFields?.find(
-                    (sf) => sf.accessor === selectedSearchField
-                  );
-                  const currentSearchFieldConfig = foundConfig
-                    ? foundConfig
-                    : filters?.searchField
-                      ? {
-                          accessor: filters.searchField,
-                          label:
-                            filters.searchFields?.find((f) => f.accessor === filters.searchField)
-                              ?.label || 'Término',
-                          inputType: 'text' as const,
-                        }
-                      : undefined;
+            {
+              filters?.searchFields && filters.searchFields.length > 1 ? (
+                <div className="flex flex-col w-full space-y-2 sm:flex-row sm:space-y-0 sm:space-x-2 sm:items-center">
+                  <select
+                    value={selectedSearchField}
+                    onChange={(e) => {
+                      setSelectedSearchField(e.target.value);
+                      setSearchTerm(''); // Resetear término de búsqueda al cambiar de campo
+                      setDateFrom(''); // Resetear fechas
+                      setDateTo('');
+                    }}
+                    className="h-10 w-full rounded-md border-gray-300 py-2 pl-3 pr-7 text-gray-500 focus:border-primary focus:ring-primary sm:text-sm sm:w-auto sm:rounded-l-md sm:rounded-r-none"
+                  >
+                    {filters.searchFields.map((field) => (
+                      <option key={field.accessor} value={field.accessor}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </select>
+                  {(() => {
+                    const foundConfig = filters?.searchFields?.find(
+                      (sf) => sf.accessor === selectedSearchField
+                    ) as SearchField | undefined; // Castear a SearchField
 
-                  const searchInputType = currentSearchFieldConfig?.inputType || 'text';
-                  let placeholderText = `Buscar ${currentSearchFieldConfig?.label?.toLowerCase() || 'término'}...`;
-                  // isMultiField y baseInputClasses se usan desde el ámbito de renderFilters()
+                    const currentSearchFieldConfig = foundConfig
+                      ? foundConfig
+                      : filters?.searchField
+                        ? {
+                            accessor: filters.searchField,
+                            label:
+                              filters.searchFields?.find((f) => f.accessor === filters.searchField)
+                                ?.label || 'Término',
+                            inputType: 'text' as const,
+                          }
+                        : undefined;
 
-                  if (searchInputType === 'date') {
-                    placeholderText = '';
-                  }
+                    const searchInputType = currentSearchFieldConfig?.inputType || 'text';
+                    let placeholderText = `Buscar ${currentSearchFieldConfig?.label?.toLowerCase() || 'término'}...`;
+                    // isMultiField y baseInputClasses se usan desde el ámbito de renderFilters()
 
-                  if (searchInputType === 'dateRange') {
-                    return <DateRangeFilter />;
-                  } else {
-                    return (
-                      <input
-                        type={searchInputType === 'date' ? 'date' : 'text'}
-                        id="search-term"
-                        placeholder={placeholderText}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                      />
-                    );
-                  }
-                })()}
-              </div>
-            ) : (
-              /* Reemplazar renderSearchInput(selectedSearchField) con la lógica inline para el caso de un solo campo */
-              (() => {
-                const foundConfig = filters?.searchFields?.find(
-                  (sf) => sf.accessor === selectedSearchField
-                );
-                const currentSearchFieldConfig = foundConfig
-                  ? foundConfig
-                  : filters?.searchField
-                    ? {
-                        accessor: filters.searchField,
-                        label:
-                          filters.searchFields?.find((f) => f.accessor === filters.searchField)
-                            ?.label || 'Término',
-                        inputType: 'text' as const,
-                      }
-                    : undefined;
+                    if (searchInputType === 'date') {
+                      placeholderText = '';
+                    }
 
-                const searchInputType = currentSearchFieldConfig?.inputType || 'text';
-                let placeholderText = `Buscar ${currentSearchFieldConfig?.label?.toLowerCase() || 'término'}...`;
-                // isMultiField y baseInputClasses se usan desde el ámbito de renderFilters()
-                // En este contexto, isMultiField (del ámbito de renderFilters) será false.
-
-                if (searchInputType === 'date') {
-                  placeholderText = '';
-                }
-
-                if (searchInputType === 'dateRange') {
-                  return <DateRangeFilter />;
-                } else {
-                  return (
-                    <input
-                      type={searchInputType === 'date' ? 'date' : 'text'}
-                      id="search-term"
-                      placeholder={placeholderText}
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
-                    />
-                  );
-                }
-              })()
-            )}
+                    if (searchInputType === 'dateRange') {
+                      return <DateRangeFilter />;
+                    } else {
+                      return (
+                        <input
+                          type={searchInputType === 'date' ? 'date' : 'text'}
+                          id="search-term"
+                          placeholder={placeholderText}
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                        />
+                      );
+                    }
+                  })()}
+                </div>
+              ) : // Fallback si no se usa searchFields, sino el searchField simple (string)
+              filters?.searchField ? (
+                <input
+                  type="text"
+                  id="search-term-text-single-fallback"
+                  placeholder={`Buscar ${filters.searchField}...`}
+                  value={searchTerm} // searchTerm global se usaría aquí
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="h-10 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                />
+              ) : null // No renderizar nada si no hay searchFields ni searchField simple
+            }
           </div>
         )}
 

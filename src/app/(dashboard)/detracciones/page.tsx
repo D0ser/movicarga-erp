@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { UserRole } from '@/types/users';
 
 // Definición de la estructura de datos de Detracciones actualizada
 interface Detraccion extends DataItem {
@@ -156,7 +157,7 @@ export default function DetraccionesPage() {
   });
 
   // Usar permisos
-  const { hasPermission } = usePermissions();
+  const { hasPermission, userRole } = usePermissions();
 
   // Cargar datos de detracciones desde Supabase
   const fetchData = useCallback(async () => {
@@ -237,6 +238,12 @@ export default function DetraccionesPage() {
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage);
+  };
+
+  // Maneja los datos filtrados de la tabla
+  const handleDataFiltered = (filteredData: Detraccion[]) => {
+    // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
+    console.log('Datos filtrados:', filteredData.length);
   };
 
   const totalPages = Math.ceil(totalDetracciones / itemsPerPage);
@@ -1071,7 +1078,14 @@ export default function DetraccionesPage() {
         <div className="text-center text-gray-500 py-4">No hay detracciones registradas.</div>
       ) : (
         <>
-          <DataTable columns={columns} data={detracciones} title="Registro de Detracciones" />
+          <DataTable
+            columns={columns}
+            data={detracciones}
+            title="Registro de Detracciones"
+            isLoading={loading}
+            onDataFiltered={handleDataFiltered}
+            isViewer={userRole === UserRole.VIEWER}
+          />
           {/* Sección de Paginación */}
           {totalPages > 1 && (
             <div className="mt-6 flex flex-col sm:flex-row justify-between items-center">
