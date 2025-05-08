@@ -234,6 +234,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     sessionStorage.removeItem('isRedirecting');
     sessionStorage.removeItem('redirectingToLogin');
 
+    // Eliminar la cookie de autenticación
+    document.cookie = 'authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+
     // Establece que no estamos autenticados antes de redirigir
     setIsAuthenticated(false);
     setUserRole('');

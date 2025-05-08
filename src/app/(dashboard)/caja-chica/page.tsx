@@ -42,6 +42,11 @@ export default function CajaChicaPage() {
   const [saldoDebe, setSaldoDebe] = useState(0);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Estados para los filtros de fecha
+  const [currentFilterYear, setCurrentFilterYear] = useState<string>('');
+  const [currentFilterMonth, setCurrentFilterMonth] = useState<string>('');
+  const [currentDateFrom, setCurrentDateFrom] = useState<string>('');
+  const [currentDateTo, setCurrentDateTo] = useState<string>('');
   const [formData, setFormData] = useState<Partial<CajaChica>>({
     fecha: format(new Date(), 'yyyy-MM-dd'),
     tipo: 'ingreso',
@@ -114,6 +119,24 @@ export default function CajaChicaPage() {
   const handleDataFiltered = (filteredData: CajaChica[]) => {
     // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
     console.log('Datos filtrados:', filteredData.length);
+  };
+
+  // Funciones para gestionar los filtros de fechas
+  const handleFilterYearChange = (year: string) => {
+    setCurrentFilterYear(year);
+  };
+
+  const handleFilterMonthChange = (month: string) => {
+    setCurrentFilterMonth(month);
+  };
+
+  // Funciones para el rango de fechas
+  const handleDateFromChange = (dateFrom: string) => {
+    setCurrentDateFrom(dateFrom);
+  };
+
+  const handleDateToChange = (dateTo: string) => {
+    setCurrentDateTo(dateTo);
   };
 
   const handleInputChange = (
@@ -519,12 +542,22 @@ export default function CajaChicaPage() {
               isLoading={loading}
               onDataFiltered={handleDataFiltered}
               isViewer={userRole === UserRole.VIEWER}
+              // Propiedades para controlar filtros desde el componente padre
+              currentFilterYear={currentFilterYear}
+              onFilterYearChange={handleFilterYearChange}
+              currentFilterMonth={currentFilterMonth}
+              onFilterMonthChange={handleFilterMonthChange}
               filters={{
                 searchFields: [
                   { accessor: 'concepto', label: 'Concepto' },
                   { accessor: 'observaciones', label: 'Observaciones' },
                   { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
-                  { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+                  {
+                    accessor: 'dateRange',
+                    label: 'Fecha (Rango)',
+                    inputType: 'dateRange',
+                    underlyingField: 'fecha',
+                  },
                 ],
                 year: true,
                 month: true,

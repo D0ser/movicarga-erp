@@ -244,6 +244,9 @@ export default function Login() {
       // Guardar token en localStorage
       localStorage.setItem('authToken', token);
 
+      // También guardar el token como cookie para que el middleware pueda acceder a él
+      document.cookie = `authToken=${token}; path=/; max-age=86400; SameSite=Lax`;
+
       // Guardar información del usuario en localStorage
       localStorage.setItem(
         'user',

@@ -85,6 +85,11 @@ export default function EgresosPage() {
     confirmText: 'Eliminar',
   });
 
+  const [currentFilterYear, setCurrentFilterYear] = useState<string>('');
+  const [currentFilterMonth, setCurrentFilterMonth] = useState<string>('');
+  const [currentDateFrom, setCurrentDateFrom] = useState<string>('');
+  const [currentDateTo, setCurrentDateTo] = useState<string>('');
+
   // Función para cargar egresos
   const cargarEgresos = async () => {
     try {
@@ -785,6 +790,24 @@ export default function EgresosPage() {
     console.log('Datos filtrados:', filteredData.length);
   };
 
+  // Funciones para gestionar los filtros de fechas
+  const handleFilterYearChange = (year: string) => {
+    setCurrentFilterYear(year);
+  };
+
+  const handleFilterMonthChange = (month: string) => {
+    setCurrentFilterMonth(month);
+  };
+
+  // Funciones para el rango de fechas
+  const handleDateFromChange = (dateFrom: string) => {
+    setCurrentDateFrom(dateFrom);
+  };
+
+  const handleDateToChange = (dateTo: string) => {
+    setCurrentDateTo(dateTo);
+  };
+
   // Maneja cambios en los datos (después de eliminaciones, etc.)
   const handleDataChange = () => {
     // Recargar los datos cuando hay cambios
@@ -1034,6 +1057,10 @@ export default function EgresosPage() {
           onDataFiltered={handleDataFiltered}
           onDataChanged={handleDataChange}
           isViewer={userRole === UserRole.VIEWER}
+          currentFilterYear={currentFilterYear}
+          onFilterYearChange={handleFilterYearChange}
+          currentFilterMonth={currentFilterMonth}
+          onFilterMonthChange={handleFilterMonthChange}
           filters={{
             year: true,
             month: true,
@@ -1042,8 +1069,17 @@ export default function EgresosPage() {
               { accessor: 'factura', label: 'Factura' },
               { accessor: 'tipoEgreso', label: 'Tipo Egreso' },
               { accessor: 'observacion', label: 'Observación' },
-              { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
-              { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
+              {
+                accessor: 'fecha',
+                label: 'Fecha (Exacta)',
+                inputType: 'date',
+              },
+              {
+                accessor: 'dateRange',
+                label: 'Fecha (Rango)',
+                inputType: 'dateRange',
+                underlyingField: 'fecha',
+              },
             ],
           }}
           tableClassName="whitespace-nowrap"

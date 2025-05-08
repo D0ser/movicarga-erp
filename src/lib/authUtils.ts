@@ -7,13 +7,24 @@ import QRCode from 'qrcode';
 // Comprobación inicial a nivel de módulo.
 // Si JWT_SECRET no está definido, se mostrará un error al cargar este módulo.
 // En producción, esto debería detener el inicio de la aplicación.
-const MODULE_JWT_SECRET = process.env.JWT_SECRET;
+const MODULE_JWT_SECRET =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'development'
+    ? 'dev_insecure_jwt_secret_only_for_development_never_use_in_production'
+    : undefined);
+
 if (!MODULE_JWT_SECRET) {
   console.error(
     'Error Crítico de Configuración: JWT_SECRET no está definido en las variables de entorno. La aplicación no puede operar de forma segura con JWTs.'
   );
   // Descomentar la siguiente línea para forzar el fallo de la aplicación en producción si el secreto no está configurado.
   // throw new Error('Configuración crítica faltante: JWT_SECRET no está definido.');
+} else if (
+  MODULE_JWT_SECRET === 'dev_insecure_jwt_secret_only_for_development_never_use_in_production'
+) {
+  console.warn(
+    'ADVERTENCIA: Usando clave JWT insegura predeterminada para desarrollo. NO USAR EN PRODUCCIÓN.'
+  );
 }
 const JWT_EXPIRES_IN = '24h';
 
@@ -72,7 +83,11 @@ export function validatePasswordComplexity(password: string): {
 export function generateJwtToken(payload: any): string {
   // Se revalida JWT_SECRET aquí para asegurar que TypeScript lo trate como string
   // y para manejar el caso (improbable en producción si la app arranca) de que sea undefined.
-  const currentJwtSecret = process.env.JWT_SECRET;
+  const currentJwtSecret =
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV === 'development'
+      ? 'dev_insecure_jwt_secret_only_for_development_never_use_in_production'
+      : undefined);
 
   if (!currentJwtSecret) {
     console.error(
@@ -167,7 +182,12 @@ export function verifyJwtToken(token: string): any {
 
     // Token JWT normal
     // Similar a generateJwtToken, asegurar que el secreto esté disponible.
-    const currentJwtSecret = process.env.JWT_SECRET;
+    const currentJwtSecret =
+      process.env.JWT_SECRET ||
+      (process.env.NODE_ENV === 'development'
+        ? 'dev_insecure_jwt_secret_only_for_development_never_use_in_production'
+        : undefined);
+
     if (!currentJwtSecret) {
       console.error(
         'Error Crítico en verifyJwtToken: JWT_SECRET no está disponible para verificar el token.'

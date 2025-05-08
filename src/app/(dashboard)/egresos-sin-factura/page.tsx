@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import DataTable, { DataItem, Column } from '@/components/DataTable';
 import { format } from 'date-fns';
 import { egresoSinFacturaService, EgresoSinFactura } from '@/lib/supabaseServices';
@@ -13,6 +13,25 @@ import { Loading } from '@/components/ui/loading';
 import supabase from '@/lib/supabase';
 import { EditPermission, DeletePermission, CreatePermission } from '@/components/permission-guard';
 import { UserRole } from '@/types/users';
+
+// Definir la configuración de filtros fuera del componente para que sea estable
+const dataTableFilters = {
+  year: true,
+  month: true,
+  searchFields: [
+    { accessor: 'concepto', label: 'Concepto' },
+    { accessor: 'numero_cheque', label: 'N° Cheque' },
+    { accessor: 'numero_liquidacion', label: 'N° Liquidación' },
+    { accessor: 'tipo_egreso', label: 'Tipo Egreso' },
+    { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' as const }, // Asegurar el tipo literal
+    {
+      accessor: 'dateRange',
+      label: 'Fecha (Rango)',
+      inputType: 'dateRange' as const, // Asegurar el tipo literal
+      underlyingField: 'fecha',
+    },
+  ],
+};
 
 export default function EgresosSinFacturaPage() {
   // Cargar datos de Supabase
@@ -28,6 +47,12 @@ export default function EgresosSinFacturaPage() {
   // Estado para autenticación
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authDebugInfo, setAuthDebugInfo] = useState<any>(null);
+
+  // Estados para los filtros de fecha
+  const [currentFilterYear, setCurrentFilterYear] = useState<string>('');
+  const [currentFilterMonth, setCurrentFilterMonth] = useState<string>('');
+  const [currentDateFrom, setCurrentDateFrom] = useState<string>('');
+  const [currentDateTo, setCurrentDateTo] = useState<string>('');
 
   // Verificar autenticación al cargar el componente
   useEffect(() => {
@@ -79,13 +104,13 @@ export default function EgresosSinFacturaPage() {
   }, [hasPermission, userRole]);
 
   // Maneja los datos filtrados de la tabla
-  const handleDataFiltered = (filteredData: EgresoSinFactura[]) => {
+  const handleDataFiltered = useCallback((filteredData: EgresoSinFactura[]) => {
     // Aquí puedes implementar la lógica para manejar los datos filtrados si es necesario
     console.log('Datos filtrados:', filteredData.length);
-  };
+  }, []);
 
   // Extraída del useEffect para poder usarla en otros lugares
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     try {
       setLoading(true);
       const [egresosData, tiposData] = await Promise.all([
@@ -100,11 +125,11 @@ export default function EgresosSinFacturaPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [cargarDatos]);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<Partial<EgresoSinFactura>>({
@@ -113,10 +138,26 @@ export default function EgresosSinFacturaPage() {
     numero_cheque: '',
     numero_liquidacion: '',
     tipo_egreso: '',
+    fecha: new Date().toISOString().split('T')[0],
   });
 
   // Columnas para la tabla de egresos sin factura
   const columns: Column<EgresoSinFactura>[] = [
+    {
+      header: 'Fecha',
+      accessor: 'fecha',
+      cell: (value) => (
+        <div className="flex justify-center">
+          {value ? (
+            <span className="font-mono bg-gray-50 px-2 py-1 rounded text-gray-700 text-sm">
+              {new Date(value as string).toLocaleDateString('es-ES')}
+            </span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      ),
+    },
     {
       header: 'N° Cheque',
       accessor: 'numero_cheque',
@@ -345,6 +386,7 @@ export default function EgresosSinFacturaPage() {
             numero_cheque: formData.numero_cheque || '',
             numero_liquidacion: formData.numero_liquidacion || '',
             tipo_egreso: formData.tipo_egreso || '',
+            fecha: formData.fecha || new Date().toISOString().split('T')[0],
           }
         );
 
@@ -361,6 +403,7 @@ export default function EgresosSinFacturaPage() {
           numero_cheque: formData.numero_cheque || '',
           numero_liquidacion: formData.numero_liquidacion || '',
           tipo_egreso: formData.tipo_egreso || '',
+          fecha: formData.fecha || new Date().toISOString().split('T')[0],
         });
 
         setEgresosSinFactura([...egresosSinFactura, nuevoEgreso]);
@@ -373,6 +416,7 @@ export default function EgresosSinFacturaPage() {
         numero_cheque: '',
         numero_liquidacion: '',
         tipo_egreso: '',
+        fecha: new Date().toISOString().split('T')[0],
       });
 
       setShowForm(false);
@@ -460,6 +504,24 @@ export default function EgresosSinFacturaPage() {
     'Otros',
   ];
 
+  // Funciones para gestionar los filtros de fechas
+  const handleFilterYearChange = (year: string) => {
+    setCurrentFilterYear(year);
+  };
+
+  const handleFilterMonthChange = (month: string) => {
+    setCurrentFilterMonth(month);
+  };
+
+  // Funciones para el rango de fechas
+  const handleDateFromChange = (dateFrom: string) => {
+    setCurrentDateFrom(dateFrom);
+  };
+
+  const handleDateToChange = (dateTo: string) => {
+    setCurrentDateTo(dateTo);
+  };
+
   return (
     <div className="space-y-6">
       {!isAuthenticated ? (
@@ -494,6 +556,7 @@ export default function EgresosSinFacturaPage() {
                     numero_cheque: '',
                     numero_liquidacion: '',
                     tipo_egreso: '',
+                    fecha: new Date().toISOString().split('T')[0],
                   });
                   setShowForm(true);
                 }}
@@ -513,6 +576,17 @@ export default function EgresosSinFacturaPage() {
           >
             <Loading isLoading={formLoading} overlay>
               <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Fecha</label>
+                  <input
+                    type="date"
+                    name="fecha"
+                    value={typeof formData.fecha === 'string' ? formData.fecha : ''}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Moneda</label>
                   <select
@@ -699,18 +773,12 @@ export default function EgresosSinFacturaPage() {
               onDataFiltered={handleDataFiltered}
               onDataChanged={cargarDatos}
               isViewer={userRole === UserRole.VIEWER}
-              filters={{
-                year: true,
-                month: true,
-                searchFields: [
-                  { accessor: 'concepto', label: 'Concepto' },
-                  { accessor: 'numero_cheque', label: 'N° Cheque' },
-                  { accessor: 'numero_liquidacion', label: 'N° Liquidación' },
-                  { accessor: 'tipo_egreso', label: 'Tipo Egreso' },
-                  { accessor: 'fecha', label: 'Fecha (Exacta)', inputType: 'date' },
-                  { accessor: 'fecha', label: 'Fecha (Rango)', inputType: 'dateRange' },
-                ],
-              }}
+              // Propiedades para controlar filtros desde el componente padre
+              currentFilterYear={currentFilterYear}
+              onFilterYearChange={handleFilterYearChange}
+              currentFilterMonth={currentFilterMonth}
+              onFilterMonthChange={handleFilterMonthChange}
+              filters={dataTableFilters}
             />
           </Loading>
         </>

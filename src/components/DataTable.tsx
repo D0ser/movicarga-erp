@@ -221,29 +221,45 @@ export default function DataTable<T extends DataItem = DataItem>({
 
         if (searchInputType === 'date') {
           if (searchTerm) {
-            // searchTerm aquí contendrá la fecha del datepicker
+            // searchTerm es YYYY-MM-DD
             const itemDateStr = item[accessor]?.toString();
             if (!itemDateStr) return false;
-            // Comparar solo la parte de la fecha YYYY-MM-DD
-            const itemDate = new Date(itemDateStr).toISOString().split('T')[0];
-            if (itemDate !== searchTerm) return false;
+
+            try {
+              // Crear objetos Date interpretando ambas fechas como UTC medianoche
+              const itemDateObj = new Date(itemDateStr.split('T')[0] + 'T00:00:00Z');
+              const searchTermDateObj = new Date(searchTerm + 'T00:00:00Z');
+
+              if (itemDateObj.getTime() !== searchTermDateObj.getTime()) {
+                return false;
+              }
+            } catch (e) {
+              console.error(
+                'Error parsing date for exact date filter:',
+                itemDateStr,
+                searchTerm,
+                e
+              );
+              return false; // Si hay error, no incluir
+            }
           }
         } else if (searchInputType === 'dateRange') {
-          const itemDateStr = item[underlyingField]?.toString(); // Usa underlyingField
+          const itemDateStr = item[underlyingField]?.toString();
           if (!itemDateStr) return false;
 
           try {
-            const itemDate = new Date(itemDateStr);
-            itemDate.setHours(0, 0, 0, 0); // Normalizar a medianoche para comparación
+            // Interpretar las fechas como UTC para evitar problemas de zona horaria.
+            // Asumimos que itemDateStr y dateFrom/dateTo son YYYY-MM-DD.
+            const itemDate = new Date(itemDateStr.split('T')[0] + 'T00:00:00Z');
 
             if (dateFrom) {
-              const fromDate = new Date(dateFrom);
-              fromDate.setHours(0, 0, 0, 0);
+              const fromDate = new Date(dateFrom + 'T00:00:00Z');
               if (itemDate < fromDate) return false;
             }
             if (dateTo) {
-              const toDate = new Date(dateTo);
-              toDate.setHours(0, 0, 0, 0);
+              const toDate = new Date(dateTo + 'T00:00:00Z');
+              // Para el rango "hasta", queremos incluir el día completo de toDate.
+              // Si itemDate es igual a toDate (ambos medianoche UTC), debe incluirse.
               if (itemDate > toDate) return false;
             }
           } catch (e) {

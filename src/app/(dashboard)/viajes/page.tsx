@@ -44,6 +44,11 @@ export default function ViajesPage() {
   const [showForm, setShowForm] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  // Estados para los filtros de fecha
+  const [currentFilterYear, setCurrentFilterYear] = useState<string>('');
+  const [currentFilterMonth, setCurrentFilterMonth] = useState<string>('');
+  const [currentDateFrom, setCurrentDateFrom] = useState<string>('');
+  const [currentDateTo, setCurrentDateTo] = useState<string>('');
   const [filters, setFilters] = useState({
     cliente_id: '',
     conductor_id: '',
@@ -219,6 +224,24 @@ export default function ViajesPage() {
     });
     setSearchTerm('');
     setShowFilters(false);
+  };
+
+  // Funciones para gestionar los filtros de fechas
+  const handleFilterYearChange = (year: string) => {
+    setCurrentFilterYear(year);
+  };
+
+  const handleFilterMonthChange = (month: string) => {
+    setCurrentFilterMonth(month);
+  };
+
+  // Funciones para el rango de fechas
+  const handleDateFromChange = (dateFrom: string) => {
+    setCurrentDateFrom(dateFrom);
+  };
+
+  const handleDateToChange = (dateTo: string) => {
+    setCurrentDateTo(dateTo);
   };
 
   // Columnas para la tabla de viajes
@@ -1038,6 +1061,11 @@ export default function ViajesPage() {
               onDataFiltered={filterViajes}
               onDataChanged={fetchViajes}
               isViewer={userRole === UserRole.VIEWER}
+              // Propiedades para controlar filtros desde el componente padre
+              currentFilterYear={currentFilterYear}
+              onFilterYearChange={handleFilterYearChange}
+              currentFilterMonth={currentFilterMonth}
+              onFilterMonthChange={handleFilterMonthChange}
               filters={{
                 year: true,
                 month: true,
@@ -1047,6 +1075,13 @@ export default function ViajesPage() {
                   { accessor: 'destino', label: 'Destino' },
                   { accessor: 'conductor.nombres', label: 'Conductor' },
                   { accessor: 'vehiculo.placa', label: 'Placa' },
+                  { accessor: 'fecha_salida', label: 'Fecha Salida (Exacta)', inputType: 'date' },
+                  {
+                    accessor: 'dateRange',
+                    label: 'Fecha Salida (Rango)',
+                    inputType: 'dateRange',
+                    underlyingField: 'fecha_salida',
+                  },
                 ],
                 customFilters: [
                   {
